@@ -8,14 +8,15 @@ import {
   LogOut, 
   TrendingUp, 
   ShieldCheck, 
-  CloudLightning,
-  ChevronRight,
-  Calculator
+  Calculator,
+  Mail,
+  Archive,
+  ChevronRight
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { crmApi } from '../services/api';
 
-export default function Sidebar({ currentPage, onNavigate }) {
+export default function Sidebar({ currentPage, onNavigate, onOpenBackup }) {
   const { user, logout, hasPermission } = useAuth();
   const isDemo = crmApi.isDemoMode();
 
@@ -23,6 +24,7 @@ export default function Sidebar({ currentPage, onNavigate }) {
     { id: 'home', label: 'Home (Dashboard)', icon: LayoutDashboard, module: 'Dashboard' },
     { id: 'customers', label: 'Customers', icon: Users, module: 'Customers' },
     { id: 'staff', label: 'Staff (Employees)', icon: UserCheck, module: 'Staff' },
+    { id: 'bulkmail', label: 'Bulk Mailing (SES)', icon: Mail, module: 'BulkMail' },
     { id: 'sip', label: 'SIP Calculator', icon: Calculator, module: null },
     { id: 'settings', label: 'Settings', icon: Settings, module: 'Settings' },
     { id: 'profile', label: 'User Profile', icon: User, module: null }
@@ -38,7 +40,7 @@ export default function Sidebar({ currentPage, onNavigate }) {
       flexShrink: 0,
       borderRight: '1px solid #1e293b'
     }}>
-      {/* Brand Header */}
+      {/* Brand Header - Royal Blue Family */}
       <div style={{
         padding: '1.5rem 1.25rem',
         borderBottom: '1px solid #1e293b',
@@ -50,14 +52,14 @@ export default function Sidebar({ currentPage, onNavigate }) {
           width: '42px',
           height: '42px',
           borderRadius: '10px',
-          background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+          background: 'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           color: '#ffffff',
           fontWeight: '800',
           fontSize: '1.15rem',
-          boxShadow: '0 4px 10px rgba(5, 150, 105, 0.3)'
+          boxShadow: '0 4px 12px rgba(37, 99, 235, 0.4)'
         }}>
           SR
         </div>
@@ -65,8 +67,8 @@ export default function Sidebar({ currentPage, onNavigate }) {
           <div style={{ fontWeight: '700', fontSize: '0.95rem', letterSpacing: '0.02em', color: '#ffffff' }}>
             SR INVESTMENTS
           </div>
-          <div style={{ fontSize: '0.725rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <TrendingUp size={12} color="#10b981" /> Mutual Fund CRM
+          <div style={{ fontSize: '0.725rem', color: '#93c5fd', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <TrendingUp size={12} color="#60a5fa" /> Mutual Fund CRM
           </div>
         </div>
       </div>
@@ -80,15 +82,15 @@ export default function Sidebar({ currentPage, onNavigate }) {
           fontSize: '0.725rem',
           padding: '0.4rem 0.65rem',
           borderRadius: '6px',
-          backgroundColor: isDemo ? '#1e293b' : '#064e3b',
-          color: isDemo ? '#cbd5e1' : '#a7f3d0'
+          backgroundColor: isDemo ? '#1e293b' : '#1e3a8a',
+          color: isDemo ? '#cbd5e1' : '#bfdbfe'
         }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <span style={{
               width: '8px',
               height: '8px',
               borderRadius: '50%',
-              backgroundColor: isDemo ? '#38bdf8' : '#10b981'
+              backgroundColor: isDemo ? '#38bdf8' : '#60a5fa'
             }}></span>
             {isDemo ? 'Local Storage Mode' : 'GAS Live Backend'}
           </span>
@@ -129,7 +131,7 @@ export default function Sidebar({ currentPage, onNavigate }) {
                 padding: '0.65rem 0.85rem',
                 borderRadius: '8px',
                 border: 'none',
-                backgroundColor: isActive ? '#059669' : 'transparent',
+                backgroundColor: isActive ? '#2563eb' : 'transparent',
                 color: isActive ? '#ffffff' : '#94a3b8',
                 fontWeight: isActive ? '600' : '500',
                 fontSize: '0.85rem',
@@ -154,6 +156,34 @@ export default function Sidebar({ currentPage, onNavigate }) {
             </button>
           );
         })}
+
+        {/* Quick Backup Action in Sidebar */}
+        {(user?.role === 'Admin' || hasPermission('DriveBackup', 'CanView')) && onOpenBackup && (
+          <button
+            onClick={onOpenBackup}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              width: '100%',
+              padding: '0.65rem 0.85rem',
+              marginTop: '0.5rem',
+              borderRadius: '8px',
+              border: '1px dashed #334155',
+              backgroundColor: 'transparent',
+              color: '#93c5fd',
+              fontSize: '0.825rem',
+              fontWeight: '500',
+              cursor: 'pointer',
+              textAlign: 'left'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1e293b'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            <Archive size={16} color="#60a5fa" />
+            <span>Drive Backup (.ZIP)</span>
+          </button>
+        )}
       </nav>
 
       {/* User Card & Logout */}
@@ -167,7 +197,7 @@ export default function Sidebar({ currentPage, onNavigate }) {
             width: '36px',
             height: '36px',
             borderRadius: '50%',
-            backgroundColor: '#059669',
+            backgroundColor: '#2563eb',
             color: '#ffffff',
             display: 'flex',
             alignItems: 'center',
@@ -181,8 +211,8 @@ export default function Sidebar({ currentPage, onNavigate }) {
             <div style={{ fontSize: '0.825rem', fontWeight: '600', color: '#ffffff', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
               {user?.name || 'Administrator'}
             </div>
-            <div style={{ fontSize: '0.7rem', color: '#94a3b8', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-              {user?.role || 'Admin'}
+            <div style={{ fontSize: '0.7rem', color: '#93c5fd', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+              {user?.employeeCode || user?.role || 'Staff'}
             </div>
           </div>
         </div>
@@ -215,4 +245,3 @@ export default function Sidebar({ currentPage, onNavigate }) {
     </aside>
   );
 }
-

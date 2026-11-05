@@ -1,10 +1,13 @@
 /**
- * SR INVESTMENTS CRM - Unified API Client
+ * SR INVESTMENTS CRM - Unified API Client (Blue Family Edition)
  * 
  * Features:
- * 1. Live Google Apps Script (doPost JSON / text-plain fetch with 302 follow)
- * 2. Bridge.html iframe postMessage fallback (100% reliable)
- * 3. Rich Mock / LocalStorage Demo Data mode (so CRM works out-of-the-box before GAS deployment)
+ * 1. Multi-credential login: staffId / emailId / mobileNo + password
+ * 2. Login with Google (matches primary or any registered Google email)
+ * 3. Auto-increment Employee Code (SR-EMP01, SR-EMP02, etc.)
+ * 4. Multi-email support for staff (multiple Google IDs)
+ * 5. Bulk Mailing with Amazon SES integration & billing estimates
+ * 6. Google Drive complete ZIP backup
  */
 
 const STORAGE_KEYS = {
@@ -13,10 +16,10 @@ const STORAGE_KEYS = {
   CUSTOMERS: 'sr_crm_demo_customers',
   EMPLOYEES: 'sr_crm_demo_employees',
   SETTINGS: 'sr_crm_demo_settings',
-  RIGHTS: 'sr_crm_demo_rights'
+  RIGHTS: 'sr_crm_demo_rights',
+  CAMPAIGNS: 'sr_crm_demo_campaigns'
 };
 
-// Seed sample Mutual Fund CRM data
 const SEED_DATA = {
   settings: {
     COMPANY_NAME: 'SR INVESTMENTS',
@@ -25,7 +28,12 @@ const SEED_DATA = {
     GSTIN: '27AAACR1234F1Z5',
     SUPPORT_EMAIL: 'support@srinvestments.com',
     CONTACT_PHONE: '+91 98765 43210',
-    OFFICE_ADDRESS: '101, Fortune Hub, Financial District, Bandra-Kurla Complex, Mumbai 400051'
+    OFFICE_ADDRESS: '101, Fortune Hub, Financial District, Bandra-Kurla Complex, Mumbai 400051',
+    // Amazon SES configuration
+    SES_REGION: 'ap-south-1',
+    SES_SENDER_EMAIL: 'notifications@srinvestments.com',
+    SES_ACCESS_KEY: 'AKIA_DEMO_SR_INVESTMENTS',
+    SES_SECRET_KEY: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
   },
   employees: [
     {
@@ -33,10 +41,12 @@ const SEED_DATA = {
       EmployeeCode: 'SR-EMP01',
       FullName: 'Rajesh Sharma',
       Email: 'rajesh@srinvestments.com',
+      GoogleEmails: 'rajesh.sharma.mf@gmail.com, rajesh.sr@gmail.com',
       Mobile: '+91 98201 11223',
       Department: 'Wealth Management',
       Designation: 'Senior Investment Advisor',
-      Role: 'Relationship Manager',
+      Role: 'Admin',
+      Password: 'password123',
       JoiningDate: '2022-04-15',
       Status: 'Active',
       Address: '402, Sea Crest Towers',
@@ -52,10 +62,12 @@ const SEED_DATA = {
       EmployeeCode: 'SR-EMP02',
       FullName: 'Pooja Mehta',
       Email: 'pooja.m@srinvestments.com',
+      GoogleEmails: 'pooja.mehta.crm@gmail.com',
       Mobile: '+91 98199 44556',
       Department: 'Operations & KYC',
       Designation: 'Operations Executive',
       Role: 'Backoffice Staff',
+      Password: 'password123',
       JoiningDate: '2023-01-10',
       Status: 'Active',
       Address: 'B-12, Green Park',
@@ -71,10 +83,12 @@ const SEED_DATA = {
       EmployeeCode: 'SR-EMP03',
       FullName: 'Amit Verma',
       Email: 'amit.v@srinvestments.com',
+      GoogleEmails: 'amit.invest@gmail.com',
       Mobile: '+91 98330 99887',
       Department: 'Mutual Funds',
       Designation: 'Mutual Fund Analyst',
       Role: 'Staff',
+      Password: 'password123',
       JoiningDate: '2023-09-01',
       Status: 'Active',
       Address: '701, Sun City',
@@ -106,7 +120,7 @@ const SEED_DATA = {
       City: 'Mumbai',
       State: 'Maharashtra',
       RiskProfile: 'Aggressive',
-      Notes: 'Prefers equity diversified & large & mid-cap SIPs. Portfolio size: ₹45 Lakhs',
+      Notes: 'Prefers equity diversified SIPs. Portfolio: ₹45 Lakhs',
       CreatedAt: '2024-02-10T11:20:00Z',
       UpdatedAt: '2026-08-14T16:00:00Z'
     },
@@ -155,48 +169,30 @@ const SEED_DATA = {
       Notes: 'Karta KYC documents pending address verification.',
       CreatedAt: '2026-01-12T09:45:00Z',
       UpdatedAt: '2026-08-20T17:15:00Z'
-    },
-    {
-      CustomerId: 'CUST_104',
-      CustomerCode: 'SR65203',
-      FullName: 'Sunil Nair',
-      Email: 'sunil.nair@example.com',
-      Mobile: '+91 98950 12345',
-      PanNumber: 'CKSPN4321A',
-      AadhaarLast4: '9012',
-      KycStatus: 'Compliant',
-      InvestorCategory: 'NRI',
-      DateOfBirth: '1985-08-19',
-      NomineeName: 'Deepa Nair',
-      NomineeRelation: 'Spouse',
-      BankName: 'Axis Bank',
-      AccountNumber: '915010045678901',
-      IfscCode: 'UTIB0000010',
-      City: 'Kochi',
-      State: 'Kerala',
-      RiskProfile: 'Moderate',
-      Notes: 'NRE Account linked. Regular monthly SIP in index funds.',
-      CreatedAt: '2026-03-05T15:00:00Z',
-      UpdatedAt: '2026-09-01T11:00:00Z'
     }
   ],
   rights: [
     { Role: 'Admin', Module: 'Dashboard', CanView: true, CanCreate: true, CanEdit: true, CanDelete: true },
     { Role: 'Admin', Module: 'Customers', CanView: true, CanCreate: true, CanEdit: true, CanDelete: true },
     { Role: 'Admin', Module: 'Staff', CanView: true, CanCreate: true, CanEdit: true, CanDelete: true },
+    { Role: 'Admin', Module: 'BulkMail', CanView: true, CanCreate: true, CanEdit: true, CanDelete: true },
     { Role: 'Admin', Module: 'Settings', CanView: true, CanCreate: true, CanEdit: true, CanDelete: true },
+    { Role: 'Admin', Module: 'DriveBackup', CanView: true, CanCreate: true, CanEdit: true, CanDelete: true },
     { Role: 'Relationship Manager', Module: 'Dashboard', CanView: true, CanCreate: false, CanEdit: false, CanDelete: false },
     { Role: 'Relationship Manager', Module: 'Customers', CanView: true, CanCreate: true, CanEdit: true, CanDelete: false },
     { Role: 'Relationship Manager', Module: 'Staff', CanView: true, CanCreate: false, CanEdit: false, CanDelete: false },
+    { Role: 'Relationship Manager', Module: 'BulkMail', CanView: true, CanCreate: true, CanEdit: false, CanDelete: false },
     { Role: 'Relationship Manager', Module: 'Settings', CanView: false, CanCreate: false, CanEdit: false, CanDelete: false },
+    { Role: 'Relationship Manager', Module: 'DriveBackup', CanView: false, CanCreate: false, CanEdit: false, CanDelete: false },
     { Role: 'Backoffice Staff', Module: 'Dashboard', CanView: true, CanCreate: false, CanEdit: false, CanDelete: false },
     { Role: 'Backoffice Staff', Module: 'Customers', CanView: true, CanCreate: true, CanEdit: true, CanDelete: false },
     { Role: 'Backoffice Staff', Module: 'Staff', CanView: false, CanCreate: false, CanEdit: false, CanDelete: false },
-    { Role: 'Backoffice Staff', Module: 'Settings', CanView: false, CanCreate: false, CanEdit: false, CanDelete: false }
+    { Role: 'Backoffice Staff', Module: 'BulkMail', CanView: true, CanCreate: true, CanEdit: false, CanDelete: false },
+    { Role: 'Backoffice Staff', Module: 'Settings', CanView: false, CanCreate: false, CanEdit: false, CanDelete: false },
+    { Role: 'Backoffice Staff', Module: 'DriveBackup', CanView: false, CanCreate: false, CanEdit: false, CanDelete: false }
   ]
 };
 
-// Initialize localStorage demo store if empty
 function initDemoStore() {
   if (!localStorage.getItem(STORAGE_KEYS.CUSTOMERS)) {
     localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(SEED_DATA.customers));
@@ -212,7 +208,22 @@ function initDemoStore() {
   }
 }
 
-// Iframe bridge state
+// Next autoincrement employee code generator
+export function getNextEmployeeCode(employees = []) {
+  let maxNum = 0;
+  employees.forEach(emp => {
+    if (emp.EmployeeCode && emp.EmployeeCode.startsWith('SR-EMP')) {
+      const numStr = emp.EmployeeCode.replace('SR-EMP', '').trim();
+      const num = parseInt(numStr, 10);
+      if (!isNaN(num) && num > maxNum) {
+        maxNum = num;
+      }
+    }
+  });
+  const nextNum = maxNum + 1;
+  return `SR-EMP${String(nextNum).padStart(2, '0')}`;
+}
+
 let bridgeIframe = null;
 let bridgeReadyPromise = null;
 let bridgeSeq = 0;
@@ -246,8 +257,6 @@ function ensureBridge(url) {
     }
 
     iframe.src = url.includes('?') ? `${url}&bridge=1` : `${url}?bridge=1`;
-
-    // Timeout fallback after 7 seconds
     setTimeout(() => resolve(false), 7000);
   });
 
@@ -255,12 +264,10 @@ function ensureBridge(url) {
 }
 
 export const crmApi = {
-  // Get active GAS backend URL
   getBackendUrl() {
     return localStorage.getItem(STORAGE_KEYS.CONFIG_URL) || '';
   },
 
-  // Set active GAS backend URL
   setBackendUrl(url) {
     if (url) {
       localStorage.setItem(STORAGE_KEYS.CONFIG_URL, url.trim());
@@ -269,7 +276,6 @@ export const crmApi = {
     }
   },
 
-  // Check whether Live or Demo Mode is currently used
   isDemoMode() {
     const url = this.getBackendUrl();
     if (!url || url.includes('PASTE_YOUR') || url.includes('PASTE_GOOGLE')) return true;
@@ -280,7 +286,6 @@ export const crmApi = {
     localStorage.setItem(STORAGE_KEYS.DEMO_MODE, enabled ? 'true' : 'false');
   },
 
-  // Central dispatch
   async call(action, payload = {}) {
     if (this.isDemoMode()) {
       return this.handleDemoAction(action, payload);
@@ -288,7 +293,7 @@ export const crmApi = {
 
     const gasUrl = this.getBackendUrl();
 
-    // 1. Try Direct Fetch first (payload wrapped as text/plain to bypass CORS preflight)
+    // 1. Direct fetch
     try {
       const response = await fetch(gasUrl, {
         method: 'POST',
@@ -302,13 +307,13 @@ export const crmApi = {
       if (response.ok) {
         const json = await response.json();
         if (json.success) return json.data;
-        throw new Error(json.message || 'Server returned an error');
+        throw new Error(json.message || 'Server error');
       }
     } catch (fetchErr) {
-      console.warn('Direct fetch failed, attempting iframe bridge fallback...', fetchErr);
+      console.warn('Direct fetch failed, falling back to bridge...', fetchErr);
     }
 
-    // 2. Fallback to Bridge.html iframe postMessage
+    // 2. Iframe Bridge
     try {
       await ensureBridge(gasUrl);
       if (!bridgeIframe || !bridgeIframe.contentWindow) {
@@ -329,7 +334,7 @@ export const crmApi = {
         setTimeout(() => {
           if (bridgePending.has(requestId)) {
             bridgePending.delete(requestId);
-            reject(new Error('Backend request timed out (20s). Please check your GAS deployment.'));
+            reject(new Error('Request timed out (20s).'));
           }
         }, 20000);
       });
@@ -339,40 +344,149 @@ export const crmApi = {
     }
   },
 
-  // DEMO MODE HANDLER
   async handleDemoAction(action, payload) {
     initDemoStore();
-    // Simulate brief network latency
-    await new Promise((r) => setTimeout(r, 180));
+    await new Promise((r) => setTimeout(r, 150));
 
     switch (action) {
       case 'health':
         return { ok: true, mode: 'Demo / Local Storage', timestamp: new Date().toISOString() };
 
+      // Multi-credential login: staffId / emailId / mobileNo + password
       case 'login': {
-        const { email, password } = payload;
-        if (!email || !password) throw new Error('Email and password required.');
-        if (password !== 'admin123' && password !== 'password') {
-          throw new Error('Invalid credentials. Use admin@srinvestments.com / admin123');
+        const { username, password } = payload;
+        if (!username || !password) throw new Error('Username and password are required.');
+
+        const cleanInput = username.trim().toLowerCase();
+        const cleanMobile = username.trim().replace(/[\s\-\(\)\+]/g, '');
+
+        const employees = JSON.parse(localStorage.getItem(STORAGE_KEYS.EMPLOYEES) || '[]');
+
+        // Check if admin default
+        if (cleanInput === 'admin' || cleanInput === 'admin@srinvestments.com') {
+          if (password === 'admin123' || password === 'password123') {
+            return {
+              user: {
+                userId: 'USR_001',
+                employeeCode: 'SR-ADMIN',
+                name: 'System Administrator',
+                email: 'admin@srinvestments.com',
+                mobile: '+91 98765 43210',
+                role: 'Admin',
+                status: 'Active',
+                lastLogin: new Date().toISOString()
+              },
+              rights: JSON.parse(localStorage.getItem(STORAGE_KEYS.RIGHTS) || '[]'),
+              token: 'TOKEN_' + Date.now()
+            };
+          }
         }
+
+        // Search employees by:
+        // 1. EmployeeCode (staffId)
+        // 2. Primary Email
+        // 3. Registered Google Emails list
+        // 4. Mobile Number
+        const staff = employees.find((e) => {
+          const matchCode = e.EmployeeCode && e.EmployeeCode.trim().toLowerCase() === cleanInput;
+          const matchEmail = e.Email && e.Email.trim().toLowerCase() === cleanInput;
+          const matchGoogleEmails = e.GoogleEmails && e.GoogleEmails.toLowerCase().split(',').map(s => s.trim()).includes(cleanInput);
+          const empMobileClean = e.Mobile ? e.Mobile.replace(/[\s\-\(\)\+]/g, '') : '';
+          const matchMobile = empMobileClean && empMobileClean === cleanMobile;
+
+          return matchCode || matchEmail || matchGoogleEmails || matchMobile;
+        });
+
+        if (!staff) {
+          throw new Error('No staff account found for this Username / Staff ID / Email / Mobile.');
+        }
+
+        if (staff.Status !== 'Active') {
+          throw new Error('This account is inactive. Please contact your CRM Administrator.');
+        }
+
+        // Verify password
+        const expectedPassword = staff.Password || 'password123';
+        if (password !== expectedPassword && password !== 'admin123' && password !== 'password123') {
+          throw new Error('Invalid password.');
+        }
+
         return {
           user: {
-            userId: 'USR_001',
-            name: 'System Administrator',
-            email: email,
-            role: 'Admin',
-            status: 'Active',
+            userId: staff.EmployeeId,
+            employeeCode: staff.EmployeeCode,
+            name: staff.FullName,
+            email: staff.Email,
+            googleEmails: staff.GoogleEmails,
+            mobile: staff.Mobile,
+            role: staff.Role || 'Staff',
+            department: staff.Department,
+            status: staff.Status,
             lastLogin: new Date().toISOString()
           },
           rights: JSON.parse(localStorage.getItem(STORAGE_KEYS.RIGHTS) || '[]'),
-          token: 'DEMO_TOKEN_' + Date.now()
+          token: 'TOKEN_' + Date.now()
+        };
+      }
+
+      // Login with Google (matches any staff registered primary or additional Google email)
+      case 'googleLogin': {
+        const { googleEmail, googleName } = payload;
+        if (!googleEmail) throw new Error('Google email required.');
+
+        const cleanEmail = googleEmail.trim().toLowerCase();
+        const employees = JSON.parse(localStorage.getItem(STORAGE_KEYS.EMPLOYEES) || '[]');
+
+        // Check if admin email
+        if (cleanEmail === 'admin@srinvestments.com' || cleanEmail.includes('admin')) {
+          return {
+            user: {
+              userId: 'USR_001',
+              employeeCode: 'SR-ADMIN',
+              name: googleName || 'System Administrator',
+              email: cleanEmail,
+              mobile: '+91 98765 43210',
+              role: 'Admin',
+              status: 'Active',
+              lastLogin: new Date().toISOString()
+            },
+            rights: JSON.parse(localStorage.getItem(STORAGE_KEYS.RIGHTS) || '[]'),
+            token: 'GOOGLE_TOKEN_' + Date.now()
+          };
+        }
+
+        const staff = employees.find((e) => {
+          const matchEmail = e.Email && e.Email.trim().toLowerCase() === cleanEmail;
+          const matchGoogleEmails = e.GoogleEmails && e.GoogleEmails.toLowerCase().split(',').map(s => s.trim()).includes(cleanEmail);
+          return matchEmail || matchGoogleEmails;
+        });
+
+        if (!staff) {
+          throw new Error(`Google account (${cleanEmail}) is not registered in Staff Master. Please contact Admin to add this Google ID.`);
+        }
+
+        return {
+          user: {
+            userId: staff.EmployeeId,
+            employeeCode: staff.EmployeeCode,
+            name: staff.FullName,
+            email: staff.Email,
+            googleEmails: staff.GoogleEmails,
+            mobile: staff.Mobile,
+            role: staff.Role || 'Staff',
+            department: staff.Department,
+            status: staff.Status,
+            lastLogin: new Date().toISOString()
+          },
+          rights: JSON.parse(localStorage.getItem(STORAGE_KEYS.RIGHTS) || '[]'),
+          token: 'GOOGLE_TOKEN_' + Date.now()
         };
       }
 
       case 'getDashboard': {
         const customers = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMERS) || '[]');
         const employees = JSON.parse(localStorage.getItem(STORAGE_KEYS.EMPLOYEES) || '[]');
-
+        
         const kycCounts = { Compliant: 0, Pending: 0, Rejected: 0 };
         const categoryCounts = { Individual: 0, HUF: 0, Corporate: 0, NRI: 0 };
 
@@ -434,7 +548,7 @@ export const crmApi = {
         }
 
         localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(list));
-        return { customerId: id, customerCode: code, message: 'Customer saved successfully.' };
+        return { customerId: id, customerCode: code, message: 'Investor saved successfully.' };
       }
 
       case 'deleteCustomer': {
@@ -452,6 +566,7 @@ export const crmApi = {
             (e.FullName && e.FullName.toLowerCase().includes(q)) ||
             (e.EmployeeCode && e.EmployeeCode.toLowerCase().includes(q)) ||
             (e.Email && e.Email.toLowerCase().includes(q)) ||
+            (e.GoogleEmails && e.GoogleEmails.toLowerCase().includes(q)) ||
             (e.Department && e.Department.toLowerCase().includes(q))
           );
         }
@@ -463,14 +578,22 @@ export const crmApi = {
         const id = payload.EmployeeId || ('EMP_' + Date.now());
         const index = list.findIndex(e => e.EmployeeId === id);
 
+        // Auto-increment EmployeeCode if new
+        let code = payload.EmployeeCode;
+        if (!code || index === -1) {
+          code = getNextEmployeeCode(list);
+        }
+
         let photoUrl = payload.PhotoUrl;
         if (payload.image && payload.image.base64) {
-          photoUrl = payload.image.base64; // In demo mode, store base64 directly
+          photoUrl = payload.image.base64;
         }
 
         const record = {
           ...payload,
           EmployeeId: id,
+          EmployeeCode: code,
+          GoogleEmails: payload.GoogleEmails || '',
           PhotoUrl: photoUrl || list[index]?.PhotoUrl || '',
           CreatedAt: index >= 0 ? list[index].CreatedAt : new Date().toISOString(),
           UpdatedAt: new Date().toISOString()
@@ -483,7 +606,7 @@ export const crmApi = {
         }
 
         localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(list));
-        return { employeeId: id, message: 'Staff saved successfully.' };
+        return { employeeId: id, employeeCode: code, message: `Staff ${code} saved successfully.` };
       }
 
       case 'deleteEmployee': {
@@ -491,6 +614,81 @@ export const crmApi = {
         list = list.filter(e => e.EmployeeId !== payload.employeeId);
         localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(list));
         return { success: true, message: 'Staff member removed.' };
+      }
+
+      // Bulk Mailing with Amazon SES Integration
+      case 'sendBulkEmail': {
+        const { target, recipients, mode, subject, content, attachment, sesConfig } = payload;
+        if (!recipients || !recipients.length) throw new Error('No recipients selected.');
+        if (!subject || !content) throw new Error('Subject and message content are required.');
+
+        // Calculate Amazon SES estimated billing
+        // SES standard rate: $0.10 per 1,000 emails ($0.0001 per email)
+        const recipientCount = recipients.length;
+        const estCostUSD = (recipientCount * 0.0001).toFixed(4);
+        const estCostINR = (recipientCount * 0.0001 * 86.5).toFixed(2); // ~86.5 INR/USD
+
+        const campaignId = 'SES_CAMP_' + Date.now();
+        const campaignLog = {
+          campaignId,
+          timestamp: new Date().toISOString(),
+          target,
+          mode,
+          recipientCount,
+          subject,
+          senderEmail: sesConfig?.senderEmail || 'notifications@srinvestments.com',
+          awsRegion: sesConfig?.region || 'ap-south-1',
+          status: 'Delivered via Amazon SES',
+          sesMessageIdPrefix: '010001' + Math.random().toString(36).substring(2, 10),
+          estimatedCostUSD: `$${estCostUSD}`,
+          estimatedCostINR: `₹${estCostINR}`
+        };
+
+        const existingCampaigns = JSON.parse(localStorage.getItem(STORAGE_KEYS.CAMPAIGNS) || '[]');
+        existingCampaigns.unshift(campaignLog);
+        localStorage.setItem(STORAGE_KEYS.CAMPAIGNS, JSON.stringify(existingCampaigns));
+
+        return {
+          success: true,
+          campaignId,
+          recipientCount,
+          estimatedCostUSD: `$${estCostUSD}`,
+          estimatedCostINR: `₹${estCostINR}`,
+          message: `Campaign sent successfully to ${recipientCount} ${target} via Amazon SES.`
+        };
+      }
+
+      case 'getCampaignLogs': {
+        return JSON.parse(localStorage.getItem(STORAGE_KEYS.CAMPAIGNS) || '[]');
+      }
+
+      // Drive Backup in ZIP format
+      case 'downloadDriveBackup': {
+        const customers = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMERS) || '[]');
+        const employees = JSON.parse(localStorage.getItem(STORAGE_KEYS.EMPLOYEES) || '[]');
+        const settings = JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTINGS) || '{}');
+
+        // Create client-side downloadable backup JSON or manifest
+        const backupPackage = {
+          meta: {
+            title: 'SR INVESTMENTS CRM - Full Database & File Backup',
+            generatedAt: new Date().toISOString(),
+            firm: 'SR INVESTMENTS (ARN-189241)',
+            version: '2.0.0'
+          },
+          database: {
+            customers,
+            employees,
+            settings
+          }
+        };
+
+        const blob = new Blob([JSON.stringify(backupPackage, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        return {
+          downloadUrl: url,
+          fileName: `SR_Investments_Drive_Backup_${new Date().toISOString().slice(0, 10)}.zip`
+        };
       }
 
       case 'getCompanySettings': {
@@ -512,7 +710,7 @@ export const crmApi = {
       }
 
       case 'updateUserProfile': {
-        return { success: true, message: 'User profile updated.' };
+        return { success: true, message: 'Profile updated.' };
       }
 
       case 'changePassword': {
@@ -523,8 +721,7 @@ export const crmApi = {
       }
 
       default:
-        throw new Error('Unknown demo action: ' + action);
+        throw new Error('Unknown action: ' + action);
     }
   }
 };
-

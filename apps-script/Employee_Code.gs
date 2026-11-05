@@ -1,7 +1,9 @@
 /**
- * SR INVESTMENTS CRM - Employee / Staff Module
- * Manages advisors, distributors, staff records & Drive photo uploads.
- * Includes automatic deletion of previous photos from Drive upon update/deletion.
+ * SR INVESTMENTS CRM - Employee / Staff Module (Blue Family Edition)
+ * Features:
+ * 1. Backend Auto-increment Employee Code (SR-EMP01, SR-EMP02...) - Non-editable from client
+ * 2. Multi-Google ID support (GoogleEmails) for "Login with Google"
+ * 3. Drive photo upload & safe deletion of old photo file
  */
 
 function getEmployees_(filters) {
@@ -14,6 +16,7 @@ function getEmployees_(filters) {
       (e.EmployeeCode && e.EmployeeCode.toLowerCase().includes(q)) ||
       (e.FullName && e.FullName.toLowerCase().includes(q)) ||
       (e.Email && e.Email.toLowerCase().includes(q)) ||
+      (e.GoogleEmails && e.GoogleEmails.toLowerCase().includes(q)) ||
       (e.Department && e.Department.toLowerCase().includes(q)) ||
       (e.Designation && e.Designation.toLowerCase().includes(q))
     );
@@ -24,21 +27,22 @@ function getEmployees_(filters) {
 
 function saveEmployee_(data) {
   if (!data.FullName || !data.FullName.trim()) throw new Error("Staff Member Name is required.");
-  if (!data.EmployeeCode || !data.EmployeeCode.trim()) throw new Error("Employee Code is required.");
 
   const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES);
   const now = new Date().toISOString();
   const id = cleanStr_(data.EmployeeId) || createId_("EMP");
-  const code = cleanStr_(data.EmployeeCode);
-
   const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.EMPLOYEES);
-  
-  // Duplicate employee code check
-  const dup = rows.find(r => r.EmployeeCode.toLowerCase() === code.toLowerCase() && r.EmployeeId !== id);
-  if (dup) throw new Error("Employee Code already exists: " + code);
 
   const existingIndex = rows.findIndex(r => r.EmployeeId === id);
   const existingRecord = existingIndex >= 0 ? rows[existingIndex] : null;
+
+  // Backend Autoincrement: If new staff, generate next SR-EMP sequence
+  let code = "";
+  if (existingRecord) {
+    code = existingRecord.EmployeeCode;
+  } else {
+    code = calculateNextEmployeeCode_(rows);
+  }
 
   let photoUrl = cleanStr_(data.PhotoUrl);
   let driveFileId = cleanStr_(data.DriveFileId);
@@ -51,7 +55,7 @@ function saveEmployee_(data) {
       code + "_" + (data.image.name || "photo.jpg"),
       data.image.mimeType,
       data.image.base64,
-      oldFileId // Deletes previous file from Google Drive!
+      oldFileId // Deletes previous photo from Drive!
     );
     photoUrl = uploadRes.viewUrl;
     driveFileId = uploadRes.fileId;
@@ -62,10 +66,12 @@ function saveEmployee_(data) {
     code,
     cleanStr_(data.FullName),
     cleanStr_(data.Email),
+    cleanStr_(data.GoogleEmails), // Multiple Google IDs
     cleanStr_(data.Mobile),
     cleanStr_(data.Department || "Wealth Management"),
     cleanStr_(data.Designation || "Relationship Manager"),
     cleanStr_(data.Role || "Staff"),
+    cleanStr_(data.Password || "password123"),
     cleanStr_(data.JoiningDate),
     cleanStr_(data.Status || "Active"),
     cleanStr_(data.Address),
@@ -89,7 +95,7 @@ function saveEmployee_(data) {
     employeeId: id, 
     employeeCode: code, 
     photoUrl: photoUrl, 
-    message: "Staff member saved successfully." 
+    message: "Staff member " + code + " saved successfully." 
   };
 }
 
@@ -101,7 +107,6 @@ function deleteEmployee_(employeeId) {
   if (index === -1) throw new Error("Staff member not found.");
 
   const record = rows[index];
-  // Delete photo file from Drive if present
   if (record.DriveFileId) {
     deleteDriveFileSafely_(record.DriveFileId);
   }
@@ -111,3 +116,21 @@ function deleteEmployee_(employeeId) {
   return { success: true, message: "Staff member removed successfully." };
 }
 
+/**
+ * Calculates next SR-EMP sequence number automatically from DB rows
+ */
+function calculateNextEmployeeCode_(rows) {
+  let maxNum = 0;
+  rows.forEach(r => {
+    if (r.EmployeeCode && String(r.EmployeeCode).startsWith("SR-EMP")) {
+      const numStr = String(r.EmployeeCode).replace("SR-EMP", "").trim();
+      const num = parseInt(numStr, 10);
+      if (!isNaN(num) && num > maxNum) {
+        maxNum = num;
+      }
+    }
+  });
+  const nextNum = maxNum + 1;
+  const padded = nextNum < 10 ? "0" + nextNum : String(nextNum);
+  return "SR-EMP" + padded;
+}

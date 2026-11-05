@@ -1,31 +1,32 @@
 /**
- * SR INVESTMENTS CRM - Main Google Apps Script Router
+ * SR INVESTMENTS CRM - Main Google Apps Script Router (Blue Family Edition)
  * 
  * Project: SR_CRM_GAScript
  * Spreadsheet ID: 1Bll7386rIJD2CIl1VX--0Okcn-jxXOpII0OHh9FSKSM
  * Drive Folder ID: 1IxulBQJTKrxYAyYMUhz5bllvaMZUYvy (SRInvestmentsCRM)
  *
- * Supported Communications:
- * 1. Direct Web App POST (doPost) from React frontend
- * 2. Bridge.html iframe (google.script.run) fallback
- * 3. Health & Status GET (doGet)
+ * Supported Actions:
+ * - login (via staffId / email / mobile)
+ * - googleLogin (multi-google ID verification)
+ * - sendBulkEmail (Amazon SES integration)
+ * - downloadDriveBackup (Full Drive ZIP generator)
+ * - customers & staff CRUD
+ * - settings & rights RBAC
  */
 
 function doGet(e) {
   const params = (e && e.parameter) || {};
   
-  // Health ping
   if (params.ping || params.action === "health") {
     return jsonResponse_({
       success: true,
       status: "healthy",
-      service: "SR Investments CRM Live Backend",
+      service: "SR Investments CRM Live Backend (Blue Edition)",
       spreadsheetId: CRM_CONFIG.SPREADSHEET_ID,
       timestamp: new Date().toISOString()
     });
   }
 
-  // Serve Bridge.html for iframe fallback
   return HtmlService.createHtmlOutputFromFile("Bridge")
     .setTitle("SR Investments CRM Bridge")
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
@@ -63,9 +64,6 @@ function doPost(e) {
   }
 }
 
-/**
- * Called by Bridge.html through google.script.run
- */
 function bridgeRequest(action, payload) {
   try {
     return {
@@ -80,21 +78,21 @@ function bridgeRequest(action, payload) {
   }
 }
 
-/**
- * Central CRM Action Dispatcher
- */
 function handleAction_(action, payload) {
   switch (action) {
-    // System & Health
+    // Health & Verification
     case "health":
       return { ok: true, spreadsheetId: CRM_CONFIG.SPREADSHEET_ID, timestamp: new Date().toISOString() };
 
     case "setupCRM":
       return setupCRM();
 
-    // Authentication & Profile
+    // Authentication: Credentials & Google
     case "login":
-      return loginUser_(payload.email, payload.password);
+      return loginUser_(payload.username || payload.email, payload.password);
+
+    case "googleLogin":
+      return googleLogin_(payload.googleEmail, payload.googleName);
 
     case "updateUserProfile":
       return updateUserProfile_(payload);
@@ -126,7 +124,18 @@ function handleAction_(action, payload) {
     case "deleteEmployee":
       return deleteEmployee_(payload.employeeId);
 
-    // Company Settings & Rights
+    // Bulk Mailing via Amazon SES
+    case "sendBulkEmail":
+      return sendBulkEmailSES_(payload);
+
+    case "getCampaignLogs":
+      return getCampaignLogs_();
+
+    // Drive Full ZIP Backup
+    case "downloadDriveBackup":
+      return backupDriveFilesToZip_();
+
+    // Settings & Permissions
     case "getCompanySettings":
       return getCompanySettings_();
 

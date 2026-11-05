@@ -6,23 +6,23 @@ import {
   Save, 
   CheckCircle, 
   AlertCircle, 
-  HelpCircle,
-  ExternalLink,
   RefreshCw,
-  Sliders
+  Mail,
+  Archive,
+  Download
 } from 'lucide-react';
 import { crmApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
 
-export default function Settings() {
-  const { hasPermission } = useAuth();
+export default function Settings({ onOpenBackup }) {
+  const { user, hasPermission } = useAuth();
   const [activeTab, setActiveTab] = useState('company');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState({ text: '', type: '' });
 
-  // Company Settings State
+  // Company & SES Settings State
   const [companySettings, setCompanySettings] = useState({
     COMPANY_NAME: 'SR INVESTMENTS',
     ARN_NUMBER: 'ARN-189241',
@@ -30,7 +30,11 @@ export default function Settings() {
     GSTIN: '27AAACR1234F1Z5',
     SUPPORT_EMAIL: 'support@srinvestments.com',
     CONTACT_PHONE: '+91 98765 43210',
-    OFFICE_ADDRESS: '101, Fortune Hub, Financial District, Bandra-Kurla Complex, Mumbai 400051'
+    OFFICE_ADDRESS: '101, Fortune Hub, Financial District, Bandra-Kurla Complex, Mumbai 400051',
+    SES_REGION: 'ap-south-1',
+    SES_SENDER_EMAIL: 'notifications@srinvestments.com',
+    SES_ACCESS_KEY: 'AKIA_DEMO_SR_INVESTMENTS',
+    SES_SECRET_KEY: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
   });
 
   // User Rights Matrix State
@@ -69,9 +73,9 @@ export default function Settings() {
     setMsg({ text: '', type: '' });
     try {
       await crmApi.call('saveCompanySettings', companySettings);
-      setMsg({ text: 'Company information updated successfully!', type: 'success' });
+      setMsg({ text: 'Company & Amazon SES settings updated successfully!', type: 'success' });
     } catch (err) {
-      setMsg({ text: err.message || 'Failed to save company settings', type: 'error' });
+      setMsg({ text: err.message || 'Failed to save settings', type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -119,8 +123,8 @@ export default function Settings() {
     setIsDemoMode(val);
     setMsg({
       text: val 
-        ? 'Switched to Local Storage Demo mode. All changes stay in browser.' 
-        : 'Switched to Live Google Apps Script mode. Make sure your GAS URL is set.',
+        ? 'Switched to Local Storage Demo mode.' 
+        : 'Switched to Live Google Apps Script mode.',
       type: 'info'
     });
   };
@@ -129,14 +133,15 @@ export default function Settings() {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <Header 
         title="CRM Settings & Configurations" 
-        subtitle="Manage company profile, role-based user rights & Google Sheets backend"
+        subtitle="Manage company profile, Amazon SES mailer, role-based user rights & Google Sheets backend"
         onRefresh={loadSettings}
         refreshing={loading}
+        onOpenBackup={onOpenBackup}
       />
 
       <div className="page-wrapper">
-        {/* Navigation Tabs */}
-        <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '1.5rem' }}>
+        {/* Navigation Tabs - Blue Family */}
+        <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
           <button
             onClick={() => setActiveTab('company')}
             style={{
@@ -145,8 +150,8 @@ export default function Settings() {
               background: 'transparent',
               fontSize: '0.875rem',
               fontWeight: '600',
-              color: activeTab === 'company' ? '#059669' : '#64748b',
-              borderBottom: activeTab === 'company' ? '2px solid #059669' : '2px solid transparent',
+              color: activeTab === 'company' ? '#2563eb' : '#64748b',
+              borderBottom: activeTab === 'company' ? '2px solid #2563eb' : '2px solid transparent',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -157,6 +162,25 @@ export default function Settings() {
           </button>
 
           <button
+            onClick={() => setActiveTab('ses')}
+            style={{
+              padding: '0.75rem 1.25rem',
+              border: 'none',
+              background: 'transparent',
+              fontSize: '0.875rem',
+              fontWeight: '600',
+              color: activeTab === 'ses' ? '#2563eb' : '#64748b',
+              borderBottom: activeTab === 'ses' ? '2px solid #2563eb' : '2px solid transparent',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}
+          >
+            <Mail size={16} /> Amazon SES Mailer Config
+          </button>
+
+          <button
             onClick={() => setActiveTab('rights')}
             style={{
               padding: '0.75rem 1.25rem',
@@ -164,8 +188,8 @@ export default function Settings() {
               background: 'transparent',
               fontSize: '0.875rem',
               fontWeight: '600',
-              color: activeTab === 'rights' ? '#059669' : '#64748b',
-              borderBottom: activeTab === 'rights' ? '2px solid #059669' : '2px solid transparent',
+              color: activeTab === 'rights' ? '#2563eb' : '#64748b',
+              borderBottom: activeTab === 'rights' ? '2px solid #2563eb' : '2px solid transparent',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -183,15 +207,15 @@ export default function Settings() {
               background: 'transparent',
               fontSize: '0.875rem',
               fontWeight: '600',
-              color: activeTab === 'backend' ? '#059669' : '#64748b',
-              borderBottom: activeTab === 'backend' ? '2px solid #059669' : '2px solid transparent',
+              color: activeTab === 'backend' ? '#2563eb' : '#64748b',
+              borderBottom: activeTab === 'backend' ? '2px solid #2563eb' : '2px solid transparent',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem'
             }}
           >
-            <Database size={16} /> Google Apps Script / Drive Connection
+            <Database size={16} /> Google Apps Script / Drive Sync
           </button>
         </div>
 
@@ -205,9 +229,9 @@ export default function Settings() {
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
-            backgroundColor: msg.type === 'success' ? '#dcfce7' : (msg.type === 'error' ? '#fee2e2' : '#e0f2fe'),
-            color: msg.type === 'success' ? '#15803d' : (msg.type === 'error' ? '#b91c1c' : '#0369a1'),
-            border: `1px solid ${msg.type === 'success' ? '#86efac' : (msg.type === 'error' ? '#fca5a5' : '#7dd3fc')}`
+            backgroundColor: msg.type === 'success' ? '#dbeafe' : (msg.type === 'error' ? '#fee2e2' : '#eff6ff'),
+            color: msg.type === 'success' ? '#1e40af' : (msg.type === 'error' ? '#b91c1c' : '#2563eb'),
+            border: `1px solid ${msg.type === 'success' ? '#93c5fd' : (msg.type === 'error' ? '#fca5a5' : '#bfdbfe')}`
           }}>
             {msg.type === 'success' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
             <span>{msg.text}</span>
@@ -311,7 +335,92 @@ export default function Settings() {
           </div>
         )}
 
-        {/* TAB 2: USER RIGHTS & PERMISSIONS */}
+        {/* TAB 2: AMAZON SES CONFIGURATION */}
+        {activeTab === 'ses' && (
+          <div className="crm-card" style={{ padding: '2rem' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', marginBottom: '0.25rem' }}>
+              Amazon Simple Email Service (SES) API Credentials
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '1.5rem' }}>
+              Used by the Bulk Mailing module for sending personalized portfolio statements and newsletters with lowest billing cost.
+            </p>
+
+            <form onSubmit={handleSaveCompany}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                <div className="form-group">
+                  <label className="form-label">AWS Region</label>
+                  <select
+                    className="form-select"
+                    value={companySettings.SES_REGION || 'ap-south-1'}
+                    onChange={(e) => setCompanySettings({ ...companySettings, SES_REGION: e.target.value })}
+                  >
+                    <option value="ap-south-1">Asia Pacific (Mumbai) - ap-south-1</option>
+                    <option value="us-east-1">US East (N. Virginia) - us-east-1</option>
+                    <option value="eu-west-1">Europe (Ireland) - eu-west-1</option>
+                    <option value="ap-southeast-1">Asia Pacific (Singapore) - ap-southeast-1</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Verified Sender Email</label>
+                  <input
+                    type="email"
+                    className="form-input"
+                    placeholder="notifications@srinvestments.com"
+                    value={companySettings.SES_SENDER_EMAIL || ''}
+                    onChange={(e) => setCompanySettings({ ...companySettings, SES_SENDER_EMAIL: e.target.value })}
+                    required
+                  />
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.25rem' }}>
+                    Must be verified in your AWS SES console.
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">AWS Access Key ID</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="AKIAIOSFODNN7EXAMPLE"
+                    value={companySettings.SES_ACCESS_KEY || ''}
+                    onChange={(e) => setCompanySettings({ ...companySettings, SES_ACCESS_KEY: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">AWS Secret Access Key</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+                    value={companySettings.SES_SECRET_KEY || ''}
+                    onChange={(e) => setCompanySettings({ ...companySettings, SES_SECRET_KEY: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div style={{
+                marginTop: '1.25rem',
+                padding: '1rem',
+                backgroundColor: '#eff6ff',
+                borderRadius: '8px',
+                border: '1px solid #bfdbfe',
+                fontSize: '0.8rem',
+                color: '#1e40af'
+              }}>
+                <strong>Amazon SES Billing Rate:</strong> $0.10 per 1,000 emails sent. Invoices are billed directly by Amazon Web Services to your AWS account. The CRM tracks every sent message with timestamps and estimated cost breakdowns.
+              </div>
+
+              <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  <Save size={16} /> {saving ? 'Saving...' : 'Save Amazon SES Configuration'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* TAB 3: USER RIGHTS & PERMISSIONS */}
         {activeTab === 'rights' && (
           <div className="crm-card" style={{ padding: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
@@ -320,7 +429,7 @@ export default function Settings() {
                   Role-Based Access Control (RBAC) Matrix
                 </h3>
                 <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '3px 0 0 0' }}>
-                  Control view, create, edit, and delete permissions for each role across CRM modules.
+                  Manage View, Create, Edit, and Delete privileges per staff role, including Drive Backup and Bulk Mailing access.
                 </p>
               </div>
               <button className="btn btn-primary" onClick={handleSaveRights} disabled={saving}>
@@ -361,7 +470,7 @@ export default function Settings() {
                             type="checkbox"
                             checked={Boolean(r.CanView)}
                             onChange={() => toggleRight(i, 'CanView')}
-                            style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#059669' }}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563eb' }}
                           />
                         </td>
                         <td style={{ textAlign: 'center' }}>
@@ -369,7 +478,7 @@ export default function Settings() {
                             type="checkbox"
                             checked={Boolean(r.CanCreate)}
                             onChange={() => toggleRight(i, 'CanCreate')}
-                            style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#059669' }}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563eb' }}
                           />
                         </td>
                         <td style={{ textAlign: 'center' }}>
@@ -377,7 +486,7 @@ export default function Settings() {
                             type="checkbox"
                             checked={Boolean(r.CanEdit)}
                             onChange={() => toggleRight(i, 'CanEdit')}
-                            style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#059669' }}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563eb' }}
                           />
                         </td>
                         <td style={{ textAlign: 'center' }}>
@@ -385,7 +494,7 @@ export default function Settings() {
                             type="checkbox"
                             checked={Boolean(r.CanDelete)}
                             onChange={() => toggleRight(i, 'CanDelete')}
-                            style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#059669' }}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563eb' }}
                           />
                         </td>
                       </tr>
@@ -397,10 +506,9 @@ export default function Settings() {
           </div>
         )}
 
-        {/* TAB 3: BACKEND CONNECTION */}
+        {/* TAB 4: BACKEND CONNECTION */}
         {activeTab === 'backend' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            {/* Mode Switch Card */}
             <div className="crm-card" style={{ padding: '1.75rem' }}>
               <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: '#0f172a', marginBottom: '0.25rem' }}>
                 Operating Environment
@@ -414,8 +522,8 @@ export default function Settings() {
                   className={`btn ${isDemoMode ? 'btn-primary' : 'btn-secondary'}`}
                   onClick={() => toggleDemoMode(true)}
                 >
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: isDemoMode ? '#ffffff' : '#10b981' }}></span>
-                  Local Storage Demo Mode (Instant, Offline Ready)
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: isDemoMode ? '#ffffff' : '#2563eb' }}></span>
+                  Local Storage Demo Mode
                 </button>
 
                 <button
@@ -428,13 +536,12 @@ export default function Settings() {
               </div>
             </div>
 
-            {/* GAS URL Config Card */}
             <div className="crm-card" style={{ padding: '1.75rem' }}>
               <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: '#0f172a', marginBottom: '0.25rem' }}>
                 Google Apps Script Web App Deployment URL
               </h3>
               <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '1.25rem' }}>
-                Paste the <code>/exec</code> URL generated when you deploy the script in <code>apps-script/Code.gs</code> as a Web App.
+                Configured with Spreadsheet ID <code>1Bll7386rIJD2CIl1VX--0Okcn-jxXOpII0OHh9FSKSM</code> and Drive folder <code>1IxulBQJTKrxYAyYMUhz5bllvaMZUYvy</code>.
               </p>
 
               <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
@@ -459,29 +566,13 @@ export default function Settings() {
                   padding: '0.75rem 1rem',
                   borderRadius: '8px',
                   fontSize: '0.825rem',
-                  backgroundColor: pingResult.success ? '#dcfce7' : '#fee2e2',
-                  color: pingResult.success ? '#15803d' : '#b91c1c',
-                  border: `1px solid ${pingResult.success ? '#86efac' : '#fca5a5'}`
+                  backgroundColor: pingResult.success ? '#dbeafe' : '#fee2e2',
+                  color: pingResult.success ? '#1e40af' : '#b91c1c',
+                  border: `1px solid ${pingResult.success ? '#93c5fd' : '#fca5a5'}`
                 }}>
                   {pingResult.message}
                 </div>
               )}
-            </div>
-
-            {/* Step-by-Step Architecture Guide Card */}
-            <div className="crm-card" style={{ padding: '1.75rem', backgroundColor: '#f8fafc' }}>
-              <h4 style={{ fontSize: '0.95rem', fontWeight: '700', color: '#0f172a', marginBottom: '0.75rem' }}>
-                Setup Guide: Google Sheets + Drive + GitHub Pages
-              </h4>
-
-              <ol style={{ fontSize: '0.825rem', color: '#475569', lineHeight: '1.7', paddingLeft: '1.25rem' }}>
-                <li><strong>Create Google Sheet:</strong> Create a new Google Spreadsheet (e.g. <code>SR Investments CRM DB</code>) and copy the Spreadsheet ID from the URL.</li>
-                <li><strong>Paste Spreadsheet ID:</strong> In <code>apps-script/Code.gs</code>, replace <code>CONFIG.SPREADSHEET_ID</code> with your copied ID.</li>
-                <li><strong>Create Apps Script:</strong> Open <a href="https://script.google.com" target="_blank" rel="noreferrer" style={{ color: '#059669', fontWeight: '600' }}>script.google.com</a>, create a project, and add <code>Code.gs</code>, <code>Bridge.html</code>, and <code>appsscript.json</code>.</li>
-                <li><strong>Run Setup:</strong> In Apps Script editor, run <code>setupCRM()</code> once to automatically create all sheets (Users, Customers, Employees, CompanySettings, RolesRights, AuditLogs) and Google Drive folders!</li>
-                <li><strong>Deploy Web App:</strong> Click <em>Deploy → New deployment → Web app</em>. Set <em>Execute as: Me</em>, <em>Who has access: Anyone</em>, then copy the <code>/exec</code> URL and paste it above.</li>
-                <li><strong>Deploy to GitHub Pages:</strong> Run <code>npm run build</code> in the frontend folder, and publish the <code>dist/</code> folder to GitHub Pages!</li>
-              </ol>
             </div>
           </div>
         )}
@@ -489,4 +580,3 @@ export default function Settings() {
     </div>
   );
 }
-

@@ -1,5 +1,5 @@
 /**
- * SR INVESTMENTS CRM - Common Code & Database Infrastructure
+ * SR INVESTMENTS CRM - Common Code & Database Infrastructure (Blue Family Edition)
  * 
  * Configured with live Google Drive & Spreadsheet references:
  * 1. Spreadsheet ID: 1Bll7386rIJD2CIl1VX--0Okcn-jxXOpII0OHh9FSKSM
@@ -28,7 +28,8 @@ const CRM_CONFIG = {
     USERS: "Users",
     SETTINGS: "CompanySettings",
     RIGHTS: "RolesRights",
-    AUDIT: "AuditLogs"
+    AUDIT: "AuditLogs",
+    CAMPAIGNS: "EmailCampaigns"
   }
 };
 
@@ -44,9 +45,9 @@ const CRM_SCHEMAS = {
     "RiskProfile", "Notes", "CreatedAt", "UpdatedAt"
   ],
   EMPLOYEES: [
-    "EmployeeId", "EmployeeCode", "FullName", "Email", "Mobile", "Department",
-    "Designation", "Role", "JoiningDate", "Status", "Address", "City", "State",
-    "PhotoUrl", "DriveFileId", "CreatedAt", "UpdatedAt"
+    "EmployeeId", "EmployeeCode", "FullName", "Email", "GoogleEmails", "Mobile",
+    "Department", "Designation", "Role", "Password", "JoiningDate", "Status",
+    "Address", "City", "State", "PhotoUrl", "DriveFileId", "CreatedAt", "UpdatedAt"
   ],
   SETTINGS: [
     "Key", "Value", "Description", "UpdatedAt"
@@ -62,6 +63,9 @@ const CRM_SCHEMAS = {
   ],
   EMPLOYEE_EMAILS: [
     "Email", "Name", "Department", "Designation", "Status"
+  ],
+  CAMPAIGNS: [
+    "CampaignId", "Timestamp", "Target", "RecipientCount", "Subject", "SenderEmail", "Status", "EstimatedCost"
   ]
 };
 
@@ -92,7 +96,7 @@ function getOrCreateSheet_(sheetName, schema) {
     sheet.setFrozenRows(1);
     sheet.getRange(1, 1, 1, schema.length)
       .setFontWeight("bold")
-      .setBackground("#0f172a")
+      .setBackground("#1e40af") // Royal Blue
       .setFontColor("#ffffff");
     sheet.autoResizeColumns(1, schema.length);
   }
@@ -130,7 +134,6 @@ function getDriveRootFolder_() {
   try {
     return DriveApp.getFolderById(CRM_CONFIG.DRIVE_ROOT_FOLDER_ID);
   } catch (e) {
-    // Fallback to name search if ID is inaccessible
     const folders = DriveApp.getFoldersByName("SRInvestmentsCRM");
     if (folders.hasNext()) return folders.next();
     return DriveApp.createFolder("SRInvestmentsCRM");
@@ -148,12 +151,11 @@ function getDriveSubfolder_(folderName) {
 }
 
 /**
- * Upload file to Drive and optionally delete old file
+ * Upload file to Drive and delete old file if updating
  */
 function uploadDriveFile_(folderName, fileName, mimeType, base64Data, oldFileId) {
   if (!base64Data) throw new Error("Base64 file data required.");
 
-  // Delete previous file from Drive if updating
   if (oldFileId) {
     deleteDriveFileSafely_(oldFileId);
   }
@@ -175,7 +177,7 @@ function uploadDriveFile_(folderName, fileName, mimeType, base64Data, oldFileId)
 }
 
 /**
- * Delete a file safely from Drive without crashing if not found
+ * Safely trash an old file from Drive
  */
 function deleteDriveFileSafely_(fileId) {
   if (!fileId) return;
@@ -185,6 +187,56 @@ function deleteDriveFileSafely_(fileId) {
   } catch (err) {
     Logger.log("Could not trash old file " + fileId + ": " + err.message);
   }
+}
+
+/**
+ * Generate full ZIP backup of Google Drive folder and files
+ */
+function backupDriveFilesToZip_() {
+  const root = getDriveRootFolder_();
+  const blobs = [];
+
+  // Helper to collect files recursively
+  function collectBlobs(folder, pathPrefix) {
+    const files = folder.getFiles();
+    while (files.hasNext()) {
+      const file = files.next();
+      const blob = file.getBlob().setName(pathPrefix + "/" + file.getName());
+      blobs.push(blob);
+    }
+    const subfolders = folder.getFolders();
+    while (subfolders.hasNext()) {
+      const sub = subfolders.next();
+      collectBlobs(sub, pathPrefix + "/" + sub.getName());
+    }
+  }
+
+  collectBlobs(root, "SRInvestmentsCRM");
+
+  // Also include Database JSON snapshot
+  const ss = getSpreadsheet_();
+  const dbSnapshot = {
+    exportedAt: new Date().toISOString(),
+    firm: "SR INVESTMENTS",
+    customers: getSheetRowsAsObjects_(getOrCreateSheet_(CRM_CONFIG.SHEETS.CUSTOMERS, CRM_SCHEMAS.CUSTOMERS), CRM_SCHEMAS.CUSTOMERS),
+    employees: getSheetRowsAsObjects_(getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES), CRM_SCHEMAS.EMPLOYEES)
+  };
+  blobs.push(Utilities.newBlob(JSON.stringify(dbSnapshot, null, 2), "application/json", "Database_Snapshot.json"));
+
+  const dateStr = Utilities.formatDate(new Date(), "Asia/Kolkata", "yyyyMMdd_HHmmss");
+  const zipFileName = "SR_Investments_Drive_Backup_" + dateStr + ".zip";
+  const zipBlob = Utilities.zip(blobs, zipFileName);
+
+  // Save to Drive or return base64
+  const backupFolder = getDriveSubfolder_("TestBulkMailAttachments");
+  const zipFile = backupFolder.createFile(zipBlob);
+  zipFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  return {
+    success: true,
+    fileName: zipFileName,
+    downloadUrl: zipFile.getDownloadUrl() || ("https://drive.google.com/uc?export=download&id=" + zipFile.getId())
+  };
 }
 
 /**
@@ -213,84 +265,54 @@ function cleanStr_(val) {
   return val === null || val === undefined ? "" : String(val).trim();
 }
 
-/**
- * Return JSON Response with CORS headers for Web App
- */
 function jsonResponse_(data) {
   return ContentService.createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
- * CRM Setup & Verification
- * Verifies all sheets and folders exist in the user's live Google environment.
+ * CRM Setup
  */
 function setupCRM() {
   const ss = getSpreadsheet_();
 
-  // Initialize all sheets without overwriting existing rows
   Object.keys(CRM_CONFIG.SHEETS).forEach(key => {
     const sheetName = CRM_CONFIG.SHEETS[key];
     const schema = CRM_SCHEMAS[key];
     getOrCreateSheet_(sheetName, schema);
   });
 
-  // Ensure Admin user exists in Users sheet
-  const userSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USERS, CRM_SCHEMAS.USERS);
-  if (userSheet.getLastRow() <= 1) {
-    userSheet.appendRow([
-      "USR_001",
-      "System Administrator",
-      "admin@srinvestments.com",
-      "admin123",
-      "Admin",
-      "Active",
-      new Date().toISOString(),
-      ""
-    ]);
-  }
-
-  // Ensure Company Settings exists
-  const settingsSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.SETTINGS, CRM_SCHEMAS.SETTINGS);
-  if (settingsSheet.getLastRow() <= 1) {
-    const defaults = [
-      ["COMPANY_NAME", "SR INVESTMENTS", "Mutual Fund Distributor Firm Name", new Date().toISOString()],
-      ["ARN_NUMBER", "ARN-189241", "AMFI Registration Number", new Date().toISOString()],
-      ["EUIN_NUMBER", "E345678", "Employee Unique Identification Number", new Date().toISOString()],
-      ["GSTIN", "27AAACR1234F1Z5", "Goods & Services Tax Identification Number", new Date().toISOString()],
-      ["SUPPORT_EMAIL", "support@srinvestments.com", "Official Support Email", new Date().toISOString()],
-      ["CONTACT_PHONE", "+91 98765 43210", "Customer Helpdesk Phone", new Date().toISOString()],
-      ["OFFICE_ADDRESS", "101, Fortune Hub, Financial District, Bandra-Kurla Complex, Mumbai 400051", "Office Address", new Date().toISOString()]
-    ];
-    settingsSheet.getRange(2, 1, defaults.length, 4).setValues(defaults);
-  }
-
-  // Ensure Roles Rights exists
+  // Ensure Roles Rights includes BulkMail and DriveBackup
   const rightsSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.RIGHTS, CRM_SCHEMAS.RIGHTS);
   if (rightsSheet.getLastRow() <= 1) {
     const defaultRights = [
       ["Admin", "Dashboard", true, true, true, true],
       ["Admin", "Customers", true, true, true, true],
       ["Admin", "Staff", true, true, true, true],
+      ["Admin", "BulkMail", true, true, true, true],
       ["Admin", "Settings", true, true, true, true],
+      ["Admin", "DriveBackup", true, true, true, true],
       ["Relationship Manager", "Dashboard", true, false, false, false],
       ["Relationship Manager", "Customers", true, true, true, false],
       ["Relationship Manager", "Staff", true, false, false, false],
+      ["Relationship Manager", "BulkMail", true, true, true, false],
       ["Relationship Manager", "Settings", false, false, false, false],
+      ["Relationship Manager", "DriveBackup", false, false, false, false],
       ["Backoffice Staff", "Dashboard", true, false, false, false],
       ["Backoffice Staff", "Customers", true, true, true, false],
       ["Backoffice Staff", "Staff", false, false, false, false],
-      ["Backoffice Staff", "Settings", false, false, false, false]
+      ["Backoffice Staff", "BulkMail", true, true, true, false],
+      ["Backoffice Staff", "Settings", false, false, false, false],
+      ["Backoffice Staff", "DriveBackup", false, false, false, false]
     ];
     rightsSheet.getRange(2, 1, defaultRights.length, 6).setValues(defaultRights);
   }
 
-  // Verify Drive subfolders
+  // Ensure Drive folders exist
   getDriveSubfolder_(CRM_CONFIG.SUBFOLDERS.CUSTOMERS);
   getDriveSubfolder_(CRM_CONFIG.SUBFOLDERS.EMPLOYEES);
   getDriveSubfolder_(CRM_CONFIG.SUBFOLDERS.ATTACHMENTS);
 
-  Logger.log("SR INVESTMENTS CRM live Google setup verified successfully.");
+  Logger.log("SR INVESTMENTS CRM verified successfully.");
   return { success: true, message: "CRM sheets & Drive folders verified successfully!" };
 }
-

@@ -258,7 +258,7 @@ export default function Customers() {
                   customers.map((c) => (
                     <tr key={c.CustomerId || c.CustomerCode}>
                       <td>
-                        <strong style={{ color: '#059669' }}>{c.CustomerCode}</strong>
+                        <strong style={{ color: '#2563eb' }}>{c.CustomerCode}</strong>
                       </td>
                       <td>
                         <div style={{ fontWeight: '600', color: '#0f172a' }}>{c.FullName}</div>
@@ -295,13 +295,13 @@ export default function Customers() {
                         <span style={{
                           fontSize: '0.775rem',
                           fontWeight: '600',
-                          color: c.RiskProfile === 'Aggressive' ? '#dc2626' : (c.RiskProfile === 'High' ? '#ea580c' : '#059669')
+                          color: c.RiskProfile === 'Aggressive' ? '#dc2626' : (c.RiskProfile === 'High' ? '#ea580c' : '#2563eb')
                         }}>
                           {c.RiskProfile || 'Moderate'}
                         </span>
                       </td>
                       <td>
-                        <span className={`badge ${c.KycStatus === 'Compliant' ? 'badge-success' : (c.KycStatus === 'Pending' ? 'badge-warning' : 'badge-danger')}`}>
+                        <span className={`badge ${c.KycStatus === 'Compliant' ? 'badge-primary' : (c.KycStatus === 'Pending' ? 'badge-warning' : 'badge-danger')}`}>
                           {c.KycStatus || 'Pending'}
                         </span>
                       </td>
@@ -313,7 +313,7 @@ export default function Customers() {
                               title="Edit Investor"
                               onClick={() => openEditModal(c)}
                             >
-                              <Edit2 size={15} color="#0284c7" />
+                              <Edit2 size={15} color="#2563eb" />
                             </button>
                           )}
                           {hasPermission('Customers', 'CanDelete') && (
@@ -345,7 +345,7 @@ export default function Customers() {
       >
         <form onSubmit={handleSave}>
           <div className="modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
-            <div style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', color: '#059669', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', color: '#2563eb', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>
               1. Basic Investor Details
             </div>
             
@@ -427,7 +427,7 @@ export default function Customers() {
               </div>
             </div>
 
-            <div style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', color: '#059669', margin: '1rem 0 0.75rem', letterSpacing: '0.05em' }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', color: '#2563eb', margin: '1rem 0 0.75rem', letterSpacing: '0.05em' }}>
               2. Contact & Address
             </div>
 
@@ -478,7 +478,7 @@ export default function Customers() {
               </div>
             </div>
 
-            <div style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', color: '#059669', margin: '1rem 0 0.75rem', letterSpacing: '0.05em' }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', color: '#2563eb', margin: '1rem 0 0.75rem', letterSpacing: '0.05em' }}>
               3. Banking & Nominee Details (For Mutual Fund Redemptions/SIP)
             </div>
 

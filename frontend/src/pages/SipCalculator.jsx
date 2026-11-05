@@ -91,8 +91,8 @@ export default function SipCalculator() {
                 width: '40px',
                 height: '40px',
                 borderRadius: '8px',
-                backgroundColor: '#ecfdf5',
-                color: '#059669',
+                backgroundColor: '#eff6ff',
+                color: '#2563eb',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
@@ -111,7 +111,7 @@ export default function SipCalculator() {
             <div className="form-group" style={{ marginBottom: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                 <label className="form-label" style={{ margin: 0 }}>Monthly Investment (₹)</label>
-                <span style={{ fontWeight: '700', color: '#059669', fontSize: '1rem' }}>
+                <span style={{ fontWeight: '700', color: '#2563eb', fontSize: '1rem' }}>
                   {formatINR(sipAmount)}
                 </span>
               </div>
@@ -122,7 +122,7 @@ export default function SipCalculator() {
                 step="500"
                 value={sipAmount}
                 onChange={(e) => setSipAmount(Number(e.target.value))}
-                style={{ width: '100%', accentColor: '#059669', cursor: 'pointer' }}
+                style={{ width: '100%', accentColor: '#2563eb', cursor: 'pointer' }}
               />
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
                 {[5000, 10000, 25000, 50000, 100000].map(amt => (
@@ -135,7 +135,7 @@ export default function SipCalculator() {
                       padding: '0.25rem 0.5rem',
                       borderRadius: '4px',
                       border: '1px solid #e2e8f0',
-                      backgroundColor: sipAmount === amt ? '#059669' : '#f8fafc',
+                      backgroundColor: sipAmount === amt ? '#2563eb' : '#f8fafc',
                       color: sipAmount === amt ? '#ffffff' : '#334155',
                       cursor: 'pointer'
                     }}
@@ -194,7 +194,7 @@ export default function SipCalculator() {
                   type="checkbox"
                   checked={isStepUpEnabled}
                   onChange={(e) => setIsStepUpEnabled(e.target.checked)}
-                  style={{ width: '16px', height: '16px', accentColor: '#059669' }}
+                  style={{ width: '16px', height: '16px', accentColor: '#2563eb' }}
                 />
                 <span>Enable Annual Step-Up SIP (Inflation beating)</span>
               </label>
@@ -203,7 +203,7 @@ export default function SipCalculator() {
                 <div style={{ marginTop: '0.75rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.785rem', marginBottom: '0.25rem' }}>
                     <span>Annual Increase Rate:</span>
-                    <strong style={{ color: '#059669' }}>{stepUp}% every year</strong>
+                    <strong style={{ color: '#2563eb' }}>{stepUp}% every year</strong>
                   </div>
                   <input
                     type="range"
@@ -212,7 +212,7 @@ export default function SipCalculator() {
                     step="5"
                     value={stepUp}
                     onChange={(e) => setStepUp(Number(e.target.value))}
-                    style={{ width: '100%', accentColor: '#059669' }}
+                    style={{ width: '100%', accentColor: '#2563eb' }}
                   />
                 </div>
               )}
@@ -223,7 +223,7 @@ export default function SipCalculator() {
           <div className="crm-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
-                <TrendingUp size={22} color="#059669" />
+                <TrendingUp size={22} color="#2563eb" />
                 <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
                   Projected Wealth Summary
                 </h3>
@@ -232,19 +232,19 @@ export default function SipCalculator() {
               {/* Total Future Value Highlight */}
               <div style={{
                 padding: '1.5rem',
-                backgroundColor: '#f0fdf4',
+                backgroundColor: '#eff6ff',
                 borderRadius: '12px',
-                border: '1px solid #bbf7d0',
+                border: '1px solid #bfdbfe',
                 marginBottom: '1.5rem',
                 textAlign: 'center'
               }}>
-                <div style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', color: '#15803d', letterSpacing: '0.05em' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', color: '#1d4ed8', letterSpacing: '0.05em' }}>
                   Expected Maturity Value
                 </div>
                 <div style={{ fontSize: '2.4rem', fontWeight: '900', color: '#0f172a', marginTop: '0.35rem' }}>
                   {formatINR(results.futureValue)}
                 </div>
-                <div style={{ fontSize: '0.785rem', color: '#166534', marginTop: '0.35rem' }}>
+                <div style={{ fontSize: '0.785rem', color: '#1e40af', marginTop: '0.35rem' }}>
                   Compounded over {years} years at {returnRate}% p.a.
                 </div>
               </div>
@@ -258,9 +258,9 @@ export default function SipCalculator() {
                   </div>
                 </div>
 
-                <div style={{ padding: '1rem', backgroundColor: '#ecfdf5', borderRadius: '10px', border: '1px solid #a7f3d0' }}>
-                  <div style={{ fontSize: '0.75rem', color: '#047857', fontWeight: '600' }}>Estimated Wealth Gain</div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: '800', color: '#059669', marginTop: '0.25rem' }}>
+                <div style={{ padding: '1rem', backgroundColor: '#dbeafe', borderRadius: '10px', border: '1px solid #bfdbfe' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#1e40af', fontWeight: '600' }}>Estimated Wealth Gain</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: '800', color: '#2563eb', marginTop: '0.25rem' }}>
                     {formatINR(results.estimatedGains)}
                   </div>
                 </div>
@@ -278,7 +278,7 @@ export default function SipCalculator() {
               alignItems: 'center',
               gap: '0.6rem'
             }}>
-              <Sparkles size={18} color="#059669" />
+              <Sparkles size={18} color="#2563eb" />
               <span>
                 <strong>Wealth Multiplier:</strong> Your money grows to{' '}
                 <strong>{(results.futureValue / (results.totalInvested || 1)).toFixed(1)}x</strong> of total investment!
@@ -317,7 +317,7 @@ export default function SipCalculator() {
                     </td>
                     <td>{formatINR(row.sipAmount)}</td>
                     <td>{formatINR(row.invested)}</td>
-                    <td style={{ color: '#059669', fontWeight: '600' }}>
+                    <td style={{ color: '#2563eb', fontWeight: '600' }}>
                       +{formatINR(row.wealthGained)}
                     </td>
                     <td style={{ textAlign: 'right', fontWeight: '700', color: '#0f172a' }}>

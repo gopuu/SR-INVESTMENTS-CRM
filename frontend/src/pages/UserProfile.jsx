@@ -95,7 +95,7 @@ export default function UserProfile() {
                 width: '64px',
                 height: '64px',
                 borderRadius: '50%',
-                backgroundColor: '#059669',
+                backgroundColor: '#2563eb',
                 color: '#ffffff',
                 display: 'flex',
                 alignItems: 'center',
@@ -110,7 +110,7 @@ export default function UserProfile() {
                   {user?.name || 'Administrator'}
                 </h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.25rem' }}>
-                  <span className="badge badge-success">{user?.role || 'Admin'}</span>
+                  <span className="badge badge-primary">{user?.role || 'Admin'}</span>
                   <span className="badge badge-neutral">{user?.status || 'Active'}</span>
                 </div>
               </div>
@@ -122,8 +122,8 @@ export default function UserProfile() {
                 borderRadius: '8px',
                 marginBottom: '1.25rem',
                 fontSize: '0.825rem',
-                backgroundColor: profileMsg.type === 'success' ? '#dcfce7' : '#fee2e2',
-                color: profileMsg.type === 'success' ? '#15803d' : '#b91c1c'
+                backgroundColor: profileMsg.type === 'success' ? '#dbeafe' : '#fee2e2',
+                color: profileMsg.type === 'success' ? '#1e40af' : '#b91c1c'
               }}>
                 {profileMsg.text}
               </div>
@@ -258,7 +258,7 @@ export default function UserProfile() {
         {/* User Permissions Table */}
         <div className="crm-card" style={{ padding: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-            <ShieldCheck size={20} color="#059669" />
+            <ShieldCheck size={20} color="#2563eb" />
             <h4 style={{ fontSize: '1rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
               Your Active Permissions ({user?.role || 'Admin'})
             </h4>
@@ -276,29 +276,29 @@ export default function UserProfile() {
                 </tr>
               </thead>
               <tbody>
-                {['Dashboard', 'Customers', 'Staff', 'Settings'].map((mod) => {
+                {['Dashboard', 'Customers', 'Staff', 'BulkMail', 'Settings', 'DriveBackup'].map((mod) => {
                   const perm = rights.find(r => r.Module && r.Module.toLowerCase() === mod.toLowerCase());
                   const isAdmin = user?.role === 'Admin';
                   return (
                     <tr key={mod}>
                       <td><strong>{mod}</strong></td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${isAdmin || perm?.CanView ? 'badge-success' : 'badge-danger'}`}>
+                        <span className={`badge ${isAdmin || perm?.CanView ? 'badge-primary' : 'badge-danger'}`}>
                           {isAdmin || perm?.CanView ? 'Allowed' : 'Restricted'}
                         </span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${isAdmin || perm?.CanCreate ? 'badge-success' : 'badge-danger'}`}>
+                        <span className={`badge ${isAdmin || perm?.CanCreate ? 'badge-primary' : 'badge-danger'}`}>
                           {isAdmin || perm?.CanCreate ? 'Allowed' : 'Restricted'}
                         </span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${isAdmin || perm?.CanEdit ? 'badge-success' : 'badge-danger'}`}>
+                        <span className={`badge ${isAdmin || perm?.CanEdit ? 'badge-primary' : 'badge-danger'}`}>
                           {isAdmin || perm?.CanEdit ? 'Allowed' : 'Restricted'}
                         </span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${isAdmin || perm?.CanDelete ? 'badge-success' : 'badge-danger'}`}>
+                        <span className={`badge ${isAdmin || perm?.CanDelete ? 'badge-primary' : 'badge-danger'}`}>
                           {isAdmin || perm?.CanDelete ? 'Allowed' : 'Restricted'}
                         </span>
                       </td>

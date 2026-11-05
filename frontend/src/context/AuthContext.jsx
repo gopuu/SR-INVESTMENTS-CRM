@@ -24,10 +24,27 @@ export function AuthProvider({ children }) {
 
   const [loading, setLoading] = useState(false);
 
-  const login = async (email, password) => {
+  // Supports login via StaffId (EmployeeCode) / Email / Mobile + Password
+  const login = async (username, password) => {
     setLoading(true);
     try {
-      const res = await crmApi.call('login', { email, password });
+      const res = await crmApi.call('login', { username, password });
+      setUser(res.user);
+      setRights(res.rights || []);
+      localStorage.setItem('sr_crm_auth_user', JSON.stringify(res.user));
+      localStorage.setItem('sr_crm_auth_rights', JSON.stringify(res.rights || []));
+      localStorage.setItem('sr_crm_auth_token', res.token);
+      return res.user;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Supports login with Google (matches primary or any registered Google email)
+  const loginWithGoogle = async (googleEmail, googleName) => {
+    setLoading(true);
+    try {
+      const res = await crmApi.call('googleLogin', { googleEmail, googleName });
       setUser(res.user);
       setRights(res.rights || []);
       localStorage.setItem('sr_crm_auth_user', JSON.stringify(res.user));
@@ -65,7 +82,16 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, rights, loading, login, logout, updateProfile, hasPermission }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      rights, 
+      loading, 
+      login, 
+      loginWithGoogle, 
+      logout, 
+      updateProfile, 
+      hasPermission 
+    }}>
       {children}
     </AuthContext.Provider>
   );
@@ -76,4 +102,3 @@ export function useAuth() {
   if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 }
-

@@ -9,9 +9,11 @@ import {
   Phone, 
   Upload, 
   Camera,
-  Briefcase
+  Briefcase,
+  Sparkles,
+  Shield
 } from 'lucide-react';
-import { crmApi } from '../services/api';
+import { crmApi, getNextEmployeeCode } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
 import Modal from '../components/Modal';
@@ -35,10 +37,12 @@ export default function Staff() {
     EmployeeCode: '',
     FullName: '',
     Email: '',
+    GoogleEmails: '', // Multiple Google IDs
     Mobile: '',
     Department: 'Wealth Management',
     Designation: 'Relationship Manager',
     Role: 'Staff',
+    Password: 'password123',
     JoiningDate: '',
     Status: 'Active',
     Address: '',
@@ -73,7 +77,11 @@ export default function Staff() {
 
   const openAddModal = () => {
     setEditingEmployee(null);
-    setFormData(initialFormState);
+    const nextCode = getNextEmployeeCode(employees);
+    setFormData({
+      ...initialFormState,
+      EmployeeCode: nextCode // Auto-calculated preview
+    });
     setImagePreview('');
     setSelectedImage(null);
     setIsModalOpen(true);
@@ -86,10 +94,12 @@ export default function Staff() {
       EmployeeCode: emp.EmployeeCode || '',
       FullName: emp.FullName || '',
       Email: emp.Email || '',
+      GoogleEmails: emp.GoogleEmails || '',
       Mobile: emp.Mobile || '',
       Department: emp.Department || 'Wealth Management',
       Designation: emp.Designation || 'Relationship Manager',
       Role: emp.Role || 'Staff',
+      Password: emp.Password || 'password123',
       JoiningDate: emp.JoiningDate || '',
       Status: emp.Status || 'Active',
       Address: emp.Address || '',
@@ -210,8 +220,8 @@ export default function Staff() {
                   <th>Employee Code</th>
                   <th>Designation & Role</th>
                   <th>Department</th>
-                  <th>Contact Info</th>
-                  <th>Joining Date</th>
+                  <th>Official & Google Emails</th>
+                  <th>Mobile</th>
                   <th>Status</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
@@ -253,7 +263,7 @@ export default function Staff() {
                         </div>
                       </td>
                       <td>
-                        <strong style={{ color: '#059669' }}>{e.EmployeeCode}</strong>
+                        <strong style={{ color: '#2563eb' }}>{e.EmployeeCode}</strong>
                       </td>
                       <td>
                         <div style={{ fontSize: '0.85rem', fontWeight: '500' }}>{e.Designation || '—'}</div>
@@ -262,12 +272,16 @@ export default function Staff() {
                         <span className="badge badge-info">{e.Department || 'General'}</span>
                       </td>
                       <td>
-                        <div style={{ fontSize: '0.8125rem' }}>{e.Mobile || '—'}</div>
-                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{e.Email || 'No email'}</div>
+                        <div style={{ fontSize: '0.8125rem', fontWeight: '500' }}>{e.Email || 'No email'}</div>
+                        {e.GoogleEmails && (
+                          <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '2px' }}>
+                            <span style={{ color: '#2563eb', fontWeight: '600' }}>Google IDs:</span> {e.GoogleEmails}
+                          </div>
+                        )}
                       </td>
-                      <td>{e.JoiningDate || '—'}</td>
+                      <td>{e.Mobile || '—'}</td>
                       <td>
-                        <span className={`badge ${e.Status === 'Active' ? 'badge-success' : 'badge-danger'}`}>
+                        <span className={`badge ${e.Status === 'Active' ? 'badge-primary' : 'badge-danger'}`}>
                           {e.Status || 'Active'}
                         </span>
                       </td>
@@ -279,7 +293,7 @@ export default function Staff() {
                               title="Edit Staff Member"
                               onClick={() => openEditModal(e)}
                             >
-                              <Edit2 size={15} color="#0284c7" />
+                              <Edit2 size={15} color="#2563eb" />
                             </button>
                           )}
                           {hasPermission('Staff', 'CanDelete') && (
@@ -306,8 +320,8 @@ export default function Staff() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => !saving && setIsModalOpen(false)}
-        title={editingEmployee ? `Edit Staff: ${editingEmployee.FullName}` : 'Add Staff / Team Member'}
-        maxWidth="680px"
+        title={editingEmployee ? `Edit Staff: ${editingEmployee.EmployeeCode}` : 'Add Staff / Team Member'}
+        maxWidth="720px"
       >
         <form onSubmit={handleSave}>
           <div className="modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
@@ -318,10 +332,10 @@ export default function Staff() {
                   <img
                     src={imagePreview}
                     alt="Preview"
-                    style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #059669' }}
+                    style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #2563eb' }}
                   />
                 ) : (
-                  <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+                  <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb' }}>
                     <Camera size={26} />
                   </div>
                 )}
@@ -337,21 +351,27 @@ export default function Staff() {
                   />
                 </label>
                 <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.35rem' }}>
-                  JPG, PNG or WebP under 2MB (Saved to Google Drive in Live mode)
+                  JPG, PNG or WebP under 2MB (Saved to Drive, automatically replaces previous photo)
                 </div>
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              {/* Employee Code - Autoincrement & Non-Editable */}
               <div className="form-group">
-                <label className="form-label">Employee Code <span style={{ color: '#ef4444' }}>*</span></label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <label className="form-label" style={{ margin: 0 }}>
+                    Employee Code <span style={{ color: '#2563eb', fontSize: '0.75rem' }}>(Autoincrement)</span>
+                  </label>
+                  <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Backend Auto</span>
+                </div>
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="e.g. SR-EMP04"
-                  value={formData.EmployeeCode}
-                  onChange={(e) => setFormData({ ...formData, EmployeeCode: e.target.value })}
-                  required
+                  style={{ backgroundColor: '#f1f5f9', fontWeight: '700', color: '#1e40af' }}
+                  value={formData.EmployeeCode || 'Auto-generated on save'}
+                  disabled
+                  readOnly
                 />
               </div>
 
@@ -360,13 +380,61 @@ export default function Staff() {
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="e.g. Sunita Deshmukh"
+                  placeholder="e.g. Rajesh Sharma"
                   value={formData.FullName}
                   onChange={(e) => setFormData({ ...formData, FullName: e.target.value })}
                   required
                 />
               </div>
 
+              {/* Primary Email */}
+              <div className="form-group">
+                <label className="form-label">Primary Official Email <span style={{ color: '#ef4444' }}>*</span></label>
+                <input
+                  type="email"
+                  className="form-input"
+                  placeholder="rajesh@srinvestments.com"
+                  value={formData.Email}
+                  onChange={(e) => setFormData({ ...formData, Email: e.target.value })}
+                  required
+                />
+              </div>
+
+              {/* Mobile */}
+              <div className="form-group">
+                <label className="form-label">Mobile Number (Login Allowed) <span style={{ color: '#ef4444' }}>*</span></label>
+                <input
+                  type="tel"
+                  className="form-input"
+                  placeholder="+91 98201 11223"
+                  value={formData.Mobile}
+                  onChange={(e) => setFormData({ ...formData, Mobile: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Multiple Google IDs Field */}
+            <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                <label className="form-label" style={{ margin: 0 }}>
+                  Linked Google IDs / Alternate Emails (For "Login with Google")
+                </label>
+                <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Comma-separated</span>
+              </div>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="rajesh.mf@gmail.com, rajesh.personal@gmail.com"
+                value={formData.GoogleEmails}
+                onChange={(e) => setFormData({ ...formData, GoogleEmails: e.target.value })}
+              />
+              <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '0.3rem' }}>
+                Staff can sign in via Google using ANY of these registered email addresses.
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div className="form-group">
                 <label className="form-label">Department</label>
                 <select
@@ -377,7 +445,7 @@ export default function Staff() {
                   <option value="Wealth Management">Wealth Management</option>
                   <option value="Operations & KYC">Operations & KYC</option>
                   <option value="Mutual Funds">Mutual Funds</option>
-                  <option value="Accounts">Accounts & Finance</option>
+                  <option value="Accounts & Finance">Accounts & Finance</option>
                   <option value="Administration">Administration</option>
                 </select>
               </div>
@@ -387,7 +455,7 @@ export default function Staff() {
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="e.g. Relationship Manager"
+                  placeholder="e.g. Senior Investment Advisor"
                   value={formData.Designation}
                   onChange={(e) => setFormData({ ...formData, Designation: e.target.value })}
                 />
@@ -408,36 +476,13 @@ export default function Staff() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Status</label>
-                <select
-                  className="form-select"
-                  value={formData.Status}
-                  onChange={(e) => setFormData({ ...formData, Status: e.target.value })}
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Email</label>
+                <label className="form-label">Account Password</label>
                 <input
-                  type="email"
+                  type="text"
                   className="form-input"
-                  placeholder="name@srinvestments.com"
-                  value={formData.Email}
-                  onChange={(e) => setFormData({ ...formData, Email: e.target.value })}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Mobile</label>
-                <input
-                  type="tel"
-                  className="form-input"
-                  placeholder="+91 98765 43210"
-                  value={formData.Mobile}
-                  onChange={(e) => setFormData({ ...formData, Mobile: e.target.value })}
+                  placeholder="password123"
+                  value={formData.Password}
+                  onChange={(e) => setFormData({ ...formData, Password: e.target.value })}
                 />
               </div>
 
@@ -452,14 +497,15 @@ export default function Staff() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">City</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. Mumbai"
-                  value={formData.City}
-                  onChange={(e) => setFormData({ ...formData, City: e.target.value })}
-                />
+                <label className="form-label">Status</label>
+                <select
+                  className="form-select"
+                  value={formData.Status}
+                  onChange={(e) => setFormData({ ...formData, Status: e.target.value })}
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
               </div>
             </div>
 
@@ -468,7 +514,7 @@ export default function Staff() {
               <textarea
                 className="form-textarea"
                 rows={2}
-                placeholder="Full street address..."
+                placeholder="Full address..."
                 value={formData.Address}
                 onChange={(e) => setFormData({ ...formData, Address: e.target.value })}
               />
@@ -497,4 +543,3 @@ export default function Staff() {
     </div>
   );
 }
-

@@ -3,18 +3,19 @@ import {
   Users, 
   UserCheck, 
   CheckCircle2, 
-  Clock, 
   TrendingUp, 
   PieChart, 
   ShieldCheck, 
   ArrowUpRight,
   PlusCircle,
-  FileText
+  Mail,
+  Archive,
+  DollarSign
 } from 'lucide-react';
 import { crmApi } from '../services/api';
 import Header from '../components/Header';
 
-export default function Home({ onNavigate }) {
+export default function Home({ onNavigate, onOpenBackup }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -47,6 +48,7 @@ export default function Home({ onNavigate }) {
         subtitle="SR INVESTMENTS — Mutual Fund Portfolio & Operations Summary"
         onRefresh={loadDashboard}
         refreshing={loading}
+        onOpenBackup={onOpenBackup}
       />
 
       <div className="page-wrapper">
@@ -64,7 +66,7 @@ export default function Home({ onNavigate }) {
           </div>
         )}
 
-        {/* Top Stat Cards */}
+        {/* Top Stat Cards - Blue Family Theme */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
@@ -79,11 +81,11 @@ export default function Home({ onNavigate }) {
                 width: '38px',
                 height: '38px',
                 borderRadius: '8px',
-                backgroundColor: '#ecfdf5',
+                backgroundColor: '#eff6ff',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#059669'
+                color: '#2563eb'
               }}>
                 <Users size={20} />
               </div>
@@ -91,7 +93,7 @@ export default function Home({ onNavigate }) {
             <div style={{ fontSize: '1.85rem', fontWeight: '800', color: '#0f172a', marginTop: '0.5rem' }}>
               {loading ? '...' : totalCust}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.35rem', fontSize: '0.75rem', color: '#059669', fontWeight: '600' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.35rem', fontSize: '0.75rem', color: '#2563eb', fontWeight: '600' }}>
               <ArrowUpRight size={14} /> Active mutual fund folios
             </div>
           </div>
@@ -104,11 +106,11 @@ export default function Home({ onNavigate }) {
                 width: '38px',
                 height: '38px',
                 borderRadius: '8px',
-                backgroundColor: '#e0f2fe',
+                backgroundColor: '#dbeafe',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#0284c7'
+                color: '#1d4ed8'
               }}>
                 <CheckCircle2 size={20} />
               </div>
@@ -129,11 +131,11 @@ export default function Home({ onNavigate }) {
                 width: '38px',
                 height: '38px',
                 borderRadius: '8px',
-                backgroundColor: '#fef3c7',
+                backgroundColor: '#f1f5f9',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#d97706'
+                color: '#0f172a'
               }}>
                 <UserCheck size={20} />
               </div>
@@ -154,11 +156,11 @@ export default function Home({ onNavigate }) {
                 width: '38px',
                 height: '38px',
                 borderRadius: '8px',
-                backgroundColor: '#f1f5f9',
+                backgroundColor: '#eff6ff',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#475569'
+                color: '#2563eb'
               }}>
                 <ShieldCheck size={20} />
               </div>
@@ -166,7 +168,7 @@ export default function Home({ onNavigate }) {
             <div style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0f172a', marginTop: '0.75rem', letterSpacing: '0.02em' }}>
               ARN-189241
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.35rem', fontSize: '0.75rem', color: '#15803d', fontWeight: '600' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.35rem', fontSize: '0.75rem', color: '#1d4ed8', fontWeight: '600' }}>
               Active AMFI Distributor
             </div>
           </div>
@@ -179,10 +181,10 @@ export default function Home({ onNavigate }) {
               Quick CRM Operations
             </h3>
             <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '2px 0 0 0' }}>
-              Easily manage new investor folios, KYC checks, and advisory team records
+              Manage investor accounts, broadcast bulk emails via Amazon SES, or download complete Drive backups
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
             <button 
               className="btn btn-primary"
               onClick={() => onNavigate('customers')}
@@ -190,10 +192,16 @@ export default function Home({ onNavigate }) {
               <PlusCircle size={16} /> Add Investor
             </button>
             <button 
-              className="btn btn-secondary"
-              onClick={() => onNavigate('staff')}
+              className="btn btn-outline-blue"
+              onClick={() => onNavigate('bulkmail')}
             >
-              <UserCheck size={16} /> Add Staff
+              <Mail size={16} /> Bulk Mail (SES)
+            </button>
+            <button 
+              className="btn btn-secondary"
+              onClick={onOpenBackup}
+            >
+              <Archive size={16} /> Drive Backup
             </button>
           </div>
         </div>
@@ -214,44 +222,44 @@ export default function Home({ onNavigate }) {
                 </h3>
                 <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Investor portfolio distribution</span>
               </div>
-              <TrendingUp size={18} color="#059669" />
+              <TrendingUp size={18} color="#2563eb" />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', marginBottom: '0.35rem' }}>
                   <span style={{ fontWeight: '600' }}>Equity Funds (Large, Mid & Flexi Cap)</span>
-                  <span style={{ color: '#059669', fontWeight: '700' }}>58%</span>
+                  <span style={{ color: '#2563eb', fontWeight: '700' }}>58%</span>
                 </div>
                 <div style={{ width: '100%', height: '8px', backgroundColor: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: '58%', height: '100%', backgroundColor: '#059669' }}></div>
+                  <div style={{ width: '58%', height: '100%', backgroundColor: '#2563eb' }}></div>
                 </div>
               </div>
 
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', marginBottom: '0.35rem' }}>
                   <span style={{ fontWeight: '600' }}>Hybrid & Balanced Advantage</span>
-                  <span style={{ color: '#0284c7', fontWeight: '700' }}>24%</span>
+                  <span style={{ color: '#3b82f6', fontWeight: '700' }}>24%</span>
                 </div>
                 <div style={{ width: '100%', height: '8px', backgroundColor: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: '24%', height: '100%', backgroundColor: '#0284c7' }}></div>
+                  <div style={{ width: '24%', height: '100%', backgroundColor: '#3b82f6' }}></div>
                 </div>
               </div>
 
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', marginBottom: '0.35rem' }}>
                   <span style={{ fontWeight: '600' }}>Debt & Arbitrage Funds</span>
-                  <span style={{ color: '#d97706', fontWeight: '700' }}>14%</span>
+                  <span style={{ color: '#60a5fa', fontWeight: '700' }}>14%</span>
                 </div>
                 <div style={{ width: '100%', height: '8px', backgroundColor: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: '14%', height: '100%', backgroundColor: '#d97706' }}></div>
+                  <div style={{ width: '14%', height: '100%', backgroundColor: '#60a5fa' }}></div>
                 </div>
               </div>
 
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', marginBottom: '0.35rem' }}>
                   <span style={{ fontWeight: '600' }}>Liquid & Overnight Cash</span>
-                  <span style={{ color: '#64748b', fontWeight: '700' }}>4%</span>
+                  <span style={{ color: '#94a3b8', fontWeight: '700' }}>4%</span>
                 </div>
                 <div style={{ width: '100%', height: '8px', backgroundColor: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
                   <div style={{ width: '4%', height: '100%', backgroundColor: '#94a3b8' }}></div>
@@ -269,7 +277,7 @@ export default function Home({ onNavigate }) {
                 </h3>
                 <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Investor types & partner fund houses</span>
               </div>
-              <PieChart size={18} color="#0284c7" />
+              <PieChart size={18} color="#2563eb" />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
@@ -300,16 +308,17 @@ export default function Home({ onNavigate }) {
             </div>
 
             <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '600', marginBottom: '0.5rem' }}>
-              Key AMC Partners Supported:
+              Supported AMCs:
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
               {['HDFC Mutual Fund', 'ICICI Prudential', 'SBI Mutual Fund', 'Axis MF', 'Nippon India', 'Mirae Asset', 'Kotak Mahindra'].map((amc) => (
                 <span key={amc} style={{
                   fontSize: '0.725rem',
                   padding: '0.2rem 0.55rem',
-                  backgroundColor: '#f1f5f9',
+                  backgroundColor: '#eff6ff',
                   borderRadius: '4px',
-                  color: '#334155'
+                  color: '#1e40af',
+                  border: '1px solid #bfdbfe'
                 }}>
                   {amc}
                 </span>
@@ -367,7 +376,7 @@ export default function Home({ onNavigate }) {
                   data.recentCustomers.map((cust) => (
                     <tr key={cust.CustomerId || cust.CustomerCode}>
                       <td>
-                        <strong style={{ color: '#059669' }}>{cust.CustomerCode}</strong>
+                        <strong style={{ color: '#2563eb' }}>{cust.CustomerCode}</strong>
                       </td>
                       <td style={{ fontWeight: '600' }}>{cust.FullName}</td>
                       <td>
@@ -381,7 +390,7 @@ export default function Home({ onNavigate }) {
                       </td>
                       <td>{cust.RiskProfile || 'Moderate'}</td>
                       <td>
-                        <span className={`badge ${cust.KycStatus === 'Compliant' ? 'badge-success' : (cust.KycStatus === 'Pending' ? 'badge-warning' : 'badge-danger')}`}>
+                        <span className={`badge ${cust.KycStatus === 'Compliant' ? 'badge-primary' : (cust.KycStatus === 'Pending' ? 'badge-warning' : 'badge-danger')}`}>
                           {cust.KycStatus || 'Pending'}
                         </span>
                       </td>
@@ -396,4 +405,3 @@ export default function Home({ onNavigate }) {
     </div>
   );
 }
-
