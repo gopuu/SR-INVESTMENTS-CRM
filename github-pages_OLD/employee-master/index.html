@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Employee Master</title>
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+
+    <style>
+
+        body {
+            background: #f5f6f8;
+            font-family: Arial, sans-serif;
+            color: #343a40;
+        }
+
+
+        .page-wrapper {
+            padding: 25px;
+        }
+
+
+        .page-card {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.04);
+        }
+
+
+        .page-header {
+            padding: 18px 20px;
+            border-bottom: 1px solid #eeeeee;
+        }
+
+
+        .page-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+
+        .page-subtitle {
+            font-size: 12px;
+            color: #888;
+            margin-top: 3px;
+        }
+
+
+        .toolbar {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eeeeee;
+        }
+
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+
+        .employee-table {
+            margin: 0;
+        }
+
+
+        .employee-table thead th {
+            background: #f8f9fa;
+            color: #555;
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+            border-bottom: 1px solid #ddd;
+        }
+
+
+        .employee-table tbody td {
+            font-size: 13px;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+
+        .employee-photo {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1px solid #ddd;
+        }
+
+
+        .employee-photo-placeholder {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #888;
+            font-size: 18px;
+        }
+
+
+        .status-badge {
+            padding: 4px 9px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+
+        .status-active {
+            background: #d1e7dd;
+            color: #0f5132;
+        }
+
+
+        .status-inactive {
+            background: #f8d7da;
+            color: #842029;
+        }
+
+
+        .action-btn {
+            width: 30px;
+            height: 30px;
+            border: 0;
+            background: transparent;
+            border-radius: 5px;
+        }
+
+
+        .action-btn:hover {
+            background: #f1f1f1;
+        }
+
+
+        .action-edit {
+            color: #0d6efd;
+        }
+
+
+        .action-delete {
+            color: #dc3545;
+        }
+
+
+        .modal-header {
+            background: #f8f9fa;
+        }
+
+
+        .form-label {
+            font-size: 12px;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+
+        .form-control,
+        .form-select {
+            font-size: 13px;
+        }
+
+
+        .image-upload-area {
+            border: 2px dashed #ced4da;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: .2s;
+        }
+
+
+        .image-upload-area:hover {
+            background: #f8f9fa;
+            border-color: #0d6efd;
+        }
+
+
+        .image-preview {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1px solid #ddd;
+            display: none;
+            margin: auto;
+        }
+
+
+        .image-placeholder {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: #f0f1f2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: auto;
+            color: #aaa;
+            font-size: 35px;
+        }
+
+
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(255,255,255,.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+
+        .loading-box {
+            background: #fff;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 3px 15px rgba(0,0,0,.15);
+            text-align: center;
+        }
+
+
+        .empty-row {
+            padding: 40px !important;
+            text-align: center;
+            color: #888;
+        }
+
+
+        .record-count {
+            font-size: 12px;
+            color: #777;
+        }
+
+
+        @media(max-width:768px) {
+
+            .page-wrapper {
+                padding: 10px;
+            }
+
+            .page-header {
+                padding: 15px;
+            }
+
+            .toolbar {
+                padding: 12px;
+            }
+
+        }
+
+    </style>
+
+</head>
+<body>
+
+<div class="page-wrapper">
+    <div class="page-card">
+        <!-- HEADER -->
+        <div class="page-header d-flex justify-content-between align-items-center">
+            <div>
+                <div class="page-title">
+                    <i class="fa fa-users me-2"></i>
+                    Employee Master
+                </div>
+
+                <div class="page-subtitle">Manage employee records</div>
+            </div>
+
+            <button class="btn btn-primary btn-sm" onclick="openAddEmployee()">
+                <i class="fa fa-plus me-1"></i>
+                Add Employee
+            </button>
+        </div>
+
+        <!-- TOOLBAR -->
+        <div class="toolbar">
+            <div class="row g-2">
+                <div class="col-md-6">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-white">
+                            <i class="fa fa-search"></i>
+                        </span>
+
+                        <input type="text" id="searchEmployee" class="form-control" placeholder="Search employee...">
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <select id="filterStatus" class="form-select form-select-sm">
+                        <option value="">All Status</option>
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3 text-md-end">
+                    <span id="recordCount" class="record-count">
+                        0 Employees
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- TABLE -->
+        <div class="table-container">
+            <table class="table employee-table table-hover align-middle">
+                <thead>
+                <tr>
+                    <th>Photo</th>
+                    <th>Employee Code</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Mobile</th>
+                    <th>Department</th>
+                    <th>Designation</th>
+                    <th>Joining Date</th>
+                    <th>Status</th>
+                    <th class="text-center">Action</th>
+                </tr>
+                </thead>
+                <tbody id="employeeTableBody"></tbody>
+            </table>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- ==================================================
+     EMPLOYEE MODAL
+     ================================================== -->
+<div class="modal fade" id="employeeModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="employeeModalTitle">Add Employee</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="employeeForm">
+          <input type="hidden" id="employeeId">
+          <div class="row g-3">
+            <!-- IMAGE -->
+            <div class="col-md-3">
+              <label class="form-label">Employee Image</label>
+              <div class="image-upload-area" onclick="document.getElementById('employeeImage').click()">
+                <img id="imagePreview" class="image-preview">
+                <div id="imagePlaceholder" class="image-placeholder"><i class="fa fa-user"></i></div>
+                <div class="small text-muted mt-2">Click to upload</div>
+                <div class="small text-muted">JPG / PNG / WEBP</div>
+                <input type="file" id="employeeImage" accept="image/jpeg,image/png,image/webp" style="display:none">
+              </div>
+            </div>
+            <!-- FORM -->
+            <div class="col-md-9">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label">Employee Code <span class="text-danger">*</span></label>
+                  <input type="text" id="employeeCode" class="form-control form-control-sm" placeholder="EMP001" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Employee Name <span class="text-danger">*</span></label>
+                  <input type="text" id="employeeName" class="form-control form-control-sm" placeholder="Employee name" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Email</label>
+                  <input type="email" id="employeeEmail" class="form-control form-control-sm" placeholder="employee@example.com">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Mobile</label>
+                  <input type="text" id="employeeMobile" class="form-control form-control-sm" maxlength="15" placeholder="Mobile number">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Department</label>
+                  <input type="text" id="employeeDepartment" class="form-control form-control-sm" placeholder="IT">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Designation</label>
+                  <input type="text" id="employeeDesignation" class="form-control form-control-sm" placeholder="Software Developer">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Joining Date</label>
+                  <input type="date" id="joiningDate" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Status</label>
+                  <select id="employeeStatus" class="form-select form-select-sm">
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="saveEmployeeBtn" class="btn btn-primary btn-sm" onclick="saveEmployee()"><i class="fa fa-save me-1"></i> Save Employee</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-box">
+        <div class="spinner-border text-primary mb-2"></div>
+        <div id="loadingText">Loading...</div>
+    </div>
+</div>
+
+<!-- BOOTSTRAP -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+
+<script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbyyKPsTR-D51-zqhKIhw6DTgzdrrs13AqRoB3HJa7WDLgZxA-Ks_-YGbaqEgMBnOnEFhA/exec";
+    let employees = [], employeeModal = null, selectedImage = null;
+
+    document.addEventListener("DOMContentLoaded", function() {
+        employeeModal = new bootstrap.Modal(document.getElementById("employeeModal"));
+        loadEmployees();
+        document.getElementById("searchEmployee").addEventListener("input", renderEmployees);
+        document.getElementById("filterStatus").addEventListener("change", renderEmployees);
+        document.getElementById("employeeImage").addEventListener("change", handleImage);
+    });
+
+    async function apiRequest(data) {
+        try {
+            const response = await fetch(API_URL, {
+                method: "POST",
+                body: "data=" + encodeURIComponent(JSON.stringify(data))
+            });
+
+            const text = await response.text();
+
+            let result;
+
+            try {
+                result = JSON.parse(text);
+            } 
+            catch (parseError) {
+                console.error("Invalid server response:", text);
+
+                throw {
+                    message: "Server returned an invalid response.",
+                    xhr: response,
+                    status: response.status,
+                    error: text
+                };
+            }
+
+            if (!response.ok) {
+                throw {
+                    message: result.message || "Server request failed",
+                    xhr: response,
+                    status: response.status,
+                    error: response.statusText
+                };
+            }
+
+            if (!result.success) {
+                throw {
+                    message: result.message || "Request failed",
+                    xhr: response,
+                    status: response.status,
+                    error: result.message || "Request failed"
+                };
+            }
+
+            return result;
+
+        } 
+        catch (error) {
+            console.error("API Error:", error);
+
+            throw {
+                message: error?.message || "Something went wrong.",
+                xhr: error?.xhr || null,
+                status: error?.status || "",
+                error: error?.error || error?.message || ""
+            };
+        }
+    }
+
+    async function loadEmployees() {
+        showLoading("Loading employees...");
+        try {
+            const result = await apiRequest({ action: "getEmployees" });
+            employees = result.data || [];
+            renderEmployees();
+        } catch (error) {
+            showError(error.message, error.xhr, error.status, error.error);
+        } finally {
+            hideLoading();
+        }
+    }
+
+    function renderEmployees() {
+        const tbody = document.getElementById("employeeTableBody");
+        const search = document.getElementById("searchEmployee").value.trim().toLowerCase();
+        const status = document.getElementById("filterStatus").value;
+        const filtered = employees.filter(employee => {
+            const text = `${employee.employeeCode} ${employee.name} ${employee.email} ${employee.mobile} ${employee.department} ${employee.designation}`.toLowerCase();
+            return (!search || text.includes(search)) && (!status || employee.status === status);
+        });
+        document.getElementById("recordCount").textContent = `${filtered.length} Employee${filtered.length !== 1 ? "s" : ""}`;
+        tbody.innerHTML = "";
+        if (!filtered.length) {
+            tbody.innerHTML = `<tr><td colspan="10" class="empty-row"><i class="fa fa-users fa-2x mb-2 d-block"></i>No employees found</td></tr>`;
+            return;
+        }
+        filtered.forEach(employee => {
+            const tr = document.createElement("tr");
+            const imageHtml = employee.imageUrl ? `<img src="${escapeHtml(employee.imageUrl)}" class="employee-photo" alt="Employee">` : `<div class="employee-photo-placeholder"><i class="fa fa-user"></i></div>`;
+            const statusClass = employee.status === "Active" ? "status-active" : "status-inactive";
+            tr.innerHTML = `<td>${imageHtml}</td><td><strong>${escapeHtml(employee.employeeCode)}</strong></td><td>${escapeHtml(employee.name)}</td><td>${escapeHtml(employee.email)}</td><td>${escapeHtml(employee.mobile)}</td><td>${escapeHtml(employee.department)}</td><td>${escapeHtml(employee.designation)}</td><td>${formatDisplayDate(employee.joiningDate)}</td><td><span class="status-badge ${statusClass}">${escapeHtml(employee.status)}</span></td><td class="text-center"><button class="action-btn action-edit" title="Edit" onclick="editEmployee('${escapeJs(employee.employeeId)}')"><i class="fa fa-edit"></i></button><button class="action-btn action-delete" title="Delete" onclick="deleteEmployee('${escapeJs(employee.employeeId)}')"><i class="fa fa-trash"></i></button></td>`;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function openAddEmployee() {
+        clearForm();
+        document.getElementById("employeeModalTitle").textContent = "Add Employee";
+        document.getElementById("saveEmployeeBtn").innerHTML = `<i class="fa fa-save me-1"></i> Save Employee`;
+        employeeModal.show();
+    }
+
+    function editEmployee(employeeId) {
+        const employee = employees.find(x => x.employeeId === employeeId);
+        if (!employee) return showError("Employee not found");
+        clearForm();
+        document.getElementById("employeeModalTitle").textContent = "Edit Employee";
+        document.getElementById("employeeId").value = employee.employeeId;
+        document.getElementById("employeeCode").value = employee.employeeCode;
+        document.getElementById("employeeName").value = employee.name;
+        document.getElementById("employeeEmail").value = employee.email;
+        document.getElementById("employeeMobile").value = employee.mobile;
+        document.getElementById("employeeDepartment").value = employee.department;
+        document.getElementById("employeeDesignation").value = employee.designation;
+        document.getElementById("joiningDate").value = employee.joiningDate || "";
+        document.getElementById("employeeStatus").value = employee.status || "Active";
+        if (employee.imageUrl) {
+            const preview = document.getElementById("imagePreview");
+            preview.src = employee.imageUrl;
+            preview.style.display = "block";
+            document.getElementById("imagePlaceholder").style.display = "none";
+        }
+        document.getElementById("saveEmployeeBtn").innerHTML = `<i class="fa fa-save me-1"></i> Update Employee`;
+        employeeModal.show();
+    }
+
+    function clearForm() {
+        document.getElementById("employeeForm").reset();
+        document.getElementById("employeeId").value = "";
+        selectedImage = null;
+        document.getElementById("imagePreview").src = "";
+        document.getElementById("imagePreview").style.display = "none";
+        document.getElementById("imagePlaceholder").style.display = "flex";
+        document.getElementById("employeeStatus").value = "Active";
+    }
+
+    function handleImage(event) {
+        const file = event.target.files[0];
+        if (!file) return selectedImage = null;
+
+        const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+
+        if (!allowedTypes.includes(file.type)) {
+            showError("Only JPG, PNG and WEBP images are allowed.");
+            event.target.value = "";
+            return;
+        }
+
+        const maxSize = 2 * 1024 * 1024;
+
+        if (file.size > maxSize) {
+            showError("Image size must be less than 2 MB.");
+            event.target.value = "";
+            return;
+        }
+
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+            const preview = document.getElementById("imagePreview");
+            preview.src = e.target.result;
+            preview.style.display = "block";
+            document.getElementById("imagePlaceholder").style.display = "none";
+            selectedImage = { name: file.name, mimeType: file.type, base64: e.target.result };
+        };
+
+        reader.readAsDataURL(file);
+    }    
+
+    async function saveEmployee() {
+        const form = document.getElementById("employeeForm");
+        if (!form.checkValidity()) return form.reportValidity();
+        const employeeId = document.getElementById("employeeId").value.trim();
+        const data = {
+            action: "saveEmployee",
+            employeeId,
+            employeeCode: document.getElementById("employeeCode").value.trim(),
+            name: document.getElementById("employeeName").value.trim(),
+            email: document.getElementById("employeeEmail").value.trim(),
+            mobile: document.getElementById("employeeMobile").value.trim(),
+            department: document.getElementById("employeeDepartment").value.trim(),
+            designation: document.getElementById("employeeDesignation").value.trim(),
+            joiningDate: document.getElementById("joiningDate").value,
+            status: document.getElementById("employeeStatus").value,
+            image: selectedImage
+        };
+        const button = document.getElementById("saveEmployeeBtn");
+        button.disabled = true;
+        showLoading(employeeId ? "Updating employee..." : "Saving employee...");
+        try {
+            const result = await apiRequest(data);
+            showSuccess(result.message);
+            employeeModal.hide();
+            await loadEmployees();
+        } catch (error) {
+            showError(error.message, error.xhr, error.status, error.error);
+        } finally {
+            button.disabled = false;
+            hideLoading();
+        }
+    }
+
+    async function deleteEmployee(employeeId) {
+        const employee = employees.find(x => x.employeeId === employeeId);
+        if (!employee) return;
+        if (!confirm(`Are you sure you want to delete ${employee.name}?`)) return;
+        showLoading("Deleting employee...");
+        try {
+            const result = await apiRequest({ action: "deleteEmployee", employeeId });
+            showSuccess(result.message);
+            await loadEmployees();
+        } catch (error) {
+            showError(error.message, error.xhr, error.status, error.error);            
+        } finally {
+            hideLoading();
+        }
+    }
+
+    function formatDisplayDate(date) {
+        if (!date) return "";
+        const parts = date.split("-");
+        if (parts.length !== 3) return date;
+        return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+
+    function escapeHtml(value) {
+        if (value === null || value === undefined) return "";
+        return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    function escapeJs(value) {
+        return String(value || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, '\\"');
+    }
+
+    function showLoading(message) {
+        document.getElementById("loadingText").textContent = message || "Loading...";
+        document.getElementById("loadingOverlay").style.display = "flex";
+    }
+
+    function hideLoading() {
+        document.getElementById("loadingOverlay").style.display = "none";
+    }
+
+    function showSuccess(message) {
+        Swal.fire({
+            toast: true,
+            icon: "success",
+            title: message || "Success.",
+            position: "top-end",
+            showConfirmButton: false,
+            timer: 3000,
+            timerProgressBar: true
+        });
+    }
+
+    function showError(message, xhr = null, status = "", error = "") {
+        Swal.fire({
+            icon: "error",
+            title: "Error",
+            html: `
+            <div class="text-start">
+                <div><strong>Message:</strong> ${escapeHtml(message || "Something went wrong.")}</div>
+                ${status ? `<div><strong>Status:</strong> ${escapeHtml(status)}</div>` : ""}
+                ${error ? `<div><strong>Error:</strong> ${escapeHtml(error)}</div>` : ""}
+                ${xhr ? `<div><strong>XHR Status:</strong> ${escapeHtml(xhr.status)}</div>` : ""}
+                ${xhr?.statusText ? `<div><strong>Status Text:</strong> ${escapeHtml(xhr.statusText)}</div>` : ""}
+            </div>
+            `,
+            confirmButtonText: "OK"
+        });
+    }
+
+</script>
+
+</body>
+
+</html>

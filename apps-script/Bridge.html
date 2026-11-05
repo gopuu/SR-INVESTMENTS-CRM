@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>SR Investments CRM Bridge</title>
+  <style>html,body{margin:0;padding:0;background:transparent;overflow:hidden;}</style>
+</head>
+<body>
+<script>
+  /**
+   * SR Investments CRM Bridge
+   * Handles bidirectional postMessage communication between GitHub Pages (React SPA)
+   * and Google Apps Script backend via google.script.run.
+   */
+  window.addEventListener("message", function (event) {
+    const data = event.data || {};
+    if (data.type !== "CRM_BRIDGE_REQUEST") return;
+
+    const requestId = data.requestId;
+    const action = data.action;
+    const payload = data.payload || {};
+    const target = event.source;
+
+    google.script.run
+      .withSuccessHandler(function (result) {
+        target.postMessage({
+          type: "CRM_BRIDGE_RESPONSE",
+          requestId: requestId,
+          ok: true,
+          result: result
+        }, "*");
+      })
+      .withFailureHandler(function (error) {
+        target.postMessage({
+          type: "CRM_BRIDGE_RESPONSE",
+          requestId: requestId,
+          ok: false,
+          error: error && error.message ? error.message : String(error)
+        }, "*");
+      })
+      .bridgeRequest(action, payload);
+  });
+
+  // Signal to the host window that bridge is active
+  window.parent.postMessage({ type: "CRM_BRIDGE_READY" }, "*");
+</script>
+</body>
+</html>
+

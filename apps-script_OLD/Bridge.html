@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>CRM Bridge</title>
+  <style>html,body{margin:0;padding:0;background:transparent;}</style>
+</head>
+<body>
+<script>
+  /*
+   * This page runs inside Apps Script HTML Service, so google.script.run
+   * is available. It acts as a tiny bridge for the GitHub Pages frontend.
+   *
+   * The parent page is not trusted for authorization. If this application
+   * is made public, add application authentication/authorization before
+   * exposing real customer/employee data.
+   */
+  window.addEventListener("message", function (event) {
+    const data = event.data || {};
+    if (data.type !== "CRM_BRIDGE_REQUEST") return;
+
+    const requestId = data.requestId;
+    const action = data.action;
+    const payload = data.payload || {};
+    const target = event.source;
+
+    google.script.run
+      .withSuccessHandler(function (result) {
+        target.postMessage({
+          type: "CRM_BRIDGE_RESPONSE",
+          requestId: requestId,
+          ok: true,
+          result: result
+        }, "*");
+      })
+      .withFailureHandler(function (error) {
+        target.postMessage({
+          type: "CRM_BRIDGE_RESPONSE",
+          requestId: requestId,
+          ok: false,
+          error: error && error.message ? error.message : String(error)
+        }, "*");
+      })
+      .bridgeRequest(action, payload);
+  });
+
+  // Tell GitHub Pages that the bridge is ready.
+  window.parent.postMessage({ type: "CRM_BRIDGE_READY" }, "*");
+</script>
+</body>
+</html>
