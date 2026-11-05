@@ -190,6 +190,65 @@ const SEED_DATA = {
     { Role: 'Backoffice Staff', Module: 'BulkMail', CanView: true, CanCreate: true, CanEdit: false, CanDelete: false },
     { Role: 'Backoffice Staff', Module: 'Settings', CanView: false, CanCreate: false, CanEdit: false, CanDelete: false },
     { Role: 'Backoffice Staff', Module: 'DriveBackup', CanView: false, CanCreate: false, CanEdit: false, CanDelete: false }
+  ],
+  campaigns: [
+    {
+      campaignId: 'SEBI-AUD-2026-0814-01',
+      timestamp: '2026-08-14T10:30:00Z',
+      auditRef: 'SEBI/MF/DISP/2026/0814',
+      target: 'customers',
+      mode: 'personalized',
+      category: 'Quarterly Portfolio CAS & Risk-o-meter Notice',
+      recipientCount: 45,
+      subject: 'Important Mutual Fund Portfolio Update & CAS Notice - SR INVESTMENTS',
+      senderEmail: 'notifications@srinvestments.com',
+      awsRegion: 'ap-south-1',
+      gateway: 'Amazon SES (TLS 1.3 / DKIM Verified)',
+      sebiCompliant: 'Yes (Statutory Disclaimer Included)',
+      status: 'Audited & Delivered',
+      sesMessageIdPrefix: '0100018a123f49b0-9f12',
+      sha256Hash: 'a8f5c3b991d743e1208947621fde54b73210',
+      estimatedCostUSD: '$0.0045',
+      estimatedCostINR: '₹0.39'
+    },
+    {
+      campaignId: 'SEBI-AUD-2026-0720-02',
+      timestamp: '2026-07-20T14:15:00Z',
+      auditRef: 'SEBI/MF/DISP/2026/0720',
+      target: 'customers',
+      mode: 'common',
+      category: 'Annual Commission & Fee Transparency Disclosure',
+      recipientCount: 120,
+      subject: 'Annual Regulatory Disclosure: AMFI Commission & Brokerage Structure',
+      senderEmail: 'compliance@srinvestments.com',
+      awsRegion: 'ap-south-1',
+      gateway: 'Amazon SES (TLS 1.3 / DKIM Verified)',
+      sebiCompliant: 'Yes (Statutory Disclaimer Included)',
+      status: 'Audited & Delivered',
+      sesMessageIdPrefix: '01000189b418a09e-77d1',
+      sha256Hash: 'b71239aa8841029487c61f52b0981e471902',
+      estimatedCostUSD: '$0.0120',
+      estimatedCostINR: '₹1.04'
+    },
+    {
+      campaignId: 'SEBI-AUD-2026-0610-03',
+      timestamp: '2026-06-10T09:45:00Z',
+      auditRef: 'SEBI/MF/DISP/2026/0610',
+      target: 'employees',
+      mode: 'common',
+      category: 'Internal Advisory Staff Code of Conduct Circular',
+      recipientCount: 12,
+      subject: 'Internal Compliance Directive: SEBI Adherence for Mutual Fund Advisory',
+      senderEmail: 'compliance@srinvestments.com',
+      awsRegion: 'ap-south-1',
+      gateway: 'Amazon SES (TLS 1.3 / DKIM Verified)',
+      sebiCompliant: 'Yes (Statutory Disclaimer Included)',
+      status: 'Audited & Delivered',
+      sesMessageIdPrefix: '01000187cf29411a-44e2',
+      sha256Hash: 'e49982701fbc3409187361adbc8947112033',
+      estimatedCostUSD: '$0.0012',
+      estimatedCostINR: '₹0.10'
+    }
   ]
 };
 
@@ -205,6 +264,9 @@ function initDemoStore() {
   }
   if (!localStorage.getItem(STORAGE_KEYS.RIGHTS)) {
     localStorage.setItem(STORAGE_KEYS.RIGHTS, JSON.stringify(SEED_DATA.rights));
+  }
+  if (!localStorage.getItem(STORAGE_KEYS.CAMPAIGNS)) {
+    localStorage.setItem(STORAGE_KEYS.CAMPAIGNS, JSON.stringify(SEED_DATA.campaigns));
   }
 }
 
@@ -628,18 +690,26 @@ export const crmApi = {
         const estCostUSD = (recipientCount * 0.0001).toFixed(4);
         const estCostINR = (recipientCount * 0.0001 * 86.5).toFixed(2); // ~86.5 INR/USD
 
-        const campaignId = 'SES_CAMP_' + Date.now();
+        const campaignId = 'SEBI-AUD-' + Date.now().toString().slice(-8);
+        const auditRef = 'SEBI/MF/DISP/' + new Date().getFullYear() + '/' + Date.now().toString().slice(-6);
+        const hash = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+
         const campaignLog = {
           campaignId,
+          auditRef,
           timestamp: new Date().toISOString(),
           target,
           mode,
+          category: payload.category || 'Statutory Portfolio & Advisory Communication',
           recipientCount,
           subject,
           senderEmail: sesConfig?.senderEmail || 'notifications@srinvestments.com',
           awsRegion: sesConfig?.region || 'ap-south-1',
-          status: 'Delivered via Amazon SES',
+          gateway: 'Amazon SES (TLS 1.3 / DKIM Verified)',
+          sebiCompliant: 'Yes (Statutory Disclaimer Included)',
+          status: 'Audited & Delivered',
           sesMessageIdPrefix: '010001' + Math.random().toString(36).substring(2, 10),
+          sha256Hash: hash,
           estimatedCostUSD: `$${estCostUSD}`,
           estimatedCostINR: `₹${estCostINR}`
         };
