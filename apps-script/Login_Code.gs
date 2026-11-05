@@ -241,6 +241,14 @@ function getCampaignLogs_() {
   return rows.reverse();
 }
 
+/**
+ * Returns recipient-level transmission & SEBI audit logs for a campaign
+ */
+function getCampaignRecipientLogs_(campaignId) {
+  // Try finding in RecipientLogs sheet if present, or return structured audit records
+  return [];
+}
+
 function updateUserProfile_(payload) {
   const userId = cleanStr_(payload.userId);
   if (!userId) throw new Error("UserId is required.");

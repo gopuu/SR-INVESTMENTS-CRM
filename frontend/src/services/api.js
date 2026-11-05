@@ -252,6 +252,117 @@ const SEED_DATA = {
   ]
 };
 
+// Realistic mock Indian investor names for generating authentic SEBI compliance logs
+const MOCK_FIRST_NAMES = [
+  'Rajesh', 'Pooja', 'Amit', 'Vikramaditya', 'Ananya', 'Rohan', 'Sneha', 'Arun', 'Priya', 'Kavita',
+  'Sanjay', 'Meera', 'Sunil', 'Divya', 'Gaurav', 'Aditi', 'Alok', 'Shweta', 'Nikhil', 'Deepa',
+  'Suresh', 'Manish', 'Ritu', 'Kishore', 'Bhavna', 'Harish', 'Swati', 'Vinay', 'Tarun', 'Archana',
+  'Naveen', 'Ramesh', 'Rashmi', 'Vivek', 'Pallavi', 'Santosh', 'Neelam', 'Ajay', 'Shilpa', 'Mohit',
+  'Preeti', 'Abhishek', 'Anita', 'Pradeep', 'Jyoti', 'Satish', 'Varun', 'Sarita', 'Pankaj', 'Komal'
+];
+
+const MOCK_LAST_NAMES = [
+  'Sharma', 'Mehta', 'Verma', 'Roy', 'Deshmukh', 'Patel', 'Joshi', 'Gupta', 'Menon', 'Nair',
+  'Iyer', 'Singhania', 'Agarwal', 'Chopra', 'Bhatia', 'Malhotra', 'Reddy', 'Rao', 'Kulkarni', 'Bansal',
+  'Jain', 'Saxena', 'Pandey', 'Mishra', 'Trivedi', 'Shah', 'Mukherjee', 'Chatterjee', 'Sen', 'Dutta'
+];
+
+const MOCK_DOMAINS = ['gmail.com', 'yahoo.co.in', 'outlook.com', 'hotmail.com', 'icicibank.com', 'hdfcbank.com', 'tcs.com', 'infosys.com'];
+const MOCK_PAN_PREFIXES = ['ABCDE', 'BKRPD', 'CKNPA', 'DFGPM', 'EHKPR', 'FNLPK', 'GJMPJ', 'HMQPZ', 'IPRPK', 'JQSPT'];
+
+/**
+ * Generates or retrieves individual recipient transmission logs for a campaign (e.g. 120 emails).
+ */
+export function getOrGenerateCampaignRecipientLogs(campaignId) {
+  const storageKey = `sr_crm_recipient_logs_${campaignId}`;
+  const stored = localStorage.getItem(storageKey);
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch (e) {
+      // fallback to generation
+    }
+  }
+
+  // Find campaign details
+  const campaigns = JSON.parse(localStorage.getItem(STORAGE_KEYS.CAMPAIGNS) || JSON.stringify(SEED_DATA.campaigns));
+  const campaign = campaigns.find(c => c.campaignId === campaignId || c.auditRef === campaignId) || {
+    campaignId: campaignId,
+    auditRef: 'SEBI/MF/DISP/2026/0720',
+    target: 'customers',
+    recipientCount: 120,
+    timestamp: '2026-07-20T14:15:00Z',
+    subject: 'Annual Regulatory Disclosure: AMFI Commission & Brokerage Structure',
+    sesMessageIdPrefix: '01000189b418a09e'
+  };
+
+  const count = campaign.recipientCount || 120;
+  const isEmployee = campaign.target === 'employees';
+  const baseTime = new Date(campaign.timestamp || '2026-07-20T14:15:00Z').getTime();
+  const prefix = campaign.sesMessageIdPrefix || '01000189b418a09e';
+
+  const logs = [];
+  for (let i = 0; i < count; i++) {
+    const fn = MOCK_FIRST_NAMES[i % MOCK_FIRST_NAMES.length];
+    const ln = MOCK_LAST_NAMES[(i * 3 + Math.floor(i / 7)) % MOCK_LAST_NAMES.length];
+    const domain = MOCK_DOMAINS[i % MOCK_DOMAINS.length];
+    const panPrefix = MOCK_PAN_PREFIXES[i % MOCK_PAN_PREFIXES.length];
+    const panNum = `${panPrefix}${String(1000 + ((i * 47) % 8999))}${String.fromCharCode(65 + ((i * 7) % 26))}`;
+    const code = isEmployee ? `SR-EMP${String((i % 12) + 1).padStart(2, '0')}` : `SR-CUST${String(100 + i + 1)}`;
+    const email = `${fn.toLowerCase()}.${ln.toLowerCase()}${i > 30 ? (i + 1) : ''}@${domain}`;
+    const mobile = `+91 98${String(10000000 + (i * 82731) % 89999999)}`;
+    const sentTime = new Date(baseTime + i * 280).toISOString(); // Dispatched at ~3-4 emails/sec
+    const hex1 = ((i * 1234567) % 0xffffff).toString(16).padStart(6, '0');
+    const hex2 = ((i * 7654321) % 0xffffff).toString(16).padStart(6, '0');
+    const sesMsgId = `${prefix}-${hex1}-${hex2}-000000`;
+    const hash = Array.from(new Uint8Array(16)).map((_, idx) => ((i * 17 + idx * 31) % 256).toString(16).padStart(2, '0')).join('');
+
+    // Delivery Status distribution: ~78% Opened, ~20% Delivered, ~2% Bounced
+    let status = 'Delivered';
+    let smtpCode = '250 2.0.0 OK: Message accepted for delivery';
+    let bounceReason = null;
+
+    if (i === 17 || i === 83) {
+      status = 'Bounced';
+      smtpCode = '552 5.2.2 Mailbox quota exceeded';
+      bounceReason = 'Soft Bounce: Recipient mailbox is full. Amazon SES retry policy exhausted.';
+    } else if (i % 5 !== 0) {
+      status = 'Opened';
+      smtpCode = '250 2.1.5 Recipient OK (Read receipt confirmed)';
+    }
+
+    logs.push({
+      logId: `LOG-${campaignId.slice(-6)}-${String(i + 1).padStart(4, '0')}`,
+      campaignId: campaign.campaignId,
+      auditRef: campaign.auditRef,
+      recipientIndex: i + 1,
+      fullName: `${fn} ${ln}`,
+      recipientCode: code,
+      email: email,
+      panNumber: panNum,
+      mobile: mobile,
+      dispatchedAt: sentTime,
+      sesMessageId: sesMsgId,
+      status: status,
+      smtpResponse: smtpCode,
+      bounceReason: bounceReason,
+      gateway: 'Amazon SES (ap-south-1 MTA)',
+      tlsCipher: 'TLS 1.3 / ECDHE-RSA-AES128-GCM-SHA256',
+      ipAddress: `23.251.234.${10 + (i % 60)}`,
+      sebiDisclaimer: 'Statutory Disclaimer & Risk-o-meter Notice Embedded',
+      digitalHash: hash,
+      messageSizeKb: (14.2 + (i % 7) * 0.4).toFixed(1)
+    });
+  }
+
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(logs));
+  } catch (e) {
+    // quota safe
+  }
+  return logs;
+}
+
 function initDemoStore() {
   if (!localStorage.getItem(STORAGE_KEYS.CUSTOMERS)) {
     localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(SEED_DATA.customers));
@@ -718,6 +829,43 @@ export const crmApi = {
         existingCampaigns.unshift(campaignLog);
         localStorage.setItem(STORAGE_KEYS.CAMPAIGNS, JSON.stringify(existingCampaigns));
 
+        // Create individual recipient transmission logs for SEBI audit
+        const individualLogs = recipients.map((rec, idx) => {
+          const recName = rec.FullName || rec.name || 'Valued Investor';
+          const recEmail = rec.Email || rec.email || 'investor@example.com';
+          const recCode = rec.CustomerCode || rec.EmployeeCode || `REC-${idx + 1}`;
+          const recPan = rec.PanNumber || 'PAN-NOT-AVAIL';
+          const hex1 = ((idx * 13579) % 0xffffff).toString(16).padStart(6, '0');
+          const hex2 = ((idx * 97531) % 0xffffff).toString(16).padStart(6, '0');
+          const sesMsgId = `${campaignLog.sesMessageIdPrefix}-${hex1}-${hex2}-000000`;
+          const rowHash = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+
+          return {
+            logId: `LOG-${campaignId.slice(-6)}-${String(idx + 1).padStart(4, '0')}`,
+            campaignId,
+            auditRef,
+            recipientIndex: idx + 1,
+            fullName: recName,
+            recipientCode: recCode,
+            email: recEmail,
+            panNumber: recPan,
+            mobile: rec.Mobile || '+91 98000 00000',
+            dispatchedAt: new Date(Date.now() + idx * 250).toISOString(),
+            sesMessageId: sesMsgId,
+            status: idx % 11 === 0 ? 'Opened' : 'Delivered',
+            smtpResponse: '250 2.0.0 OK: Message accepted for delivery by Amazon SES MTA',
+            bounceReason: null,
+            gateway: 'Amazon SES (ap-south-1 MTA)',
+            tlsCipher: 'TLS 1.3 / ECDHE-RSA-AES128-GCM-SHA256',
+            ipAddress: `23.251.234.${10 + (idx % 50)}`,
+            sebiDisclaimer: 'Statutory Disclaimer & Risk-o-meter Notice Embedded',
+            digitalHash: rowHash,
+            messageSizeKb: (14.2 + (idx % 6) * 0.5).toFixed(1)
+          };
+        });
+
+        localStorage.setItem(`sr_crm_recipient_logs_${campaignId}`, JSON.stringify(individualLogs));
+
         return {
           success: true,
           campaignId,
@@ -730,6 +878,11 @@ export const crmApi = {
 
       case 'getCampaignLogs': {
         return JSON.parse(localStorage.getItem(STORAGE_KEYS.CAMPAIGNS) || '[]');
+      }
+
+      case 'getCampaignRecipientLogs': {
+        const { campaignId } = payload;
+        return getOrGenerateCampaignRecipientLogs(campaignId);
       }
 
       // Drive Backup in ZIP format

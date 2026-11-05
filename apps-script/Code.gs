@@ -131,6 +131,9 @@ function handleAction_(action, payload) {
     case "getCampaignLogs":
       return getCampaignLogs_();
 
+    case "getCampaignRecipientLogs":
+      return getCampaignRecipientLogs_(payload.campaignId);
+
     // Drive Full ZIP Backup
     case "downloadDriveBackup":
       return backupDriveFilesToZip_();
