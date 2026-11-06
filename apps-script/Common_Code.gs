@@ -36,27 +36,32 @@ const CRM_CONFIG = {
 // Database Schema Definitions
 const CRM_SCHEMAS = {
   USERS: [
-    "UserId", "Name", "Email", "Password", "Role", "Status", "CreatedAt", "LastLogin"
+    "UserId", "Name", "Email", "Password", "Role", "Status", "CreatedAt", "LastLogin",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
   ],
   CUSTOMERS: [
     "CustomerId", "CustomerCode", "FullName", "Email", "Mobile", "PanNumber",
     "AadhaarLast4", "KycStatus", "InvestorCategory", "DateOfBirth", "NomineeName",
     "NomineeRelation", "BankName", "AccountNumber", "IfscCode", "City", "State",
-    "RiskProfile", "Notes", "CreatedAt", "UpdatedAt"
+    "RiskProfile", "Notes",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
   ],
   EMPLOYEES: [
     "EmployeeId", "EmployeeCode", "FullName", "Email", "GoogleEmails", "Mobile",
     "Department", "Designation", "Role", "Password", "JoiningDate", "Status",
-    "Address", "City", "State", "PhotoUrl", "DriveFileId", "CreatedAt", "UpdatedAt"
+    "Address", "City", "State", "PhotoUrl", "DriveFileId",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
   ],
   SETTINGS: [
-    "Key", "Value", "Description", "UpdatedAt"
+    "Key", "Value", "Description",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
   ],
   RIGHTS: [
-    "Role", "Module", "CanView", "CanCreate", "CanEdit", "CanDelete"
+    "Role", "Module", "CanView", "CanCreate", "CanEdit", "CanDelete",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
   ],
   AUDIT: [
-    "LogId", "Timestamp", "UserEmail", "Action", "Details"
+    "LogId", "Timestamp", "UserEmail", "Action", "Module", "RecordId", "Details"
   ],
   APP_TRACKER: [
     "Date", "Status", "Module", "Task", "Description / Updates"
@@ -65,7 +70,8 @@ const CRM_SCHEMAS = {
     "Email", "Name", "Department", "Designation", "Status"
   ],
   CAMPAIGNS: [
-    "CampaignId", "Timestamp", "Target", "RecipientCount", "Subject", "SenderEmail", "Status", "EstimatedCost"
+    "CampaignId", "Timestamp", "Target", "RecipientCount", "Subject", "SenderEmail", "Status", "EstimatedCost",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
   ]
 };
 
@@ -240,21 +246,61 @@ function backupDriveFilesToZip_() {
 }
 
 /**
- * Log action to AuditLogs sheet
+ * Log action to AuditLogs sheet with full CRUD trail
  */
-function logAudit_(userEmail, action, details) {
+function logAudit_(userEmail, action, moduleOrDetails, recordId, details) {
   try {
+    let mod = "General";
+    let recId = "";
+    let det = "";
+
+    if (details !== undefined) {
+      mod = moduleOrDetails || "General";
+      recId = recordId || "";
+      det = details || "";
+    } else if (recordId !== undefined) {
+      mod = moduleOrDetails || "General";
+      det = recordId || "";
+    } else {
+      det = moduleOrDetails || "";
+    }
+
     const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.AUDIT, CRM_SCHEMAS.AUDIT);
     sheet.appendRow([
       createId_("LOG"),
       new Date().toISOString(),
       userEmail || "System",
-      action,
-      details || ""
+      action || "INFO",
+      mod,
+      recId,
+      det
     ]);
   } catch (e) {
     Logger.log("Audit log failed: " + e.message);
   }
+}
+
+/**
+ * Returns latest audit logs for SEBI compliance review
+ */
+function getAuditLogs_(filters) {
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.AUDIT, CRM_SCHEMAS.AUDIT);
+  let rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.AUDIT);
+  
+  if (filters && filters.module) {
+    rows = rows.filter(r => r.Module === filters.module);
+  }
+  if (filters && filters.search) {
+    const q = String(filters.search).toLowerCase();
+    rows = rows.filter(r => 
+      (r.Action && r.Action.toLowerCase().includes(q)) ||
+      (r.UserEmail && r.UserEmail.toLowerCase().includes(q)) ||
+      (r.RecordId && r.RecordId.toLowerCase().includes(q)) ||
+      (r.Details && r.Details.toLowerCase().includes(q))
+    );
+  }
+  
+  return rows.reverse();
 }
 
 function createId_(prefix) {

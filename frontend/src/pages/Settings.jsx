@@ -9,7 +9,12 @@ import {
   RefreshCw,
   Mail,
   Archive,
-  Download
+  Download,
+  History,
+  FileSpreadsheet,
+  FileCode,
+  Search,
+  RotateCcw
 } from 'lucide-react';
 import { crmApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -21,6 +26,13 @@ export default function Settings({ onOpenBackup }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState({ text: '', type: '' });
+
+  // Audit Logs State
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditSearch, setAuditSearch] = useState('');
+  const [auditModuleFilter, setAuditModuleFilter] = useState('all');
+  const [auditActionFilter, setAuditActionFilter] = useState('all');
 
   // Company & SES Settings State
   const [companySettings, setCompanySettings] = useState({
@@ -49,6 +61,74 @@ export default function Settings({ onOpenBackup }) {
   useEffect(() => {
     loadSettings();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'audit') {
+      loadAuditLogs();
+    }
+  }, [activeTab, auditModuleFilter]);
+
+  const loadAuditLogs = async () => {
+    setAuditLoading(true);
+    try {
+      const logs = await crmApi.call('getAuditLogs', {
+        module: auditModuleFilter,
+        search: auditSearch
+      });
+      setAuditLogs(logs || []);
+    } catch (err) {
+      console.warn('Failed to load audit logs:', err);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  const exportAuditExcel = () => {
+    if (!auditLogs.length) return alert('No audit records to export.');
+    const dateTag = new Date().toISOString().slice(0, 10);
+    const meta = [
+      '# SEBI COMPLIANCE AUDIT TRAIL & MASTER CRUD ACTIVITY REGISTER',
+      `# Entity: SR INVESTMENTS | AMFI Registration No: ARN-189241 | Principal EUIN: E345678`,
+      `# Report Generated: ${new Date().toLocaleString()} IST | Total Audited Records: ${auditLogs.length}`,
+      ''
+    ].join('\n');
+
+    const headers = ['Audit Log ID', 'Timestamp (IST)', 'User Email', 'Action', 'Module / Master', 'Record Reference', 'Change Description'];
+    const rows = auditLogs.map(r => [
+      r.LogId,
+      new Date(r.Timestamp).toLocaleString() + ' IST',
+      r.UserEmail,
+      r.Action,
+      r.Module,
+      r.RecordId,
+      r.Details
+    ].map(val => `"${String(val || '').replace(/"/g, '""')}"`).join('\t'));
+
+    const content = '\uFEFF' + meta + '\n' + headers.join('\t') + '\n' + rows.join('\n');
+    const blob = new Blob([content], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `SEBI_Audit_Trail_${dateTag}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const exportAuditJSON = () => {
+    if (!auditLogs.length) return alert('No audit records to export.');
+    const dateTag = new Date().toISOString().slice(0, 10);
+    const blob = new Blob([JSON.stringify({ entity: 'SR INVESTMENTS', arn: 'ARN-189241', logs: auditLogs }, null, 2)], { type: 'application/json;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `SEBI_Audit_Trail_${dateTag}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   const loadSettings = async () => {
     setLoading(true);
@@ -216,6 +296,25 @@ export default function Settings({ onOpenBackup }) {
             }}
           >
             <Database size={16} /> Google Apps Script / Drive Sync
+          </button>
+
+          <button
+            onClick={() => setActiveTab('audit')}
+            style={{
+              padding: '0.75rem 1.25rem',
+              border: 'none',
+              background: 'transparent',
+              fontSize: '0.875rem',
+              fontWeight: '600',
+              color: activeTab === 'audit' ? '#2563eb' : '#64748b',
+              borderBottom: activeTab === 'audit' ? '2px solid #2563eb' : '2px solid transparent',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}
+          >
+            <History size={16} /> SEBI Audit Trail & Logs
           </button>
         </div>
 
@@ -573,6 +672,184 @@ export default function Settings({ onOpenBackup }) {
                   {pingResult.message}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: SEBI COMPLIANCE AUDIT TRAIL & LOGS */}
+        {activeTab === 'audit' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div className="crm-card" style={{ padding: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '8px',
+                    backgroundColor: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    color: '#2563eb',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <History size={22} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
+                      SEBI Compliance Audit Trail & Master CRUD Register
+                    </h3>
+                    <div style={{ fontSize: '0.785rem', color: '#64748b', marginTop: '2px' }}>
+                      Audited non-repudiation log of all CREATE, UPDATE, SOFT_DELETE & RESTORE operations across masters.
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <button className="btn btn-outline-blue btn-sm" onClick={exportAuditExcel} title="Export audit trail to Excel">
+                    <FileSpreadsheet size={14} /> Excel
+                  </button>
+                  <button className="btn btn-outline-blue btn-sm" onClick={exportAuditJSON} title="Export audit trail to JSON">
+                    <FileCode size={14} /> JSON
+                  </button>
+                  <button className="btn btn-primary btn-sm" onClick={loadAuditLogs} title="Refresh audit log entries">
+                    <RefreshCw size={14} className={auditLoading ? 'spin-animation' : ''} /> Refresh
+                  </button>
+                </div>
+              </div>
+
+              {/* Filters toolbar */}
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1.25rem', alignItems: 'center' }}>
+                <div style={{ position: 'relative', flex: 1, minWidth: '240px', maxWidth: '380px' }}>
+                  <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={auditSearch}
+                    onChange={(e) => setAuditSearch(e.target.value)}
+                    placeholder="Search by user, record code, or description..."
+                    style={{ paddingLeft: '32px', height: '36px', fontSize: '0.825rem' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Master:</span>
+                  <select
+                    className="form-select"
+                    value={auditModuleFilter}
+                    onChange={(e) => setAuditModuleFilter(e.target.value)}
+                    style={{ height: '36px', fontSize: '0.8rem', width: 'auto' }}
+                  >
+                    <option value="all">All Masters</option>
+                    <option value="Customers">Customers</option>
+                    <option value="Staff">Staff</option>
+                    <option value="BulkMail">Bulk Mail</option>
+                    <option value="Settings">Settings</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Action:</span>
+                  <select
+                    className="form-select"
+                    value={auditActionFilter}
+                    onChange={(e) => setAuditActionFilter(e.target.value)}
+                    style={{ height: '36px', fontSize: '0.8rem', width: 'auto' }}
+                  >
+                    <option value="all">All Actions</option>
+                    <option value="CREATE">CREATE</option>
+                    <option value="UPDATE">UPDATE</option>
+                    <option value="SOFT_DELETE">SOFT_DELETE</option>
+                    <option value="RESTORE">RESTORE</option>
+                    <option value="BULK_MAIL">BULK_MAIL</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Audit Table */}
+              <div className="table-responsive">
+                <table className="crm-table" style={{ fontSize: '0.8rem' }}>
+                  <thead>
+                    <tr>
+                      <th>Audit Log ID</th>
+                      <th>Timestamp (IST)</th>
+                      <th>Performer / User</th>
+                      <th>Action</th>
+                      <th>Master Module</th>
+                      <th>Record Reference</th>
+                      <th>Change Description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditLoading ? (
+                      <tr>
+                        <td colSpan="7" style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
+                          Loading SEBI compliance audit trail...
+                        </td>
+                      </tr>
+                    ) : auditLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan="7" style={{ textAlign: 'center', padding: '2.5rem', color: '#94a3b8' }}>
+                          No audit entries match the selected filters.
+                        </td>
+                      </tr>
+                    ) : (
+                      auditLogs
+                        .filter(l => auditActionFilter === 'all' || l.Action === auditActionFilter)
+                        .filter(l => !auditSearch || (
+                          (l.UserEmail && l.UserEmail.toLowerCase().includes(auditSearch.toLowerCase())) ||
+                          (l.RecordId && l.RecordId.toLowerCase().includes(auditSearch.toLowerCase())) ||
+                          (l.Details && l.Details.toLowerCase().includes(auditSearch.toLowerCase()))
+                        ))
+                        .map((l) => (
+                          <tr key={l.LogId}>
+                            <td>
+                              <code style={{ fontFamily: 'monospace', fontSize: '0.72rem', backgroundColor: '#f1f5f9', padding: '2px 5px', borderRadius: '4px' }}>
+                                {l.LogId}
+                              </code>
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: '500' }}>
+                                {new Date(l.Timestamp).toLocaleDateString()}
+                              </div>
+                              <div style={{ fontSize: '0.675rem', color: '#64748b' }}>
+                                {new Date(l.Timestamp).toLocaleTimeString()} IST
+                              </div>
+                            </td>
+                            <td>
+                              <strong style={{ color: '#0f172a' }}>{l.UserEmail}</strong>
+                            </td>
+                            <td>
+                              <span className="badge" style={{
+                                backgroundColor: l.Action === 'CREATE' ? '#dbeafe' : (l.Action === 'SOFT_DELETE' ? '#fee2e2' : (l.Action === 'RESTORE' ? '#f3e8ff' : '#eff6ff')),
+                                color: l.Action === 'CREATE' ? '#1e40af' : (l.Action === 'SOFT_DELETE' ? '#b91c1c' : (l.Action === 'RESTORE' ? '#7e22ce' : '#2563eb')),
+                                fontSize: '0.675rem',
+                                fontWeight: '700'
+                              }}>
+                                {l.Action}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="badge badge-info" style={{ fontSize: '0.675rem' }}>
+                                {l.Module}
+                              </span>
+                            </td>
+                            <td>
+                              <strong style={{ color: '#2563eb', fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                                {l.RecordId || '—'}
+                              </strong>
+                            </td>
+                            <td>
+                              <span style={{ color: '#334155' }}>
+                                {l.Details}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

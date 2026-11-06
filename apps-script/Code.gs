@@ -112,7 +112,10 @@ function handleAction_(action, payload) {
       return saveCustomer_(payload);
 
     case "deleteCustomer":
-      return deleteCustomer_(payload.customerId);
+      return deleteCustomer_(payload);
+
+    case "restoreCustomer":
+      return restoreCustomer_(payload);
 
     // Staff / Employees
     case "getEmployees":
@@ -122,7 +125,14 @@ function handleAction_(action, payload) {
       return saveEmployee_(payload);
 
     case "deleteEmployee":
-      return deleteEmployee_(payload.employeeId);
+      return deleteEmployee_(payload);
+
+    case "restoreEmployee":
+      return restoreEmployee_(payload);
+
+    // SEBI Audit Logs Register
+    case "getAuditLogs":
+      return getAuditLogs_(payload);
 
     // Bulk Mailing via Amazon SES
     case "sendBulkEmail":

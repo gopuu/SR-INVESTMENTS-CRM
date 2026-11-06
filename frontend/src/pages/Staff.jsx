@@ -11,7 +11,10 @@ import {
   Camera,
   Briefcase,
   Sparkles,
-  Shield
+  Shield,
+  RotateCcw,
+  Archive,
+  Clock
 } from 'lucide-react';
 import { crmApi, getNextEmployeeCode } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +27,7 @@ export default function Staff() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [showDeleted, setShowDeleted] = useState(false);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -57,7 +61,10 @@ export default function Staff() {
     setLoading(true);
     setError('');
     try {
-      const res = await crmApi.call('getEmployees', { search });
+      const res = await crmApi.call('getEmployees', { 
+        search,
+        includeDeleted: showDeleted
+      });
       setEmployees(res || []);
     } catch (err) {
       setError(err.message || 'Failed to fetch staff members');
@@ -68,7 +75,7 @@ export default function Staff() {
 
   useEffect(() => {
     loadStaff();
-  }, []);
+  }, [showDeleted]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -157,12 +164,22 @@ export default function Staff() {
   };
 
   const handleDelete = async (id, name) => {
-    if (!window.confirm(`Are you sure you want to remove team member "${name}"?`)) return;
+    if (!window.confirm(`Are you sure you want to soft-delete staff member "${name}"?\n\nPer SEBI compliance, records are soft-deleted and preserved in the audit trail.`)) return;
     try {
       await crmApi.call('deleteEmployee', { employeeId: id });
       await loadStaff();
     } catch (err) {
       alert(err.message || 'Failed to delete staff member');
+    }
+  };
+
+  const handleRestore = async (id, name) => {
+    if (!window.confirm(`Restore soft-deleted staff member "${name}" to active status?`)) return;
+    try {
+      await crmApi.call('restoreEmployee', { employeeId: id });
+      await loadStaff();
+    } catch (err) {
+      alert(err.message || 'Failed to restore staff member');
     }
   };
 
@@ -194,7 +211,31 @@ export default function Staff() {
               <button type="submit" className="btn btn-secondary">Search</button>
             </form>
 
-            <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              {/* Soft-Delete Compliance Archive Toggle */}
+              <label style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '0.8rem',
+                color: showDeleted ? '#dc2626' : '#64748b',
+                backgroundColor: showDeleted ? '#fee2e2' : '#f8fafc',
+                padding: '5px 10px',
+                borderRadius: '6px',
+                border: `1px solid ${showDeleted ? '#fca5a5' : '#e2e8f0'}`,
+                cursor: 'pointer',
+                fontWeight: showDeleted ? '700' : '500'
+              }}>
+                <input
+                  type="checkbox"
+                  checked={showDeleted}
+                  onChange={(e) => setShowDeleted(e.target.checked)}
+                  style={{ accentColor: '#dc2626', cursor: 'pointer' }}
+                />
+                <Archive size={13} />
+                <span>Show Soft-Deleted</span>
+              </label>
+
               {hasPermission('Staff', 'CanCreate') && (
                 <button className="btn btn-primary" onClick={openAddModal}>
                   <Plus size={16} /> Add Staff Member
@@ -216,7 +257,7 @@ export default function Staff() {
             <table className="crm-table">
               <thead>
                 <tr>
-                  <th>Staff Profile</th>
+                  <th>Staff Profile & Audit</th>
                   <th>Employee Code</th>
                   <th>Designation & Role</th>
                   <th>Department</th>
@@ -236,12 +277,12 @@ export default function Staff() {
                 ) : employees.length === 0 ? (
                   <tr>
                     <td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
-                      No staff records found. Click "Add Staff Member" to add one.
+                      {showDeleted ? 'No soft-deleted staff members in audit archive.' : 'No staff records found. Click "Add Staff Member" to add one.'}
                     </td>
                   </tr>
                 ) : (
                   employees.map((e) => (
-                    <tr key={e.EmployeeId || e.EmployeeCode}>
+                    <tr key={e.EmployeeId || e.EmployeeCode} style={e.IsDeleted ? { backgroundColor: '#fff5f5' } : {}}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                           {e.PhotoUrl ? (
@@ -257,13 +298,30 @@ export default function Staff() {
                             </div>
                           )}
                           <div>
-                            <div style={{ fontWeight: '600', color: '#0f172a' }}>{e.FullName}</div>
+                            <div style={{ fontWeight: '600', color: e.IsDeleted ? '#64748b' : '#0f172a' }}>{e.FullName}</div>
                             <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{e.Role || 'Staff'}</div>
+                            <div style={{ fontSize: '0.675rem', color: '#94a3b8', marginTop: '2px' }}>
+                              Created: {e.Created_At ? new Date(e.Created_At).toLocaleDateString() : '—'} ({e.Created_By || 'System'})
+                            </div>
                           </div>
                         </div>
                       </td>
                       <td>
-                        <strong style={{ color: '#2563eb' }}>{e.EmployeeCode}</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <strong style={{ color: e.IsDeleted ? '#94a3b8' : '#2563eb', textDecoration: e.IsDeleted ? 'line-through' : 'none' }}>
+                            {e.EmployeeCode}
+                          </strong>
+                          {e.IsDeleted && (
+                            <span className="badge" style={{ backgroundColor: '#fee2e2', color: '#b91c1c', fontSize: '0.625rem' }}>
+                              Soft-Deleted
+                            </span>
+                          )}
+                        </div>
+                        {e.IsDeleted && e.Deleted_By && (
+                          <div style={{ fontSize: '0.65rem', color: '#b91c1c', marginTop: '2px' }}>
+                            By {e.Deleted_By} on {new Date(e.Deleted_At).toLocaleDateString()}
+                          </div>
+                        )}
                       </td>
                       <td>
                         <div style={{ fontSize: '0.85rem', fontWeight: '500' }}>{e.Designation || '—'}</div>
@@ -286,24 +344,38 @@ export default function Staff() {
                         </span>
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '0.25rem' }}>
-                          {hasPermission('Staff', 'CanEdit') && (
+                        <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
+                          {e.IsDeleted ? (
                             <button
-                              className="btn-icon"
-                              title="Edit Staff Member"
-                              onClick={() => openEditModal(e)}
+                              className="btn btn-outline-blue btn-sm"
+                              title="Restore Soft-Deleted Staff"
+                              onClick={() => handleRestore(e.EmployeeId, e.FullName)}
+                              style={{ fontSize: '0.72rem', padding: '3px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                             >
-                              <Edit2 size={15} color="#2563eb" />
+                              <RotateCcw size={12} />
+                              <span>Restore</span>
                             </button>
-                          )}
-                          {hasPermission('Staff', 'CanDelete') && (
-                            <button
-                              className="btn-icon"
-                              title="Delete Staff Member"
-                              onClick={() => handleDelete(e.EmployeeId, e.FullName)}
-                            >
-                              <Trash2 size={15} color="#ef4444" />
-                            </button>
+                          ) : (
+                            <>
+                              {hasPermission('Staff', 'CanEdit') && (
+                                <button
+                                  className="btn-icon"
+                                  title="Edit Staff Member"
+                                  onClick={() => openEditModal(e)}
+                                >
+                                  <Edit2 size={15} color="#2563eb" />
+                                </button>
+                              )}
+                              {hasPermission('Staff', 'CanDelete') && (
+                                <button
+                                  className="btn-icon"
+                                  title="Soft-Delete Staff Member (Audit preserved)"
+                                  onClick={() => handleDelete(e.EmployeeId, e.FullName)}
+                                >
+                                  <Trash2 size={15} color="#ef4444" />
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
                       </td>

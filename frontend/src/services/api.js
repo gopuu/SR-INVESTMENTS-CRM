@@ -17,7 +17,8 @@ const STORAGE_KEYS = {
   EMPLOYEES: 'sr_crm_demo_employees',
   SETTINGS: 'sr_crm_demo_settings',
   RIGHTS: 'sr_crm_demo_rights',
-  CAMPAIGNS: 'sr_crm_demo_campaigns'
+  CAMPAIGNS: 'sr_crm_demo_campaigns',
+  AUDIT_LOGS: 'sr_crm_demo_audit_logs'
 };
 
 const SEED_DATA = {
@@ -54,8 +55,13 @@ const SEED_DATA = {
       State: 'Maharashtra',
       PhotoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
       DriveFileId: '',
-      CreatedAt: '2022-04-15T10:00:00Z',
-      UpdatedAt: '2026-08-10T12:00:00Z'
+      IsDeleted: false,
+      Created_By: 'system@srinvestments.com',
+      Created_At: '2022-04-15T10:00:00Z',
+      Updated_By: 'admin@srinvestments.com',
+      Updated_At: '2026-08-10T12:00:00Z',
+      Deleted_By: '',
+      Deleted_At: ''
     },
     {
       EmployeeId: 'EMP_002',
@@ -75,8 +81,13 @@ const SEED_DATA = {
       State: 'Maharashtra',
       PhotoUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
       DriveFileId: '',
-      CreatedAt: '2023-01-10T10:00:00Z',
-      UpdatedAt: '2026-07-22T14:30:00Z'
+      IsDeleted: false,
+      Created_By: 'rajesh@srinvestments.com',
+      Created_At: '2023-01-10T10:00:00Z',
+      Updated_By: 'admin@srinvestments.com',
+      Updated_At: '2026-07-22T14:30:00Z',
+      Deleted_By: '',
+      Deleted_At: ''
     },
     {
       EmployeeId: 'EMP_003',
@@ -96,8 +107,13 @@ const SEED_DATA = {
       State: 'Gujarat',
       PhotoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
       DriveFileId: '',
-      CreatedAt: '2023-09-01T10:00:00Z',
-      UpdatedAt: '2026-09-15T09:00:00Z'
+      IsDeleted: false,
+      Created_By: 'rajesh@srinvestments.com',
+      Created_At: '2023-09-01T10:00:00Z',
+      Updated_By: 'admin@srinvestments.com',
+      Updated_At: '2026-09-15T09:00:00Z',
+      Deleted_By: '',
+      Deleted_At: ''
     }
   ],
   customers: [
@@ -121,8 +137,13 @@ const SEED_DATA = {
       State: 'Maharashtra',
       RiskProfile: 'Aggressive',
       Notes: 'Prefers equity diversified SIPs. Portfolio: ₹45 Lakhs',
-      CreatedAt: '2024-02-10T11:20:00Z',
-      UpdatedAt: '2026-08-14T16:00:00Z'
+      IsDeleted: false,
+      Created_By: 'pooja.m@srinvestments.com',
+      Created_At: '2024-02-10T11:20:00Z',
+      Updated_By: 'rajesh@srinvestments.com',
+      Updated_At: '2026-08-14T16:00:00Z',
+      Deleted_By: '',
+      Deleted_At: ''
     },
     {
       CustomerId: 'CUST_102',
@@ -144,8 +165,13 @@ const SEED_DATA = {
       State: 'Maharashtra',
       RiskProfile: 'Moderate',
       Notes: 'Monthly SIP ₹25,000 in Flexi Cap and Hybrid Debt funds.',
-      CreatedAt: '2024-05-18T14:10:00Z',
-      UpdatedAt: '2026-09-02T10:30:00Z'
+      IsDeleted: false,
+      Created_By: 'pooja.m@srinvestments.com',
+      Created_At: '2024-05-18T14:10:00Z',
+      Updated_By: 'pooja.m@srinvestments.com',
+      Updated_At: '2026-09-02T10:30:00Z',
+      Deleted_By: '',
+      Deleted_At: ''
     },
     {
       CustomerId: 'CUST_103',
@@ -167,8 +193,13 @@ const SEED_DATA = {
       State: 'Karnataka',
       RiskProfile: 'High',
       Notes: 'Karta KYC documents pending address verification.',
-      CreatedAt: '2026-01-12T09:45:00Z',
-      UpdatedAt: '2026-08-20T17:15:00Z'
+      IsDeleted: false,
+      Created_By: 'amit.v@srinvestments.com',
+      Created_At: '2026-01-12T09:45:00Z',
+      Updated_By: 'amit.v@srinvestments.com',
+      Updated_At: '2026-08-20T17:15:00Z',
+      Deleted_By: '',
+      Deleted_At: ''
     }
   ],
   rights: [
@@ -379,6 +410,58 @@ function initDemoStore() {
   if (!localStorage.getItem(STORAGE_KEYS.CAMPAIGNS)) {
     localStorage.setItem(STORAGE_KEYS.CAMPAIGNS, JSON.stringify(SEED_DATA.campaigns));
   }
+  if (!localStorage.getItem(STORAGE_KEYS.AUDIT_LOGS)) {
+    localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(SEED_AUDIT_LOGS));
+  }
+}
+
+const SEED_AUDIT_LOGS = [
+  {
+    LogId: 'LOG_20260814_001',
+    Timestamp: '2026-08-14T16:00:00Z',
+    UserEmail: 'admin@srinvestments.com',
+    Action: 'UPDATE',
+    Module: 'Customers',
+    RecordId: 'SR90421',
+    Details: 'Updated investor risk profile to Aggressive for Vikramaditya Roy'
+  },
+  {
+    LogId: 'LOG_20260810_002',
+    Timestamp: '2026-08-10T12:00:00Z',
+    UserEmail: 'admin@srinvestments.com',
+    Action: 'CREATE',
+    Module: 'Staff',
+    RecordId: 'SR-EMP01',
+    Details: 'Created staff Rajesh Sharma (Senior Investment Advisor)'
+  },
+  {
+    LogId: 'LOG_20260720_003',
+    Timestamp: '2026-07-20T14:15:00Z',
+    UserEmail: 'compliance@srinvestments.com',
+    Action: 'BULK_MAIL',
+    Module: 'BulkMail',
+    RecordId: 'SEBI-AUD-2026-0720-02',
+    Details: 'Dispatched 120 emails: Annual Commission & Fee Transparency Disclosure'
+  }
+];
+
+export function logAuditLocal(userEmail, action, module, recordId, details) {
+  try {
+    const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.AUDIT_LOGS) || JSON.stringify(SEED_AUDIT_LOGS));
+    const newEntry = {
+      LogId: 'LOG_' + Date.now().toString().slice(-8),
+      Timestamp: new Date().toISOString(),
+      UserEmail: userEmail || 'admin@srinvestments.com',
+      Action: action,
+      Module: module,
+      RecordId: recordId || '',
+      Details: details || ''
+    };
+    list.unshift(newEntry);
+    localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(list));
+  } catch (e) {
+    console.warn('Failed to save local audit log:', e);
+  }
 }
 
 // Next autoincrement employee code generator
@@ -460,8 +543,25 @@ export const crmApi = {
   },
 
   async call(action, payload = {}) {
+    let currentUserEmail = 'admin@srinvestments.com';
+    let currentUserName = 'Administrator';
+    try {
+      const stored = localStorage.getItem('sr_crm_auth_user');
+      if (stored) {
+        const u = JSON.parse(stored);
+        if (u.email) currentUserEmail = u.email;
+        if (u.name) currentUserName = u.name;
+      }
+    } catch (e) {}
+
+    const enrichedPayload = {
+      ...payload,
+      userEmail: payload.userEmail || currentUserEmail,
+      userName: payload.userName || currentUserName
+    };
+
     if (this.isDemoMode()) {
-      return this.handleDemoAction(action, payload);
+      return this.handleDemoAction(action, enrichedPayload);
     }
 
     const gasUrl = this.getBackendUrl();
@@ -473,7 +573,7 @@ export const crmApi = {
         headers: {
           'Content-Type': 'text/plain;charset=utf-8'
         },
-        body: JSON.stringify({ action, payload }),
+        body: JSON.stringify({ action, payload: enrichedPayload }),
         redirect: 'follow'
       });
 
@@ -501,7 +601,7 @@ export const crmApi = {
           type: 'CRM_BRIDGE_REQUEST',
           requestId,
           action,
-          payload
+          payload: enrichedPayload
         }, '*');
 
         setTimeout(() => {
@@ -684,6 +784,9 @@ export const crmApi = {
 
       case 'getCustomers': {
         let list = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMERS) || '[]');
+        if (!payload.includeDeleted) {
+          list = list.filter(c => !c.IsDeleted);
+        }
         if (payload.search) {
           const q = payload.search.toLowerCase();
           list = list.filter(c =>
@@ -704,35 +807,85 @@ export const crmApi = {
         const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMERS) || '[]');
         const id = payload.CustomerId || ('CUST_' + Date.now());
         const code = payload.CustomerCode || ('SR' + Math.floor(10000 + Math.random() * 90000));
+        const userEmail = payload.userEmail || 'admin@srinvestments.com';
+        const now = new Date().toISOString();
         const index = list.findIndex(c => c.CustomerId === id);
+        const existing = index >= 0 ? list[index] : null;
+
+        const isDeleted = existing ? Boolean(existing.IsDeleted) : false;
+        const createdBy = existing ? (existing.Created_By || userEmail) : userEmail;
+        const createdAt = existing ? (existing.Created_At || existing.CreatedAt || now) : now;
+        const updatedBy = userEmail;
+        const updatedAt = now;
+        const deletedBy = existing ? (existing.Deleted_By || '') : '';
+        const deletedAt = existing ? (existing.Deleted_At || '') : '';
 
         const record = {
           ...payload,
           CustomerId: id,
           CustomerCode: code,
-          CreatedAt: index >= 0 ? list[index].CreatedAt : new Date().toISOString(),
-          UpdatedAt: new Date().toISOString()
+          IsDeleted: isDeleted,
+          Created_By: createdBy,
+          Created_At: createdAt,
+          Updated_By: updatedBy,
+          Updated_At: updatedAt,
+          Deleted_By: deletedBy,
+          Deleted_At: deletedAt
         };
 
         if (index >= 0) {
           list[index] = record;
+          logAuditLocal(userEmail, 'UPDATE', 'Customers', code, `Updated investor: ${record.FullName} (${code})`);
         } else {
           list.push(record);
+          logAuditLocal(userEmail, 'CREATE', 'Customers', code, `Created investor: ${record.FullName} (${code})`);
         }
 
         localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(list));
         return { customerId: id, customerCode: code, message: 'Investor saved successfully.' };
       }
 
+      // Soft-Delete Customer Always
       case 'deleteCustomer': {
-        let list = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMERS) || '[]');
-        list = list.filter(c => c.CustomerId !== payload.customerId);
-        localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(list));
-        return { success: true, message: 'Customer removed.' };
+        const customerId = payload.customerId || payload.CustomerId;
+        const userEmail = payload.userEmail || 'admin@srinvestments.com';
+        const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMERS) || '[]');
+        const index = list.findIndex(c => c.CustomerId === customerId);
+        if (index !== -1) {
+          const rec = list[index];
+          rec.IsDeleted = true;
+          rec.Deleted_By = userEmail;
+          rec.Deleted_At = new Date().toISOString();
+          localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(list));
+          logAuditLocal(userEmail, 'SOFT_DELETE', 'Customers', rec.CustomerCode, `Soft-deleted investor: ${rec.FullName} (${rec.CustomerCode})`);
+        }
+        return { success: true, message: 'Customer soft-deleted successfully (retained in compliance audit archive).' };
+      }
+
+      // Restore Soft-Deleted Customer
+      case 'restoreCustomer': {
+        const customerId = payload.customerId || payload.CustomerId;
+        const userEmail = payload.userEmail || 'admin@srinvestments.com';
+        const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMERS) || '[]');
+        const index = list.findIndex(c => c.CustomerId === customerId);
+        if (index !== -1) {
+          const rec = list[index];
+          rec.IsDeleted = false;
+          rec.Updated_By = userEmail;
+          rec.Updated_At = new Date().toISOString();
+          rec.Deleted_By = '';
+          rec.Deleted_At = '';
+          localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(list));
+          logAuditLocal(userEmail, 'RESTORE', 'Customers', rec.CustomerCode, `Restored investor: ${rec.FullName} (${rec.CustomerCode})`);
+        }
+        return { success: true, message: 'Customer restored successfully.' };
       }
 
       case 'getEmployees': {
         let list = JSON.parse(localStorage.getItem(STORAGE_KEYS.EMPLOYEES) || '[]');
+        if (!payload.includeDeleted) {
+          list = list.filter(e => !e.IsDeleted);
+        }
         if (payload.search) {
           const q = payload.search.toLowerCase();
           list = list.filter(e =>
@@ -749,9 +902,12 @@ export const crmApi = {
       case 'saveEmployee': {
         const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.EMPLOYEES) || '[]');
         const id = payload.EmployeeId || ('EMP_' + Date.now());
+        const userEmail = payload.userEmail || 'admin@srinvestments.com';
+        const now = new Date().toISOString();
         const index = list.findIndex(e => e.EmployeeId === id);
+        const existing = index >= 0 ? list[index] : null;
 
-        // Auto-increment EmployeeCode if new
+        // Auto-increment EmployeeCode if new (scans all rows including archived)
         let code = payload.EmployeeCode;
         if (!code || index === -1) {
           code = getNextEmployeeCode(list);
@@ -762,31 +918,93 @@ export const crmApi = {
           photoUrl = payload.image.base64;
         }
 
+        const isDeleted = existing ? Boolean(existing.IsDeleted) : false;
+        const createdBy = existing ? (existing.Created_By || userEmail) : userEmail;
+        const createdAt = existing ? (existing.Created_At || existing.CreatedAt || now) : now;
+        const updatedBy = userEmail;
+        const updatedAt = now;
+        const deletedBy = existing ? (existing.Deleted_By || '') : '';
+        const deletedAt = existing ? (existing.Deleted_At || '') : '';
+
         const record = {
           ...payload,
           EmployeeId: id,
           EmployeeCode: code,
           GoogleEmails: payload.GoogleEmails || '',
           PhotoUrl: photoUrl || list[index]?.PhotoUrl || '',
-          CreatedAt: index >= 0 ? list[index].CreatedAt : new Date().toISOString(),
-          UpdatedAt: new Date().toISOString()
+          IsDeleted: isDeleted,
+          Created_By: createdBy,
+          Created_At: createdAt,
+          Updated_By: updatedBy,
+          Updated_At: updatedAt,
+          Deleted_By: deletedBy,
+          Deleted_At: deletedAt
         };
 
         if (index >= 0) {
           list[index] = record;
+          logAuditLocal(userEmail, 'UPDATE', 'Staff', code, `Updated staff: ${record.FullName} (${code})`);
         } else {
           list.push(record);
+          logAuditLocal(userEmail, 'CREATE', 'Staff', code, `Created staff: ${record.FullName} (${code})`);
         }
 
         localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(list));
         return { employeeId: id, employeeCode: code, message: `Staff ${code} saved successfully.` };
       }
 
+      // Soft-Delete Employee Always
       case 'deleteEmployee': {
-        let list = JSON.parse(localStorage.getItem(STORAGE_KEYS.EMPLOYEES) || '[]');
-        list = list.filter(e => e.EmployeeId !== payload.employeeId);
-        localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(list));
-        return { success: true, message: 'Staff member removed.' };
+        const empId = payload.employeeId || payload.EmployeeId;
+        const userEmail = payload.userEmail || 'admin@srinvestments.com';
+        const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.EMPLOYEES) || '[]');
+        const index = list.findIndex(e => e.EmployeeId === empId);
+        if (index !== -1) {
+          const rec = list[index];
+          rec.IsDeleted = true;
+          rec.Deleted_By = userEmail;
+          rec.Deleted_At = new Date().toISOString();
+          localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(list));
+          logAuditLocal(userEmail, 'SOFT_DELETE', 'Staff', rec.EmployeeCode, `Soft-deleted staff member: ${rec.FullName} (${rec.EmployeeCode})`);
+        }
+        return { success: true, message: 'Staff member soft-deleted successfully (retained in compliance audit archive).' };
+      }
+
+      // Restore Soft-Deleted Employee
+      case 'restoreEmployee': {
+        const empId = payload.employeeId || payload.EmployeeId;
+        const userEmail = payload.userEmail || 'admin@srinvestments.com';
+        const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.EMPLOYEES) || '[]');
+        const index = list.findIndex(e => e.EmployeeId === empId);
+        if (index !== -1) {
+          const rec = list[index];
+          rec.IsDeleted = false;
+          rec.Updated_By = userEmail;
+          rec.Updated_At = new Date().toISOString();
+          rec.Deleted_By = '';
+          rec.Deleted_At = '';
+          localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(list));
+          logAuditLocal(userEmail, 'RESTORE', 'Staff', rec.EmployeeCode, `Restored staff member: ${rec.FullName} (${rec.EmployeeCode})`);
+        }
+        return { success: true, message: 'Staff member restored successfully.' };
+      }
+
+      // Audit Logs Register
+      case 'getAuditLogs': {
+        let list = JSON.parse(localStorage.getItem(STORAGE_KEYS.AUDIT_LOGS) || JSON.stringify(SEED_AUDIT_LOGS));
+        if (payload.module && payload.module !== 'all') {
+          list = list.filter(a => a.Module === payload.module);
+        }
+        if (payload.search) {
+          const q = payload.search.toLowerCase();
+          list = list.filter(a =>
+            (a.Action && a.Action.toLowerCase().includes(q)) ||
+            (a.UserEmail && a.UserEmail.toLowerCase().includes(q)) ||
+            (a.RecordId && a.RecordId.toLowerCase().includes(q)) ||
+            (a.Details && a.Details.toLowerCase().includes(q))
+          );
+        }
+        return list;
       }
 
       // Bulk Mailing with Amazon SES Integration

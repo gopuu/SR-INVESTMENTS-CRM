@@ -11,7 +11,10 @@ import {
   FileText,
   Building,
   CreditCard,
-  UserCheck
+  UserCheck,
+  RotateCcw,
+  Archive,
+  Clock
 } from 'lucide-react';
 import { crmApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -25,6 +28,7 @@ export default function Customers() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [kycFilter, setKycFilter] = useState('');
+  const [showDeleted, setShowDeleted] = useState(false);
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -60,7 +64,11 @@ export default function Customers() {
     setLoading(true);
     setError('');
     try {
-      const res = await crmApi.call('getCustomers', { search, kycStatus: kycFilter });
+      const res = await crmApi.call('getCustomers', { 
+        search, 
+        kycStatus: kycFilter,
+        includeDeleted: showDeleted
+      });
       setCustomers(res || []);
     } catch (err) {
       setError(err.message || 'Failed to fetch investors list');
@@ -71,7 +79,7 @@ export default function Customers() {
 
   useEffect(() => {
     loadCustomers();
-  }, [kycFilter]);
+  }, [kycFilter, showDeleted]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -125,12 +133,22 @@ export default function Customers() {
   };
 
   const handleDelete = async (id, name) => {
-    if (!window.confirm(`Are you sure you want to delete investor "${name}"?`)) return;
+    if (!window.confirm(`Are you sure you want to soft-delete investor "${name}"?\n\nPer SEBI compliance, records are soft-deleted and preserved in the audit trail.`)) return;
     try {
       await crmApi.call('deleteCustomer', { customerId: id });
       await loadCustomers();
     } catch (err) {
       alert(err.message || 'Failed to delete customer');
+    }
+  };
+
+  const handleRestore = async (id, name) => {
+    if (!window.confirm(`Restore soft-deleted investor "${name}" to active status?`)) return;
+    try {
+      await crmApi.call('restoreCustomer', { customerId: id });
+      await loadCustomers();
+    } catch (err) {
+      alert(err.message || 'Failed to restore customer');
     }
   };
 
@@ -205,6 +223,30 @@ export default function Customers() {
                 <option value="Rejected">Rejected</option>
               </select>
 
+              {/* Soft-Delete Compliance Archive Toggle */}
+              <label style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '0.8rem',
+                color: showDeleted ? '#dc2626' : '#64748b',
+                backgroundColor: showDeleted ? '#fee2e2' : '#f8fafc',
+                padding: '5px 10px',
+                borderRadius: '6px',
+                border: `1px solid ${showDeleted ? '#fca5a5' : '#e2e8f0'}`,
+                cursor: 'pointer',
+                fontWeight: showDeleted ? '700' : '500'
+              }}>
+                <input
+                  type="checkbox"
+                  checked={showDeleted}
+                  onChange={(e) => setShowDeleted(e.target.checked)}
+                  style={{ accentColor: '#dc2626', cursor: 'pointer' }}
+                />
+                <Archive size={13} />
+                <span>Show Soft-Deleted</span>
+              </label>
+
               <button className="btn btn-secondary" onClick={exportCSV} title="Export to CSV">
                 <Download size={15} /> Export
               </button>
@@ -231,7 +273,7 @@ export default function Customers() {
               <thead>
                 <tr>
                   <th>Investor Code</th>
-                  <th>Full Name</th>
+                  <th>Full Name & Audit</th>
                   <th>PAN & Aadhaar</th>
                   <th>Contact Details</th>
                   <th>Bank Mandate</th>
@@ -251,19 +293,36 @@ export default function Customers() {
                 ) : customers.length === 0 ? (
                   <tr>
                     <td colSpan="9" style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
-                      No investor records found. Click "Add Investor" to create one.
+                      {showDeleted ? 'No soft-deleted investors in audit archive.' : 'No investor records found. Click "Add Investor" to create one.'}
                     </td>
                   </tr>
                 ) : (
                   customers.map((c) => (
-                    <tr key={c.CustomerId || c.CustomerCode}>
+                    <tr key={c.CustomerId || c.CustomerCode} style={c.IsDeleted ? { backgroundColor: '#fff5f5' } : {}}>
                       <td>
-                        <strong style={{ color: '#2563eb' }}>{c.CustomerCode}</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <strong style={{ color: c.IsDeleted ? '#94a3b8' : '#2563eb', textDecoration: c.IsDeleted ? 'line-through' : 'none' }}>
+                            {c.CustomerCode}
+                          </strong>
+                          {c.IsDeleted && (
+                            <span className="badge" style={{ backgroundColor: '#fee2e2', color: '#b91c1c', fontSize: '0.625rem' }}>
+                              Soft-Deleted
+                            </span>
+                          )}
+                        </div>
+                        {c.IsDeleted && c.Deleted_By && (
+                          <div style={{ fontSize: '0.65rem', color: '#b91c1c', marginTop: '2px' }}>
+                            By {c.Deleted_By} on {new Date(c.Deleted_At).toLocaleDateString()}
+                          </div>
+                        )}
                       </td>
                       <td>
-                        <div style={{ fontWeight: '600', color: '#0f172a' }}>{c.FullName}</div>
+                        <div style={{ fontWeight: '600', color: c.IsDeleted ? '#64748b' : '#0f172a' }}>{c.FullName}</div>
                         <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
                           Nominee: {c.NomineeName ? `${c.NomineeName} (${c.NomineeRelation || 'Nominee'})` : 'None'}
+                        </div>
+                        <div style={{ fontSize: '0.675rem', color: '#94a3b8', marginTop: '2px' }}>
+                          Created: {c.Created_At ? new Date(c.Created_At).toLocaleDateString() : '—'} ({c.Created_By || 'System'})
                         </div>
                       </td>
                       <td>
@@ -306,24 +365,38 @@ export default function Customers() {
                         </span>
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '0.25rem' }}>
-                          {hasPermission('Customers', 'CanEdit') && (
+                        <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
+                          {c.IsDeleted ? (
                             <button
-                              className="btn-icon"
-                              title="Edit Investor"
-                              onClick={() => openEditModal(c)}
+                              className="btn btn-outline-blue btn-sm"
+                              title="Restore Soft-Deleted Investor"
+                              onClick={() => handleRestore(c.CustomerId, c.FullName)}
+                              style={{ fontSize: '0.72rem', padding: '3px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                             >
-                              <Edit2 size={15} color="#2563eb" />
+                              <RotateCcw size={12} />
+                              <span>Restore</span>
                             </button>
-                          )}
-                          {hasPermission('Customers', 'CanDelete') && (
-                            <button
-                              className="btn-icon"
-                              title="Delete Investor"
-                              onClick={() => handleDelete(c.CustomerId, c.FullName)}
-                            >
-                              <Trash2 size={15} color="#ef4444" />
-                            </button>
+                          ) : (
+                            <>
+                              {hasPermission('Customers', 'CanEdit') && (
+                                <button
+                                  className="btn-icon"
+                                  title="Edit Investor"
+                                  onClick={() => openEditModal(c)}
+                                >
+                                  <Edit2 size={15} color="#2563eb" />
+                                </button>
+                              )}
+                              {hasPermission('Customers', 'CanDelete') && (
+                                <button
+                                  className="btn-icon"
+                                  title="Soft-Delete Investor (Audit preserved)"
+                                  onClick={() => handleDelete(c.CustomerId, c.FullName)}
+                                >
+                                  <Trash2 size={15} color="#ef4444" />
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
                       </td>
