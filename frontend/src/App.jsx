@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
 import BackupModal from './components/BackupModal';
@@ -6,6 +6,8 @@ import Login from './pages/Login';
 import Home from './pages/Home';
 import Customers from './pages/Customers';
 import Staff from './pages/Staff';
+import TaskTracker from './pages/TaskTracker';
+import ToDoList from './pages/ToDoList';
 import BulkMail from './pages/BulkMail';
 import Settings from './pages/Settings';
 import UserProfile from './pages/UserProfile';
@@ -15,6 +17,16 @@ export default function App() {
   const { user } = useAuth();
   const [currentPage, setCurrentPage] = useState('home');
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+
+  useEffect(() => {
+    const handleCrmNavigate = (e) => {
+      if (e.detail && e.detail.page) {
+        setCurrentPage(e.detail.page);
+      }
+    };
+    window.addEventListener('crm_navigate', handleCrmNavigate);
+    return () => window.removeEventListener('crm_navigate', handleCrmNavigate);
+  }, []);
 
   if (!user) {
     return <Login />;
@@ -36,6 +48,8 @@ export default function App() {
         {currentPage === 'home' && <Home onNavigate={setCurrentPage} onOpenBackup={openBackup} />}
         {currentPage === 'customers' && <Customers />}
         {currentPage === 'staff' && <Staff />}
+        {currentPage === 'tasks' && <TaskTracker />}
+        {currentPage === 'todos' && <ToDoList />}
         {currentPage === 'bulkmail' && <BulkMail />}
         {currentPage === 'sip' && <SipCalculator />}
         {currentPage === 'settings' && <Settings onOpenBackup={openBackup} />}

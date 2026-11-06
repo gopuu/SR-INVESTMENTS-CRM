@@ -18,7 +18,13 @@ const STORAGE_KEYS = {
   SETTINGS: 'sr_crm_demo_settings',
   RIGHTS: 'sr_crm_demo_rights',
   CAMPAIGNS: 'sr_crm_demo_campaigns',
-  AUDIT_LOGS: 'sr_crm_demo_audit_logs'
+  AUDIT_LOGS: 'sr_crm_demo_audit_logs',
+  TASKS: 'sr_crm_demo_tasks',
+  TASK_CONFIG: 'sr_crm_demo_task_config',
+  TODOS: 'sr_crm_demo_todos',
+  NOTIFICATIONS: 'sr_crm_demo_notifications',
+  SHOW_DELETED_GLOBALLY: 'sr_crm_show_deleted_globally',
+  PERSONAL_NOTES: 'sr_crm_demo_notes'
 };
 
 const SEED_DATA = {
@@ -413,6 +419,376 @@ function initDemoStore() {
   if (!localStorage.getItem(STORAGE_KEYS.AUDIT_LOGS)) {
     localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(SEED_AUDIT_LOGS));
   }
+  if (!localStorage.getItem(STORAGE_KEYS.TASK_CONFIG)) {
+    localStorage.setItem(STORAGE_KEYS.TASK_CONFIG, JSON.stringify(SEED_TASK_CONFIG));
+  }
+  if (!localStorage.getItem(STORAGE_KEYS.TASKS)) {
+    localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(SEED_TASKS));
+  }
+  if (!localStorage.getItem(STORAGE_KEYS.TODOS)) {
+    localStorage.setItem(STORAGE_KEYS.TODOS, JSON.stringify(SEED_TODOS));
+  }
+  if (!localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS)) {
+    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(SEED_NOTIFICATIONS));
+  }
+  if (!localStorage.getItem(STORAGE_KEYS.PERSONAL_NOTES)) {
+    localStorage.setItem(STORAGE_KEYS.PERSONAL_NOTES, JSON.stringify(SEED_PERSONAL_NOTES));
+  }
+}
+
+export const SEED_TASK_CONFIG = [
+  { index: 1, name: 'Step 1: NEW' },
+  { index: 2, name: 'Step 2: IN PROGRESS' },
+  { index: 3, name: 'Step 3: REVIEW / PENDING' },
+  { index: 4, name: 'Step 4: VERIFICATION' },
+  { index: 5, name: 'Step 5: COMPLETED' }
+];
+
+export const SEED_TASKS = [
+  {
+    TaskId: 'TSK-101',
+    Title: 'PAN-Aadhaar Linking Verification for HNI Clients',
+    Description: 'Verify linkage status on Income Tax Portal for top 50 folio holders in compliance with SEBI circular.',
+    StepIndex: 1,
+    StepName: 'Step 1: NEW',
+    Priority: 'High',
+    AssigneeEmail: 'amit.v@srinvestments.com',
+    AssigneeName: 'Amit Verma',
+    ReporterEmail: 'admin@srinvestments.com',
+    ReporterName: 'System Administrator',
+    DueDate: '2026-11-15',
+    Tags: 'Compliance, KYC, HNI',
+    Comments: [
+      { id: 'c1', author: 'Rajesh Sharma', timestamp: '2026-11-04T10:15:00Z', text: 'Checked first 10 accounts, 2 need status update from client.' }
+    ],
+    History: [
+      { timestamp: '2026-11-03T09:00:00Z', author: 'System Administrator', action: 'Created task TSK-101 and assigned to Amit Verma' }
+    ],
+    IsDeleted: false,
+    Created_By: 'admin@srinvestments.com',
+    Created_At: '2026-11-03T09:00:00Z',
+    Updated_By: 'admin@srinvestments.com',
+    Updated_At: '2026-11-04T10:15:00Z',
+    Deleted_By: '',
+    Deleted_At: ''
+  },
+  {
+    TaskId: 'TSK-102',
+    Title: 'Quarterly Portfolio CAS & Risk-o-meter Dispatch',
+    Description: 'Prepare Consolidated Account Statement template and dispatch via Amazon SES to active investor base.',
+    StepIndex: 2,
+    StepName: 'Step 2: IN PROGRESS',
+    Priority: 'Urgent',
+    AssigneeEmail: 'pooja.m@srinvestments.com',
+    AssigneeName: 'Pooja Mehta',
+    ReporterEmail: 'rajesh@srinvestments.com',
+    ReporterName: 'Rajesh Sharma',
+    DueDate: '2026-11-10',
+    Tags: 'BulkMail, SES, Operations',
+    Comments: [
+      { id: 'c2', author: 'Pooja Mehta', timestamp: '2026-11-05T14:30:00Z', text: 'Test campaign sent to 5 internal accounts, formatting verified.' }
+    ],
+    History: [
+      { timestamp: '2026-11-02T11:00:00Z', author: 'Rajesh Sharma', action: 'Task created' },
+      { timestamp: '2026-11-04T16:00:00Z', author: 'Pooja Mehta', action: 'Moved from "Step 1: NEW" to "Step 2: IN PROGRESS"' }
+    ],
+    IsDeleted: false,
+    Created_By: 'rajesh@srinvestments.com',
+    Created_At: '2026-11-02T11:00:00Z',
+    Updated_By: 'pooja.m@srinvestments.com',
+    Updated_At: '2026-11-05T14:30:00Z',
+    Deleted_By: '',
+    Deleted_At: ''
+  },
+  {
+    TaskId: 'TSK-103',
+    Title: 'CKYC Remediation for Non-Compliant NRI Accounts',
+    Description: 'Collect overseas address proofs and updated FATCA declarations from NRI investors.',
+    StepIndex: 3,
+    StepName: 'Step 3: REVIEW / PENDING',
+    Priority: 'High',
+    AssigneeEmail: 'rajesh@srinvestments.com',
+    AssigneeName: 'Rajesh Sharma',
+    ReporterEmail: 'admin@srinvestments.com',
+    ReporterName: 'System Administrator',
+    DueDate: '2026-11-20',
+    Tags: 'NRI, CKYC, Compliance',
+    Comments: [],
+    History: [
+      { timestamp: '2026-11-01T10:00:00Z', author: 'System Administrator', action: 'Task created' },
+      { timestamp: '2026-11-04T12:00:00Z', author: 'Rajesh Sharma', action: 'Moved from "Step 2: IN PROGRESS" to "Step 3: REVIEW / PENDING"' }
+    ],
+    IsDeleted: false,
+    Created_By: 'admin@srinvestments.com',
+    Created_At: '2026-11-01T10:00:00Z',
+    Updated_By: 'rajesh@srinvestments.com',
+    Updated_At: '2026-11-04T12:00:00Z',
+    Deleted_By: '',
+    Deleted_At: ''
+  },
+  {
+    TaskId: 'TSK-104',
+    Title: 'Amazon SES Domain Verification & DKIM Rotation Audit',
+    Description: 'Ensure DKIM keys and SPF records for srinvestments.com are active in AWS SES ap-south-1 console.',
+    StepIndex: 4,
+    StepName: 'Step 4: VERIFICATION',
+    Priority: 'Medium',
+    AssigneeEmail: 'admin@srinvestments.com',
+    AssigneeName: 'System Administrator',
+    ReporterEmail: 'admin@srinvestments.com',
+    ReporterName: 'System Administrator',
+    DueDate: '2026-11-12',
+    Tags: 'IT, Security, SES',
+    Comments: [],
+    History: [
+      { timestamp: '2026-11-02T15:00:00Z', author: 'System Administrator', action: 'Task created' },
+      { timestamp: '2026-11-05T09:30:00Z', author: 'System Administrator', action: 'Moved to "Step 4: VERIFICATION"' }
+    ],
+    IsDeleted: false,
+    Created_By: 'admin@srinvestments.com',
+    Created_At: '2026-11-02T15:00:00Z',
+    Updated_By: 'admin@srinvestments.com',
+    Updated_At: '2026-11-05T09:30:00Z',
+    Deleted_By: '',
+    Deleted_At: ''
+  },
+  {
+    TaskId: 'TSK-105',
+    Title: 'Annual ARN-189241 Regulatory Filing Dossier',
+    Description: 'Compile AMFI annual return, employee certification copies, and SEBI compliance audit trail.',
+    StepIndex: 5,
+    StepName: 'Step 5: COMPLETED',
+    Priority: 'High',
+    AssigneeEmail: 'admin@srinvestments.com',
+    AssigneeName: 'System Administrator',
+    ReporterEmail: 'admin@srinvestments.com',
+    ReporterName: 'System Administrator',
+    DueDate: '2026-10-31',
+    Tags: 'AMFI, SEBI, Audit',
+    Comments: [
+      { id: 'c3', author: 'System Administrator', timestamp: '2026-10-30T17:00:00Z', text: 'Dossier submitted and digital acknowledgment archived in Drive.' }
+    ],
+    History: [
+      { timestamp: '2026-10-25T10:00:00Z', author: 'System Administrator', action: 'Task created' },
+      { timestamp: '2026-10-30T17:00:00Z', author: 'System Administrator', action: 'Moved to "Step 5: COMPLETED"' }
+    ],
+    IsDeleted: false,
+    Created_By: 'admin@srinvestments.com',
+    Created_At: '2026-10-25T10:00:00Z',
+    Updated_By: 'admin@srinvestments.com',
+    Updated_At: '2026-10-30T17:00:00Z',
+    Deleted_By: '',
+    Deleted_At: ''
+  }
+];
+
+export const SEED_TODOS = [
+  {
+    TodoId: 'TODO_01',
+    UserEmail: 'admin@srinvestments.com',
+    Title: 'Review KYC documents for Vikramaditya Roy',
+    Notes: 'Aadhaar XML uploaded, check PAN match on NSDL portal.',
+    Priority: 'High',
+    DueDate: '2026-11-06',
+    IsCompleted: false,
+    Category: 'KYC Verification',
+    IsDeleted: false,
+    Created_By: 'admin@srinvestments.com',
+    Created_At: '2026-11-06T08:00:00Z',
+    Updated_By: 'admin@srinvestments.com',
+    Updated_At: '2026-11-06T08:00:00Z',
+    Deleted_By: '',
+    Deleted_At: ''
+  },
+  {
+    TodoId: 'TODO_02',
+    UserEmail: 'admin@srinvestments.com',
+    Title: 'Follow up with Sunita Rao regarding quarterly SIP top-up',
+    Notes: 'Recommend Multi-Cap & Flexi-Cap fund allocation.',
+    Priority: 'Medium',
+    DueDate: '2026-11-07',
+    IsCompleted: false,
+    Category: 'Client Advisory',
+    IsDeleted: false,
+    Created_By: 'admin@srinvestments.com',
+    Created_At: '2026-11-06T08:15:00Z',
+    Updated_By: 'admin@srinvestments.com',
+    Updated_At: '2026-11-06T08:15:00Z',
+    Deleted_By: '',
+    Deleted_At: ''
+  },
+  {
+    TodoId: 'TODO_03',
+    UserEmail: 'admin@srinvestments.com',
+    Title: 'Download daily NAV and backup CRM Database to Drive ZIP',
+    Notes: 'Scheduled under regulatory compliance routine.',
+    Priority: 'Low',
+    DueDate: '2026-11-06',
+    IsCompleted: true,
+    Category: 'Operations',
+    IsDeleted: false,
+    Created_By: 'admin@srinvestments.com',
+    Created_At: '2026-11-05T09:00:00Z',
+    Updated_By: 'admin@srinvestments.com',
+    Updated_At: '2026-11-06T07:30:00Z',
+    Deleted_By: '',
+    Deleted_At: ''
+  }
+];
+
+export const SEED_PERSONAL_NOTES = [
+  {
+    id: 'note_1',
+    userEmail: 'admin@srinvestments.com',
+    title: 'SEBI AMFI Compliance Checklist (Q3)',
+    content: '1. Complete CAS dispatch log verification.\n2. Ensure all staff certificates (EUIN) are current.\n3. Audit soft-deleted customer logs and ensure permanent preservation for 8 years.',
+    color: '#eff6ff',
+    pinned: true,
+    updatedAt: '2026-11-06T08:00:00Z'
+  },
+  {
+    id: 'note_2',
+    userEmail: 'admin@srinvestments.com',
+    title: 'Top SIP Funds for High-Net-Worth Advisory',
+    content: 'Large & Midcap: ICICI Prudential Large & Mid Cap Fund\nFlexicap: Parag Parikh Flexi Cap Fund\nSmallcap: Nippon India Small Cap Fund',
+    color: '#f0fdf4',
+    pinned: false,
+    updatedAt: '2026-11-05T15:20:00Z'
+  }
+];
+
+export const SEED_NOTIFICATIONS = [
+  {
+    id: 'notif_001',
+    timestamp: '2026-11-06T08:15:00Z',
+    actorEmail: 'admin@srinvestments.com',
+    actorName: 'System Administrator',
+    actorRole: 'Admin',
+    isSuperUser: true,
+    targetAudience: 'ADMIN_ONLY',
+    action: 'UPDATE',
+    module: 'Customers',
+    recordId: 'SR90421',
+    title: 'Customer Updated: Vikramaditya Roy (SR90421)',
+    message: 'Admin updated investor profile and KYC status.',
+    targetRoute: 'customers',
+    readBy: []
+  },
+  {
+    id: 'notif_002',
+    timestamp: '2026-11-06T07:45:00Z',
+    actorEmail: 'pooja.m@srinvestments.com',
+    actorName: 'Pooja Mehta',
+    actorRole: 'Backoffice Staff',
+    isSuperUser: false,
+    targetAudience: 'ALL_STAFF',
+    action: 'TASK_MOVE',
+    module: 'Tasks',
+    recordId: 'TSK-102',
+    title: 'Task In Progress: CAS & Risk-o-meter Dispatch',
+    message: 'Pooja Mehta moved TSK-102 to Step 2: IN PROGRESS.',
+    targetRoute: 'tasks',
+    readBy: []
+  },
+  {
+    id: 'notif_003',
+    timestamp: '2026-11-05T18:30:00Z',
+    actorEmail: 'rajesh@srinvestments.com',
+    actorName: 'Rajesh Sharma',
+    actorRole: 'Senior Investment Advisor',
+    isSuperUser: false,
+    targetAudience: 'ALL_STAFF',
+    action: 'CREATE',
+    module: 'Customers',
+    recordId: 'SR48920',
+    title: 'New Investor Enrolled: Sunita Rao (SR48920)',
+    message: 'Rajesh Sharma onboarded a new Individual KYC Compliant investor.',
+    targetRoute: 'customers',
+    readBy: []
+  }
+];
+
+// ==========================================
+// REALTIME CROSS-USER EVENT BUS & CHANNELS
+// ==========================================
+const realtimeChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('sr_crm_realtime_channel') : null;
+
+export function broadcastCrmEvent(event) {
+  try {
+    if (realtimeChannel) {
+      realtimeChannel.postMessage(event);
+    }
+    window.dispatchEvent(new CustomEvent('sr_crm_local_event', { detail: event }));
+  } catch (e) {
+    console.warn('Realtime broadcast failed:', e);
+  }
+}
+
+export function subscribeCrmEvents(handler) {
+  const channelHandler = (ev) => handler(ev.data);
+  const domHandler = (ev) => handler(ev.detail);
+
+  if (realtimeChannel) {
+    realtimeChannel.addEventListener('message', channelHandler);
+  }
+  window.addEventListener('sr_crm_local_event', domHandler);
+
+  return () => {
+    if (realtimeChannel) {
+      realtimeChannel.removeEventListener('message', channelHandler);
+    }
+    window.removeEventListener('sr_crm_local_event', domHandler);
+  };
+}
+
+/**
+ * Dispatch real-time notification with role filtering:
+ * 1. Admin/IsSuperUser actions -> Target Audience: ADMIN_ONLY (notifies only admin users)
+ * 2. Non-Admin actions -> Target Audience: ALL_STAFF (notifies all staff members + admins)
+ */
+export function dispatchNotification({ action, module, recordId, title, message, targetRoute }) {
+  let currentUser = { email: 'admin@srinvestments.com', name: 'System Administrator', role: 'Admin', isSuperUser: true };
+  try {
+    const stored = localStorage.getItem('sr_crm_auth_user');
+    if (stored) currentUser = JSON.parse(stored);
+  } catch (e) {}
+
+  const isAdmin = currentUser.role === 'Admin' || currentUser.isSuperUser === true || currentUser.IsSuperUser === true || currentUser.email.includes('admin');
+  const targetAudience = isAdmin ? 'ADMIN_ONLY' : 'ALL_STAFF';
+
+  const notif = {
+    id: 'notif_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+    timestamp: new Date().toISOString(),
+    actorEmail: currentUser.email,
+    actorName: currentUser.name || currentUser.fullName || currentUser.email,
+    actorRole: currentUser.role || 'Staff',
+    isSuperUser: isAdmin,
+    targetAudience, // 'ADMIN_ONLY' or 'ALL_STAFF'
+    action,         // 'CREATE', 'UPDATE', 'DELETE', 'RESTORE', 'TASK_MOVE', etc.
+    module,         // 'Customers', 'Staff', 'Tasks', 'ToDo', etc.
+    recordId: recordId || '',
+    title: title || `${module} Activity`,
+    message: message || '',
+    targetRoute: targetRoute || (module.toLowerCase() === 'staff' ? 'staff' : module.toLowerCase()),
+    readBy: []
+  };
+
+  try {
+    const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS) || JSON.stringify(SEED_NOTIFICATIONS));
+    list.unshift(notif);
+    if (list.length > 100) list.pop();
+    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(list));
+  } catch (e) {}
+
+  broadcastCrmEvent({
+    type: 'NOTIFICATION_DISPATCHED',
+    notification: notif,
+    module,
+    action,
+    recordId
+  });
+
+  return notif;
 }
 
 const SEED_AUDIT_LOGS = [
@@ -542,6 +918,15 @@ export const crmApi = {
     localStorage.setItem(STORAGE_KEYS.DEMO_MODE, enabled ? 'true' : 'false');
   },
 
+  getShowDeletedGlobally() {
+    return localStorage.getItem(STORAGE_KEYS.SHOW_DELETED_GLOBALLY) === 'true';
+  },
+
+  setShowDeletedGlobally(enabled) {
+    localStorage.setItem(STORAGE_KEYS.SHOW_DELETED_GLOBALLY, enabled ? 'true' : 'false');
+    broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Settings', subType: 'SHOW_DELETED_CHANGED', value: enabled });
+  },
+
   async call(action, payload = {}) {
     let currentUserEmail = 'admin@srinvestments.com';
     let currentUserName = 'Administrator';
@@ -607,9 +992,9 @@ export const crmApi = {
         setTimeout(() => {
           if (bridgePending.has(requestId)) {
             bridgePending.delete(requestId);
-            reject(new Error('Request timed out (20s).'));
+            reject(new Error('Connection timed out (20s). Google Apps Script is still running the old version or Bridge.html is missing. Please paste the updated Code.gs, Common_Code.gs, and Bridge.html into Apps Script and deploy a New Version.'));
           }
-        }, 20000);
+        }, 15000);
       });
     } catch (bridgeErr) {
       console.error('All live transports failed:', bridgeErr);
@@ -784,7 +1169,8 @@ export const crmApi = {
 
       case 'getCustomers': {
         let list = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMERS) || '[]');
-        if (!payload.includeDeleted) {
+        const includeDel = payload.includeDeleted !== undefined ? payload.includeDeleted : this.getShowDeletedGlobally();
+        if (!includeDel) {
           list = list.filter(c => !c.IsDeleted);
         }
         if (payload.search) {
@@ -836,12 +1222,29 @@ export const crmApi = {
         if (index >= 0) {
           list[index] = record;
           logAuditLocal(userEmail, 'UPDATE', 'Customers', code, `Updated investor: ${record.FullName} (${code})`);
+          dispatchNotification({
+            action: 'UPDATE',
+            module: 'Customers',
+            recordId: code,
+            title: `Customer Updated: ${record.FullName}`,
+            message: `${record.FullName} (${code}) was updated by ${userEmail}.`,
+            targetRoute: 'customers'
+          });
         } else {
           list.push(record);
           logAuditLocal(userEmail, 'CREATE', 'Customers', code, `Created investor: ${record.FullName} (${code})`);
+          dispatchNotification({
+            action: 'CREATE',
+            module: 'Customers',
+            recordId: code,
+            title: `New Customer Enrolled: ${record.FullName}`,
+            message: `${record.FullName} (${code}) was onboarded by ${userEmail}.`,
+            targetRoute: 'customers'
+          });
         }
 
         localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(list));
+        broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Customers', recordId: code });
         return { customerId: id, customerCode: code, message: 'Investor saved successfully.' };
       }
 
@@ -858,6 +1261,15 @@ export const crmApi = {
           rec.Deleted_At = new Date().toISOString();
           localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(list));
           logAuditLocal(userEmail, 'SOFT_DELETE', 'Customers', rec.CustomerCode, `Soft-deleted investor: ${rec.FullName} (${rec.CustomerCode})`);
+          dispatchNotification({
+            action: 'DELETE',
+            module: 'Customers',
+            recordId: rec.CustomerCode,
+            title: `Customer Soft-Deleted: ${rec.FullName}`,
+            message: `${rec.FullName} (${rec.CustomerCode}) was archived by ${userEmail}.`,
+            targetRoute: 'customers'
+          });
+          broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Customers', recordId: rec.CustomerCode });
         }
         return { success: true, message: 'Customer soft-deleted successfully (retained in compliance audit archive).' };
       }
@@ -877,13 +1289,23 @@ export const crmApi = {
           rec.Deleted_At = '';
           localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(list));
           logAuditLocal(userEmail, 'RESTORE', 'Customers', rec.CustomerCode, `Restored investor: ${rec.FullName} (${rec.CustomerCode})`);
+          dispatchNotification({
+            action: 'RESTORE',
+            module: 'Customers',
+            recordId: rec.CustomerCode,
+            title: `Customer Restored: ${rec.FullName}`,
+            message: `${rec.FullName} (${rec.CustomerCode}) was restored by ${userEmail}.`,
+            targetRoute: 'customers'
+          });
+          broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Customers', recordId: rec.CustomerCode });
         }
         return { success: true, message: 'Customer restored successfully.' };
       }
 
       case 'getEmployees': {
         let list = JSON.parse(localStorage.getItem(STORAGE_KEYS.EMPLOYEES) || '[]');
-        if (!payload.includeDeleted) {
+        const includeDel = payload.includeDeleted !== undefined ? payload.includeDeleted : this.getShowDeletedGlobally();
+        if (!includeDel) {
           list = list.filter(e => !e.IsDeleted);
         }
         if (payload.search) {
@@ -944,12 +1366,29 @@ export const crmApi = {
         if (index >= 0) {
           list[index] = record;
           logAuditLocal(userEmail, 'UPDATE', 'Staff', code, `Updated staff: ${record.FullName} (${code})`);
+          dispatchNotification({
+            action: 'UPDATE',
+            module: 'Staff',
+            recordId: code,
+            title: `Staff Member Updated: ${record.FullName}`,
+            message: `${record.FullName} (${code}) profile was updated by ${userEmail}.`,
+            targetRoute: 'staff'
+          });
         } else {
           list.push(record);
           logAuditLocal(userEmail, 'CREATE', 'Staff', code, `Created staff: ${record.FullName} (${code})`);
+          dispatchNotification({
+            action: 'CREATE',
+            module: 'Staff',
+            recordId: code,
+            title: `New Staff Enrolled: ${record.FullName}`,
+            message: `${record.FullName} (${code}) joined as ${record.Designation || 'Staff'}.`,
+            targetRoute: 'staff'
+          });
         }
 
         localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(list));
+        broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Staff', recordId: code });
         return { employeeId: id, employeeCode: code, message: `Staff ${code} saved successfully.` };
       }
 
@@ -966,6 +1405,15 @@ export const crmApi = {
           rec.Deleted_At = new Date().toISOString();
           localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(list));
           logAuditLocal(userEmail, 'SOFT_DELETE', 'Staff', rec.EmployeeCode, `Soft-deleted staff member: ${rec.FullName} (${rec.EmployeeCode})`);
+          dispatchNotification({
+            action: 'DELETE',
+            module: 'Staff',
+            recordId: rec.EmployeeCode,
+            title: `Staff Archived: ${rec.FullName}`,
+            message: `${rec.FullName} (${rec.EmployeeCode}) was archived by ${userEmail}.`,
+            targetRoute: 'staff'
+          });
+          broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Staff', recordId: rec.EmployeeCode });
         }
         return { success: true, message: 'Staff member soft-deleted successfully (retained in compliance audit archive).' };
       }
@@ -985,6 +1433,15 @@ export const crmApi = {
           rec.Deleted_At = '';
           localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(list));
           logAuditLocal(userEmail, 'RESTORE', 'Staff', rec.EmployeeCode, `Restored staff member: ${rec.FullName} (${rec.EmployeeCode})`);
+          dispatchNotification({
+            action: 'RESTORE',
+            module: 'Staff',
+            recordId: rec.EmployeeCode,
+            title: `Staff Restored: ${rec.FullName}`,
+            message: `${rec.FullName} (${rec.EmployeeCode}) was restored by ${userEmail}.`,
+            targetRoute: 'staff'
+          });
+          broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Staff', recordId: rec.EmployeeCode });
         }
         return { success: true, message: 'Staff member restored successfully.' };
       }
@@ -1130,6 +1587,303 @@ export const crmApi = {
           downloadUrl: url,
           fileName: `SR_Investments_Drive_Backup_${new Date().toISOString().slice(0, 10)}.zip`
         };
+      }
+
+      // ==========================================
+      // JIRA-STYLE TASK TRACKER DEMO ACTIONS
+      // ==========================================
+      case 'getTaskStepConfig': {
+        const stored = localStorage.getItem(STORAGE_KEYS.TASK_CONFIG);
+        return stored ? JSON.parse(stored) : SEED_TASK_CONFIG;
+      }
+
+      case 'saveTaskStepConfig': {
+        const { steps, userEmail } = payload;
+        if (!steps || !steps.length) throw new Error('Steps config required.');
+        localStorage.setItem(STORAGE_KEYS.TASK_CONFIG, JSON.stringify(steps));
+        logAuditLocal(userEmail, 'UPDATE', 'TaskTracker', 'WORKFLOW_CONFIG', 'Admin customized JIRA 5-step status labels.');
+        dispatchNotification({
+          action: 'UPDATE',
+          module: 'Tasks',
+          recordId: 'WORKFLOW_CONFIG',
+          title: 'Task Workflow Updated',
+          message: `${userEmail} updated JIRA Kanban status step names.`,
+          targetRoute: 'tasks'
+        });
+        broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Tasks', subType: 'CONFIG_CHANGED' });
+        return { success: true, steps };
+      }
+
+      case 'getTasks': {
+        let list = JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS) || JSON.stringify(SEED_TASKS));
+        const includeDel = payload.includeDeleted !== undefined ? payload.includeDeleted : this.getShowDeletedGlobally();
+        if (!includeDel) {
+          list = list.filter(t => !t.IsDeleted);
+        }
+        if (payload.assignee && payload.assignee !== 'all') {
+          const q = payload.assignee.toLowerCase();
+          list = list.filter(t =>
+            (t.AssigneeEmail && t.AssigneeEmail.toLowerCase() === q) ||
+            (t.AssigneeName && t.AssigneeName.toLowerCase().includes(q))
+          );
+        }
+        if (payload.priority && payload.priority !== 'all') {
+          list = list.filter(t => t.Priority === payload.priority);
+        }
+        if (payload.search) {
+          const q = payload.search.toLowerCase();
+          list = list.filter(t =>
+            (t.Title && t.Title.toLowerCase().includes(q)) ||
+            (t.TaskId && t.TaskId.toLowerCase().includes(q)) ||
+            (t.Description && t.Description.toLowerCase().includes(q)) ||
+            (t.Tags && t.Tags.toLowerCase().includes(q))
+          );
+        }
+        return list;
+      }
+
+      case 'saveTask': {
+        const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS) || JSON.stringify(SEED_TASKS));
+        const id = payload.TaskId || ('TSK-' + Math.floor(100 + Math.random() * 900));
+        const userEmail = payload.userEmail || 'admin@srinvestments.com';
+        const userName = payload.userName || userEmail;
+        const now = new Date().toISOString();
+        const index = list.findIndex(t => t.TaskId === id);
+        const existing = index >= 0 ? list[index] : null;
+
+        const isDeleted = existing ? Boolean(existing.IsDeleted) : false;
+        const createdBy = existing ? (existing.Created_By || userEmail) : userEmail;
+        const createdAt = existing ? (existing.Created_At || now) : now;
+        const history = existing ? (existing.History || []) : [
+          { timestamp: now, author: userName, action: `Created task ${id} and assigned to ${payload.AssigneeName || 'Unassigned'}` }
+        ];
+
+        const record = {
+          ...existing,
+          ...payload,
+          TaskId: id,
+          History: history,
+          Comments: payload.Comments || existing?.Comments || [],
+          IsDeleted: isDeleted,
+          Created_By: createdBy,
+          Created_At: createdAt,
+          Updated_By: userEmail,
+          Updated_At: now,
+          Deleted_By: existing ? (existing.Deleted_By || '') : '',
+          Deleted_At: existing ? (existing.Deleted_At || '') : ''
+        };
+
+        if (index >= 0) {
+          list[index] = record;
+          logAuditLocal(userEmail, 'UPDATE', 'TaskTracker', id, `Updated task: ${record.Title} (${id})`);
+          dispatchNotification({
+            action: 'UPDATE',
+            module: 'Tasks',
+            recordId: id,
+            title: `Task Updated: ${record.Title}`,
+            message: `${userName} updated task ${id} (${record.Title})`,
+            targetRoute: 'tasks'
+          });
+        } else {
+          list.push(record);
+          logAuditLocal(userEmail, 'CREATE', 'TaskTracker', id, `Created task: ${record.Title} (${id})`);
+          dispatchNotification({
+            action: 'CREATE',
+            module: 'Tasks',
+            recordId: id,
+            title: `New Task Assigned: ${record.Title}`,
+            message: `${userName} created and assigned task ${id} to ${record.AssigneeName}.`,
+            targetRoute: 'tasks'
+          });
+        }
+
+        localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(list));
+        broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Tasks', recordId: id });
+        return { success: true, taskId: id, task: record };
+      }
+
+      case 'updateTaskStatus': {
+        const { taskId, stepIndex, stepName, userEmail, userName } = payload;
+        const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS) || JSON.stringify(SEED_TASKS));
+        const index = list.findIndex(t => t.TaskId === taskId);
+        if (index === -1) throw new Error('Task not found: ' + taskId);
+
+        const rec = list[index];
+        const oldStepName = rec.StepName || `Step ${rec.StepIndex}`;
+        const now = new Date().toISOString();
+
+        rec.StepIndex = Number(stepIndex);
+        rec.StepName = stepName;
+        rec.Updated_By = userEmail || 'admin@srinvestments.com';
+        rec.Updated_At = now;
+
+        if (!rec.History) rec.History = [];
+        rec.History.push({
+          timestamp: now,
+          author: userName || userEmail || 'Staff',
+          action: `Moved task from "${oldStepName}" to "${stepName}"`
+        });
+
+        localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(list));
+        logAuditLocal(userEmail, 'STATUS_CHANGE', 'TaskTracker', taskId, `Moved ${taskId} from ${oldStepName} to ${stepName}`);
+        dispatchNotification({
+          action: 'TASK_MOVE',
+          module: 'Tasks',
+          recordId: taskId,
+          title: `Task Transition: ${rec.Title}`,
+          message: `${userName || userEmail} moved task ${taskId} to ${stepName}.`,
+          targetRoute: 'tasks'
+        });
+        broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Tasks', recordId: taskId });
+        return { success: true, taskId, stepIndex, stepName };
+      }
+
+      case 'deleteTask': {
+        const { taskId, userEmail } = payload;
+        const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS) || JSON.stringify(SEED_TASKS));
+        const index = list.findIndex(t => t.TaskId === taskId);
+        if (index !== -1) {
+          const rec = list[index];
+          rec.IsDeleted = true;
+          rec.Deleted_By = userEmail || 'admin@srinvestments.com';
+          rec.Deleted_At = new Date().toISOString();
+          localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(list));
+          logAuditLocal(userEmail, 'SOFT_DELETE', 'TaskTracker', taskId, `Soft-deleted task: ${rec.Title} (${taskId})`);
+          dispatchNotification({
+            action: 'DELETE',
+            module: 'Tasks',
+            recordId: taskId,
+            title: `Task Archived: ${rec.Title}`,
+            message: `${userEmail} archived task ${taskId}.`,
+            targetRoute: 'tasks'
+          });
+          broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Tasks', recordId: taskId });
+        }
+        return { success: true, message: 'Task soft-deleted.' };
+      }
+
+      // ==========================================
+      // PERSONAL TODO LIST & NOTES DEMO ACTIONS
+      // ==========================================
+      case 'getToDos': {
+        let list = JSON.parse(localStorage.getItem(STORAGE_KEYS.TODOS) || JSON.stringify(SEED_TODOS));
+        const includeDel = payload.includeDeleted !== undefined ? payload.includeDeleted : this.getShowDeletedGlobally();
+        if (!includeDel) {
+          list = list.filter(t => !t.IsDeleted);
+        }
+        if (payload.userEmail) {
+          const q = payload.userEmail.trim().toLowerCase();
+          list = list.filter(t => !t.UserEmail || t.UserEmail.toLowerCase() === q);
+        }
+        return list;
+      }
+
+      case 'saveToDo': {
+        const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.TODOS) || JSON.stringify(SEED_TODOS));
+        const id = payload.TodoId || ('TODO_' + Date.now());
+        const userEmail = payload.userEmail || payload.UserEmail || 'admin@srinvestments.com';
+        const now = new Date().toISOString();
+        const index = list.findIndex(t => t.TodoId === id);
+        const existing = index >= 0 ? list[index] : null;
+
+        const record = {
+          ...existing,
+          ...payload,
+          TodoId: id,
+          UserEmail: userEmail,
+          IsCompleted: payload.IsCompleted !== undefined ? Boolean(payload.IsCompleted) : (existing?.IsCompleted || false),
+          IsDeleted: false,
+          Created_By: existing ? (existing.Created_By || userEmail) : userEmail,
+          Created_At: existing ? (existing.Created_At || now) : now,
+          Updated_By: userEmail,
+          Updated_At: now
+        };
+
+        if (index >= 0) {
+          list[index] = record;
+        } else {
+          list.unshift(record);
+        }
+
+        localStorage.setItem(STORAGE_KEYS.TODOS, JSON.stringify(list));
+        broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'ToDo', recordId: id });
+        return { success: true, todo: record };
+      }
+
+      case 'deleteToDo': {
+        const { todoId, userEmail } = payload;
+        const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.TODOS) || JSON.stringify(SEED_TODOS));
+        const index = list.findIndex(t => t.TodoId === todoId);
+        if (index !== -1) {
+          const rec = list[index];
+          rec.IsDeleted = true;
+          rec.Deleted_By = userEmail || 'admin@srinvestments.com';
+          rec.Deleted_At = new Date().toISOString();
+          localStorage.setItem(STORAGE_KEYS.TODOS, JSON.stringify(list));
+          broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'ToDo', recordId: todoId });
+        }
+        return { success: true };
+      }
+
+      case 'getPersonalNotes': {
+        const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.PERSONAL_NOTES) || JSON.stringify(SEED_PERSONAL_NOTES));
+        if (payload.userEmail) {
+          const q = payload.userEmail.trim().toLowerCase();
+          return list.filter(n => !n.userEmail || n.userEmail.toLowerCase() === q);
+        }
+        return list;
+      }
+
+      case 'savePersonalNotes': {
+        const { notes } = payload;
+        localStorage.setItem(STORAGE_KEYS.PERSONAL_NOTES, JSON.stringify(notes || []));
+        broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'ToDo', subType: 'NOTES_SAVED' });
+        return { success: true };
+      }
+
+      // ==========================================
+      // REALTIME NOTIFICATIONS DEMO ACTIONS
+      // ==========================================
+      case 'getNotifications': {
+        const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS) || JSON.stringify(SEED_NOTIFICATIONS));
+        const isSuperUser = Boolean(payload.isSuperUser);
+        const role = payload.role || 'Staff';
+        const isAdmin = isSuperUser || role.toLowerCase() === 'admin' || (payload.userEmail && payload.userEmail.includes('admin'));
+
+        // Requirement:
+        // When Any ADMIN (IsSuperUser=true) staff do any operation, notify ADMIN users only
+        // When Non-Admin, do any operations, notify All Staff member (Non-Admin + Admin)
+        const filtered = list.filter(n => {
+          if (n.targetAudience === 'ADMIN_ONLY') {
+            return isAdmin;
+          }
+          return true; // ALL_STAFF
+        });
+
+        return filtered.slice(0, 50);
+      }
+
+      case 'markNotificationRead': {
+        const { notifId, userEmail } = payload;
+        const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS) || JSON.stringify(SEED_NOTIFICATIONS));
+        const notif = list.find(n => n.id === notifId);
+        if (notif) {
+          if (!notif.readBy) notif.readBy = [];
+          if (!notif.readBy.includes(userEmail)) notif.readBy.push(userEmail);
+          localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(list));
+        }
+        return { success: true };
+      }
+
+      case 'markAllNotificationsRead': {
+        const { userEmail } = payload;
+        const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS) || JSON.stringify(SEED_NOTIFICATIONS));
+        list.forEach(n => {
+          if (!n.readBy) n.readBy = [];
+          if (!n.readBy.includes(userEmail)) n.readBy.push(userEmail);
+        });
+        localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(list));
+        return { success: true };
       }
 
       case 'getCompanySettings': {

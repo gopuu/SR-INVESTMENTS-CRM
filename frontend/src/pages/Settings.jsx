@@ -55,6 +55,7 @@ export default function Settings({ onOpenBackup }) {
   // Backend connection State
   const [gasUrl, setGasUrl] = useState(crmApi.getBackendUrl());
   const [isDemoMode, setIsDemoMode] = useState(crmApi.isDemoMode());
+  const [showDeletedGlobally, setShowDeletedGlobally] = useState(() => crmApi.getShowDeletedGlobally());
   const [pingResult, setPingResult] = useState(null);
   const [pinging, setPinging] = useState(false);
 
@@ -205,6 +206,17 @@ export default function Settings({ onOpenBackup }) {
       text: val 
         ? 'Switched to Local Storage Demo mode.' 
         : 'Switched to Live Google Apps Script mode.',
+      type: 'info'
+    });
+  };
+
+  const handleToggleShowDeleted = (val) => {
+    crmApi.setShowDeletedGlobally(val);
+    setShowDeletedGlobally(val);
+    setMsg({
+      text: val 
+        ? 'Show Deleted Data ENABLED: All modules (Customers, Staff, Tasks, etc.) will now display soft-deleted records.' 
+        : 'Show Deleted Data DISABLED: Only active records are displayed across modules.',
       type: 'info'
     });
   };
@@ -608,6 +620,37 @@ export default function Settings({ onOpenBackup }) {
         {/* TAB 4: BACKEND CONNECTION */}
         {activeTab === 'backend' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            {/* Show Deleted Data Globally Setting (Admin Only) */}
+            {(user?.role === 'Admin' || user?.isSuperUser || user?.IsSuperUser || user?.email?.includes('admin')) && (
+              <div className="crm-card" style={{ padding: '1.75rem', borderLeft: '4px solid #2563eb' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                      <ShieldCheck size={18} color="#2563eb" />
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
+                        Show Deleted Data Globally (Admin / SuperUser Only)
+                      </h3>
+                    </div>
+                    <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0, maxWidth: '650px' }}>
+                      By default (unchecked), only active records are fetched. When checked, soft-deleted / archived records will be displayed across ALL CRM modules (Customers, Staff, Tasks, ToDos, etc.) with archival timestamps and one-click restore.
+                    </p>
+                  </div>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer', backgroundColor: '#eff6ff', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                    <input
+                      type="checkbox"
+                      checked={showDeletedGlobally}
+                      onChange={(e) => handleToggleShowDeleted(e.target.checked)}
+                      style={{ width: '18px', height: '18px', accentColor: '#2563eb', cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: '0.85rem', fontWeight: '700', color: showDeletedGlobally ? '#1d4ed8' : '#475569' }}>
+                      {showDeletedGlobally ? 'Active: Showing Deleted Data' : 'Default: Active Data Only'}
+                    </span>
+                  </label>
+                </div>
+              </div>
+            )}
+
             <div className="crm-card" style={{ padding: '1.75rem' }}>
               <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: '#0f172a', marginBottom: '0.25rem' }}>
                 Operating Environment
@@ -662,14 +705,33 @@ export default function Settings({ onOpenBackup }) {
 
               {pingResult && (
                 <div style={{
-                  padding: '0.75rem 1rem',
+                  padding: '1rem 1.25rem',
                   borderRadius: '8px',
                   fontSize: '0.825rem',
                   backgroundColor: pingResult.success ? '#dbeafe' : '#fee2e2',
                   color: pingResult.success ? '#1e40af' : '#b91c1c',
-                  border: `1px solid ${pingResult.success ? '#93c5fd' : '#fca5a5'}`
+                  border: `1px solid ${pingResult.success ? '#93c5fd' : '#fca5a5'}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem'
                 }}>
-                  {pingResult.message}
+                  <div style={{ fontWeight: '700' }}>
+                    {pingResult.message}
+                  </div>
+
+                  {!pingResult.success && (
+                    <div style={{ marginTop: '0.35rem', paddingTop: '0.5rem', borderTop: '1px solid #fca5a5', color: '#7f1d1d', lineHeight: 1.5 }}>
+                      <strong>Why did this happen?</strong> Your Google Apps Script project is still running the old monolithic template code.
+                      <ol style={{ margin: '0.35rem 0 0 1.25rem', padding: 0 }}>
+                        <li>Open your Apps Script project editor (<a href="https://script.google.com/home/projects/1lTQsf7yYtnp4HTI_MwVWqrSVQKtLoFZLXpjjEVSQnTxPzLhp6WC2SSOW/edit" target="_blank" rel="noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>Click here</a>).</li>
+                        <li><strong>Delete the 5 old HTML files:</strong> <code>Common.html</code>, <code>Customer.html</code>, <code>Employee.html</code>, <code>Index.html</code>, <code>Login.html</code> (click 3 dots on each &gt; Delete).</li>
+                        <li><strong>Create 1 new HTML file:</strong> Click <strong>+ &gt; HTML</strong>, name it <code>Bridge</code> (without .html), and paste the content of <code>apps-script/Bridge.html</code>.</li>
+                        <li><strong>Paste updated code:</strong> Replace each <code>.gs</code> file (<code>Code.gs</code>, <code>Common_Code.gs</code>, <code>Customer_Code.gs</code>, <code>Employee_Code.gs</code>, <code>Login_Code.gs</code>) with the code from the repository.</li>
+                        <li><strong>Deploy New Version:</strong> Click <strong>Deploy &gt; Manage deployments &gt; Edit (pencil) &gt; Version: New version &gt; Deploy</strong>.</li>
+                        <li>Then re-click <strong>Test Connection</strong> above to connect instantly!</li>
+                      </ol>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

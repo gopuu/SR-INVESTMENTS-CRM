@@ -16,7 +16,7 @@ import {
   Archive,
   Clock
 } from 'lucide-react';
-import { crmApi } from '../services/api';
+import { crmApi, subscribeCrmEvents } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
 import Modal from '../components/Modal';
@@ -28,7 +28,7 @@ export default function Customers() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [kycFilter, setKycFilter] = useState('');
-  const [showDeleted, setShowDeleted] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(() => crmApi.getShowDeletedGlobally());
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -80,6 +80,19 @@ export default function Customers() {
   useEffect(() => {
     loadCustomers();
   }, [kycFilter, showDeleted]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeCrmEvents((ev) => {
+      if (ev.module === 'Customers' || ev.type === 'DATA_CHANGED') {
+        if (ev.subType === 'SHOW_DELETED_CHANGED') {
+          setShowDeleted(Boolean(ev.value));
+        } else {
+          loadCustomers();
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();

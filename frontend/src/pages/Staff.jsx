@@ -16,7 +16,7 @@ import {
   Archive,
   Clock
 } from 'lucide-react';
-import { crmApi, getNextEmployeeCode } from '../services/api';
+import { crmApi, getNextEmployeeCode, subscribeCrmEvents } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
 import Modal from '../components/Modal';
@@ -27,7 +27,7 @@ export default function Staff() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [showDeleted, setShowDeleted] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(() => crmApi.getShowDeletedGlobally());
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -76,6 +76,19 @@ export default function Staff() {
   useEffect(() => {
     loadStaff();
   }, [showDeleted]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeCrmEvents((ev) => {
+      if (ev.module === 'Staff' || ev.type === 'DATA_CHANGED') {
+        if (ev.subType === 'SHOW_DELETED_CHANGED') {
+          setShowDeleted(Boolean(ev.value));
+        } else {
+          loadStaff();
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();

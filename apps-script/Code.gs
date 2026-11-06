@@ -148,6 +148,42 @@ function handleAction_(action, payload) {
     case "downloadDriveBackup":
       return backupDriveFilesToZip_();
 
+    // JIRA-Style Task Tracker
+    case "getTasks":
+      return getTasks_(payload);
+
+    case "saveTask":
+      return saveTask_(payload);
+
+    case "updateTaskStatus":
+      return updateTaskStatus_(payload);
+
+    case "deleteTask":
+      return deleteTask_(payload);
+
+    case "getTaskStepConfig":
+      return getTaskStepConfig_();
+
+    case "saveTaskStepConfig":
+      return saveTaskStepConfig_(payload.steps, payload.userEmail);
+
+    // Personal ToDo List & Daily Task Tracker
+    case "getToDos":
+      return getToDos_(payload);
+
+    case "saveToDo":
+      return saveToDo_(payload);
+
+    case "deleteToDo":
+      return deleteToDo_(payload);
+
+    // Realtime Notifications
+    case "getNotifications":
+      return getNotifications_(payload);
+
+    case "sendNotification":
+      return sendNotification_(payload);
+
     // Settings & Permissions
     case "getCompanySettings":
       return getCompanySettings_();
