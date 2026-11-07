@@ -4,8 +4,6 @@ import {
   Users, 
   UserCheck, 
   Settings, 
-  User, 
-  LogOut, 
   TrendingUp, 
   ShieldCheck, 
   Calculator,
@@ -16,7 +14,7 @@ import { useAuth } from '../context/AuthContext';
 import { crmApi } from '../services/api';
 
 export default function Sidebar({ currentPage, onNavigate, onOpenBackup }) {
-  const { user, logout, hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
   const isDemo = crmApi.isDemoMode();
 
   const navItems = [
@@ -24,8 +22,7 @@ export default function Sidebar({ currentPage, onNavigate, onOpenBackup }) {
     { id: 'customers', label: 'Customers', icon: Users, module: 'Customers' },
     { id: 'staff', label: 'Staff (Employees)', icon: UserCheck, module: 'Staff' },
     { id: 'sip', label: 'SIP Calculator', icon: Calculator, module: null },
-    { id: 'settings', label: 'Settings', icon: Settings, module: 'Settings' },
-    { id: 'profile', label: 'User Profile', icon: User, module: null }
+    { id: 'settings', label: 'Settings', icon: Settings, module: 'Settings' }
   ];
 
   return (
@@ -184,61 +181,30 @@ export default function Sidebar({ currentPage, onNavigate, onOpenBackup }) {
         )}
       </nav>
 
-      {/* User Card & Logout */}
+      {/* Sidebar Footer */}
       <div style={{
-        padding: '1.25rem',
+        padding: '1rem 1.25rem',
         borderTop: '1px solid #1e293b',
-        backgroundColor: '#0b1120'
+        backgroundColor: '#0b1120',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        fontSize: '0.725rem',
+        color: '#64748b'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.85rem' }}>
-          <div style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '50%',
-            backgroundColor: '#2563eb',
-            color: '#ffffff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: '600',
-            fontSize: '0.875rem'
-          }}>
-            {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '0.825rem', fontWeight: '600', color: '#ffffff', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-              {user?.name || 'Administrator'}
-            </div>
-            <div style={{ fontSize: '0.7rem', color: '#93c5fd', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-              {user?.employeeCode || user?.role || 'Staff'}
-            </div>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+          <ShieldCheck size={14} color="#3b82f6" />
+          <span style={{ color: '#94a3b8', fontWeight: '500' }}>SR Investments CRM</span>
         </div>
-
-        <button
-          onClick={logout}
-          style={{
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.5rem',
-            padding: '0.5rem',
-            borderRadius: '6px',
-            backgroundColor: '#1e293b',
-            color: '#f87171',
-            border: 'none',
-            fontSize: '0.8rem',
-            fontWeight: '500',
-            cursor: 'pointer',
-            transition: 'background 0.15s ease'
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2d1b24'}
-          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1e293b'}
-        >
-          <LogOut size={14} />
-          <span>Logout</span>
-        </button>
+        <span style={{ 
+          backgroundColor: '#1e293b', 
+          color: '#93c5fd', 
+          padding: '2px 7px', 
+          borderRadius: '4px',
+          fontWeight: '700',
+          fontSize: '0.675rem',
+          border: '1px solid #334155'
+        }}>v2.0</span>
       </div>
     </aside>
   );

@@ -12,21 +12,26 @@ import {
   Trash2, 
   ArrowRight,
   Sparkles,
-  X
+  X,
+  User,
+  LogOut,
+  ChevronDown
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { crmApi, subscribeCrmEvents } from '../services/api';
 
 export default function Header({ title, subtitle, onRefresh, refreshing, onOpenBackup, onNavigate }) {
-  const { user, hasPermission } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const isDemo = crmApi.isDemoMode();
   const canBackup = user?.role === 'Admin' || hasPermission('DriveBackup', 'CanView');
 
-  // Notifications State
+  // Notifications & User Profile Menu States
   const [notifications, setNotifications] = useState([]);
   const [showDrawer, setShowDrawer] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [toastNotif, setToastNotif] = useState(null);
   const drawerRef = useRef(null);
+  const profileMenuRef = useRef(null);
 
   const isAdmin = user?.role === 'Admin' || user?.isSuperUser === true || user?.IsSuperUser === true || user?.email?.includes('admin');
 
@@ -56,10 +61,13 @@ export default function Header({ title, subtitle, onRefresh, refreshing, onOpenB
       }
     });
 
-    // Close dropdown on outside click
+    // Close dropdowns on outside click
     const handleOutsideClick = (e) => {
       if (drawerRef.current && !drawerRef.current.contains(e.target)) {
         setShowDrawer(false);
+      }
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+        setShowProfileMenu(false);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
@@ -399,20 +407,232 @@ export default function Header({ title, subtitle, onRefresh, refreshing, onOpenB
           </button>
         )}
 
-        {/* User Pill */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.6rem',
-          padding: '0.35rem 0.85rem',
-          backgroundColor: '#eff6ff',
-          border: '1px solid #bfdbfe',
-          borderRadius: '9999px'
-        }}>
-          <Shield size={14} color="#2563eb" />
-          <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#1e40af' }}>
-            {user?.role || 'Staff'}
-          </span>
+        {/* User Profile Menu at Top-Right-End */}
+        <div style={{ position: 'relative' }} ref={profileMenuRef}>
+          <button
+            onClick={() => setShowProfileMenu(prev => !prev)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.65rem',
+              padding: '0.3rem 0.75rem 0.3rem 0.35rem',
+              backgroundColor: showProfileMenu ? '#eff6ff' : '#ffffff',
+              border: showProfileMenu ? '1px solid #2563eb' : '1px solid #cbd5e1',
+              borderRadius: '9999px',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              boxShadow: showProfileMenu 
+                ? '0 0 0 3px rgba(37, 99, 235, 0.15)' 
+                : '0 1px 2px rgba(0, 0, 0, 0.05)'
+            }}
+            title="User Profile & Session Menu"
+          >
+            {/* Avatar Circle */}
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              backgroundColor: '#2563eb',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: '700',
+              fontSize: '0.875rem',
+              flexShrink: 0,
+              boxShadow: '0 2px 4px rgba(37, 99, 235, 0.3)'
+            }}>
+              {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+            </div>
+
+            {/* User Info (Name + Role) */}
+            <div style={{ textAlign: 'left', lineHeight: 1.25 }}>
+              <div style={{
+                fontSize: '0.8rem',
+                fontWeight: '700',
+                color: '#0f172a',
+                maxWidth: '130px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}>
+                {user?.name || 'Administrator'}
+              </div>
+              <div style={{
+                fontSize: '0.675rem',
+                color: '#2563eb',
+                fontWeight: '600'
+              }}>
+                {user?.role || 'Staff'}
+              </div>
+            </div>
+
+            {/* Chevron down indicator */}
+            <ChevronDown 
+              size={14} 
+              color={showProfileMenu ? '#2563eb' : '#64748b'} 
+              style={{
+                transition: 'transform 0.2s ease',
+                transform: showProfileMenu ? 'rotate(180deg)' : 'rotate(0deg)'
+              }}
+            />
+          </button>
+
+          {/* User Profile Dropdown Menu */}
+          {showProfileMenu && (
+            <div style={{
+              position: 'absolute',
+              top: '46px',
+              right: 0,
+              width: '240px',
+              backgroundColor: '#ffffff',
+              borderRadius: '12px',
+              boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.1)',
+              border: '1px solid #e2e8f0',
+              overflow: 'hidden',
+              zIndex: 1000,
+              animation: 'fadeIn 0.15s ease'
+            }}>
+              {/* Profile Card Header */}
+              <div style={{
+                padding: '0.85rem 1rem',
+                backgroundColor: '#f8fafc',
+                borderBottom: '1px solid #e2e8f0'
+              }}>
+                <div style={{ fontSize: '0.825rem', fontWeight: '700', color: '#0f172a' }}>
+                  {user?.name || 'Administrator'}
+                </div>
+                <div style={{
+                  fontSize: '0.725rem',
+                  color: '#64748b',
+                  marginTop: '2px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }} title={user?.email}>
+                  {user?.email || 'admin@srinvestments.com'}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.5rem' }}>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    padding: '0.15rem 0.5rem',
+                    borderRadius: '9999px',
+                    backgroundColor: '#eff6ff',
+                    color: '#1d4ed8',
+                    border: '1px solid #bfdbfe',
+                    fontSize: '0.675rem',
+                    fontWeight: '700'
+                  }}>
+                    <Shield size={10} color="#2563eb" />
+                    {user?.role || 'Admin'}
+                  </span>
+                  {user?.employeeCode && (
+                    <span style={{
+                      fontSize: '0.675rem',
+                      color: '#475569',
+                      backgroundColor: '#f1f5f9',
+                      padding: '0.15rem 0.5rem',
+                      borderRadius: '9999px',
+                      border: '1px solid #cbd5e1',
+                      fontWeight: '600'
+                    }}>
+                      {user.employeeCode}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Menu Actions */}
+              <div style={{ padding: '0.4rem' }}>
+                {/* 1. Profile Option */}
+                <button
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    if (onNavigate) {
+                      onNavigate('profile');
+                    } else {
+                      window.dispatchEvent(new CustomEvent('crm_navigate', { detail: { page: 'profile' } }));
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    padding: '0.65rem 0.75rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: 'transparent',
+                    color: '#1e293b',
+                    fontSize: '0.85rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#eff6ff';
+                    e.currentTarget.style.color = '#1d4ed8';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = '#1e293b';
+                  }}
+                >
+                  <User size={16} color="#2563eb" />
+                  <div style={{ flex: 1 }}>
+                    <div>Profile</div>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: '400' }}>
+                      Account & Permissions
+                    </div>
+                  </div>
+                </button>
+
+                {/* Divider */}
+                <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '0.35rem 0' }} />
+
+                {/* 2. Logout Option */}
+                <button
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    logout();
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    padding: '0.65rem 0.75rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: 'transparent',
+                    color: '#dc2626',
+                    fontSize: '0.85rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#fef2f2';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                >
+                  <LogOut size={16} color="#dc2626" />
+                  <div style={{ flex: 1 }}>
+                    <div>Logout</div>
+                    <div style={{ fontSize: '0.7rem', color: '#b91c1c', fontWeight: '400' }}>
+                      Sign out of CRM session
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
