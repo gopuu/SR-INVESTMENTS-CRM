@@ -141,8 +141,6 @@ export default function Header({ title, subtitle, onRefresh, refreshing, onOpenB
         return { bg: '#fee2e2', color: '#b91c1c', label: 'Soft Deleted' };
       case 'RESTORE':
         return { bg: '#f3e8ff', color: '#7e22ce', label: 'Restored' };
-      case 'TASK_MOVE':
-        return { bg: '#fef3c7', color: '#b45309', label: 'Status Change' };
       default:
         return { bg: '#f1f5f9', color: '#475569', label: action || 'Activity' };
     }

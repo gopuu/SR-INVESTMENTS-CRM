@@ -6,9 +6,6 @@ import Login from './pages/Login';
 import Home from './pages/Home';
 import Customers from './pages/Customers';
 import Staff from './pages/Staff';
-import TaskTracker from './pages/TaskTracker';
-import ToDoList from './pages/ToDoList';
-import BulkMail from './pages/BulkMail';
 import Settings from './pages/Settings';
 import UserProfile from './pages/UserProfile';
 import SipCalculator from './pages/SipCalculator';
@@ -48,9 +45,6 @@ export default function App() {
         {currentPage === 'home' && <Home onNavigate={setCurrentPage} onOpenBackup={openBackup} />}
         {currentPage === 'customers' && <Customers />}
         {currentPage === 'staff' && <Staff />}
-        {currentPage === 'tasks' && <TaskTracker />}
-        {currentPage === 'todos' && <ToDoList />}
-        {currentPage === 'bulkmail' && <BulkMail />}
         {currentPage === 'sip' && <SipCalculator />}
         {currentPage === 'settings' && <Settings onOpenBackup={openBackup} />}
         {currentPage === 'profile' && <UserProfile />}

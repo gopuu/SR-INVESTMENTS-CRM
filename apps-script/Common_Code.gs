@@ -4,7 +4,7 @@
  * Configured with live Google Drive & Spreadsheet references:
  * 1. Spreadsheet ID: 1Bll7386rIJD2CIl1VX--0Okcn-jxXOpII0OHh9FSKSM
  * 2. Root Drive Folder ID: 1IxulBQJTKrxYAyYMUhz5bllvaMZUYvy (SRInvestmentsCRM)
- * 3. Subfolders: SR_CRM_CustomerFiles, SR_CRM_EmployeeFiles, TestBulkMailAttachments
+ * 3. Subfolders: SR_CRM_CustomerFiles, SR_CRM_EmployeeFiles
  */
 
 const CRM_CONFIG = {
@@ -16,8 +16,7 @@ const CRM_CONFIG = {
   
   SUBFOLDERS: {
     CUSTOMERS: "SR_CRM_CustomerFiles",
-    EMPLOYEES: "SR_CRM_EmployeeFiles",
-    ATTACHMENTS: "TestBulkMailAttachments"
+    EMPLOYEES: "SR_CRM_EmployeeFiles"
   },
 
   SHEETS: {
@@ -29,10 +28,6 @@ const CRM_CONFIG = {
     SETTINGS: "CompanySettings",
     RIGHTS: "RolesRights",
     AUDIT: "AuditLogs",
-    CAMPAIGNS: "EmailCampaigns",
-    TASKS: "Tasks",
-    TASK_CONFIG: "TaskStepConfig",
-    TODOS: "PersonalToDos",
     NOTIFICATIONS: "Notifications"
   }
 };
@@ -72,22 +67,6 @@ const CRM_SCHEMAS = {
   ],
   EMPLOYEE_EMAILS: [
     "Email", "Name", "Department", "Designation", "Status"
-  ],
-  CAMPAIGNS: [
-    "CampaignId", "Timestamp", "Target", "RecipientCount", "Subject", "SenderEmail", "Status", "EstimatedCost",
-    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
-  ],
-  TASKS: [
-    "TaskId", "Title", "Description", "StepIndex", "StepName", "Priority", "AssigneeEmail", "AssigneeName",
-    "ReporterEmail", "ReporterName", "DueDate", "Tags", "CommentsJson", "HistoryJson",
-    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
-  ],
-  TASK_CONFIG: [
-    "StepIndex", "StepName", "Updated_By", "Updated_At"
-  ],
-  TODOS: [
-    "TodoId", "UserEmail", "Title", "Notes", "Priority", "DueDate", "IsCompleted", "Category",
-    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
   ],
   NOTIFICATIONS: [
     "NotifId", "Timestamp", "ActorEmail", "ActorName", "ActorRole", "IsSuperUser", "TargetAudience",
@@ -253,9 +232,8 @@ function backupDriveFilesToZip_() {
   const zipFileName = "SR_Investments_Drive_Backup_" + dateStr + ".zip";
   const zipBlob = Utilities.zip(blobs, zipFileName);
 
-  // Save to Drive or return base64
-  const backupFolder = getDriveSubfolder_("TestBulkMailAttachments");
-  const zipFile = backupFolder.createFile(zipBlob);
+  // Save to Drive root folder
+  const zipFile = root.createFile(zipBlob);
   zipFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
   return {
@@ -348,32 +326,23 @@ function setupCRM() {
     getOrCreateSheet_(sheetName, schema);
   });
 
-  // Ensure Roles Rights includes BulkMail, DriveBackup, Tasks, and ToDos
+  // Ensure Roles Rights includes Dashboard, Customers, Staff, Settings, DriveBackup
   const rightsSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.RIGHTS, CRM_SCHEMAS.RIGHTS);
   if (rightsSheet.getLastRow() <= 1) {
     const defaultRights = [
       ["Admin", "Dashboard", true, true, true, true],
       ["Admin", "Customers", true, true, true, true],
       ["Admin", "Staff", true, true, true, true],
-      ["Admin", "Tasks", true, true, true, true],
-      ["Admin", "ToDo", true, true, true, true],
-      ["Admin", "BulkMail", true, true, true, true],
       ["Admin", "Settings", true, true, true, true],
       ["Admin", "DriveBackup", true, true, true, true],
       ["Relationship Manager", "Dashboard", true, false, false, false],
       ["Relationship Manager", "Customers", true, true, true, false],
       ["Relationship Manager", "Staff", true, false, false, false],
-      ["Relationship Manager", "Tasks", true, true, true, false],
-      ["Relationship Manager", "ToDo", true, true, true, true],
-      ["Relationship Manager", "BulkMail", true, true, true, false],
       ["Relationship Manager", "Settings", false, false, false, false],
       ["Relationship Manager", "DriveBackup", false, false, false, false],
       ["Backoffice Staff", "Dashboard", true, false, false, false],
       ["Backoffice Staff", "Customers", true, true, true, false],
       ["Backoffice Staff", "Staff", false, false, false, false],
-      ["Backoffice Staff", "Tasks", true, true, true, false],
-      ["Backoffice Staff", "ToDo", true, true, true, true],
-      ["Backoffice Staff", "BulkMail", true, true, true, false],
       ["Backoffice Staff", "Settings", false, false, false, false],
       ["Backoffice Staff", "DriveBackup", false, false, false, false]
     ];
@@ -383,282 +352,9 @@ function setupCRM() {
   // Ensure Drive folders exist
   getDriveSubfolder_(CRM_CONFIG.SUBFOLDERS.CUSTOMERS);
   getDriveSubfolder_(CRM_CONFIG.SUBFOLDERS.EMPLOYEES);
-  getDriveSubfolder_(CRM_CONFIG.SUBFOLDERS.ATTACHMENTS);
 
   Logger.log("SR INVESTMENTS CRM verified successfully.");
   return { success: true, message: "CRM sheets & Drive folders verified successfully!" };
-}
-
-/**
- * ==========================================
- * TASK TRACKER (JIRA-STYLE KANBAN) BACKEND
- * ==========================================
- */
-
-const DEFAULT_TASK_STEPS = [
-  { index: 1, name: "Step 1: NEW" },
-  { index: 2, name: "Step 2: IN PROGRESS" },
-  { index: 3, name: "Step 3: REVIEW / PENDING" },
-  { index: 4, name: "Step 4: VERIFICATION" },
-  { index: 5, name: "Step 5: COMPLETED" }
-];
-
-function getTaskStepConfig_() {
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TASK_CONFIG, CRM_SCHEMAS.TASK_CONFIG);
-  const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.TASK_CONFIG);
-  if (!rows || rows.length < 5) {
-    return DEFAULT_TASK_STEPS;
-  }
-  return rows.map(r => ({
-    index: Number(r.StepIndex),
-    name: String(r.StepName || `Step ${r.StepIndex}`)
-  }));
-}
-
-function saveTaskStepConfig_(steps, userEmail) {
-  if (!steps || !steps.length) return { success: false };
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TASK_CONFIG, CRM_SCHEMAS.TASK_CONFIG);
-  sheet.clearContents();
-  sheet.getRange(1, 1, 1, CRM_SCHEMAS.TASK_CONFIG.length).setValues([CRM_SCHEMAS.TASK_CONFIG]);
-  sheet.getRange(1, 1, 1, CRM_SCHEMAS.TASK_CONFIG.length)
-    .setFontWeight("bold")
-    .setBackground("#1e40af")
-    .setFontColor("#ffffff");
-
-  const now = new Date().toISOString();
-  const values = steps.map((s, idx) => [idx + 1, s.name || `Step ${idx + 1}`, userEmail || "admin", now]);
-  sheet.getRange(2, 1, values.length, CRM_SCHEMAS.TASK_CONFIG.length).setValues(values);
-  logAudit_(userEmail || "admin", "UPDATE", "TaskTracker", "CONFIG", "Updated JIRA 5-step status workflow names");
-  return { success: true, steps: steps };
-}
-
-function getTasks_(filter) {
-  filter = filter || {};
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TASKS, CRM_SCHEMAS.TASKS);
-  let rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.TASKS);
-
-  if (!filter.includeDeleted) {
-    rows = rows.filter(r => !r.IsDeleted || r.IsDeleted === "false" || r.IsDeleted === false);
-  }
-
-  if (filter.assignee) {
-    const q = filter.assignee.toLowerCase();
-    rows = rows.filter(r => (r.AssigneeEmail && r.AssigneeEmail.toLowerCase() === q) || (r.AssigneeName && r.AssigneeName.toLowerCase().includes(q)));
-  }
-
-  return rows;
-}
-
-function saveTask_(payload) {
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TASKS, CRM_SCHEMAS.TASKS);
-  const now = new Date().toISOString();
-  const userEmail = payload.userEmail || payload.ReporterEmail || "admin@srinvestments.com";
-  const id = payload.TaskId || ("TSK-" + Math.floor(100 + Math.random() * 900));
-
-  let rowIndex = findRowIndexById_(sheet, id);
-  let commentsJson = typeof payload.CommentsJson === "string" ? payload.CommentsJson : JSON.stringify(payload.Comments || []);
-  let historyJson = typeof payload.HistoryJson === "string" ? payload.HistoryJson : JSON.stringify(payload.History || [
-    { timestamp: now, author: payload.ReporterName || userEmail, action: "Task created" }
-  ]);
-
-  if (rowIndex > 0) {
-    // Update
-    const rowValues = [
-      id,
-      payload.Title || "",
-      payload.Description || "",
-      payload.StepIndex || 1,
-      payload.StepName || "Step 1: NEW",
-      payload.Priority || "Medium",
-      payload.AssigneeEmail || "",
-      payload.AssigneeName || "",
-      payload.ReporterEmail || userEmail,
-      payload.ReporterName || "",
-      payload.DueDate || "",
-      payload.Tags || "",
-      commentsJson,
-      historyJson,
-      payload.IsDeleted ? true : false,
-      payload.Created_By || userEmail,
-      payload.Created_At || now,
-      userEmail,
-      now,
-      payload.Deleted_By || "",
-      payload.Deleted_At || ""
-    ];
-    sheet.getRange(rowIndex, 1, 1, CRM_SCHEMAS.TASKS.length).setValues([rowValues]);
-    logAudit_(userEmail, "UPDATE", "TaskTracker", id, `Updated task: ${payload.Title} (${id})`);
-  } else {
-    // Create
-    const rowValues = [
-      id,
-      payload.Title || "",
-      payload.Description || "",
-      payload.StepIndex || 1,
-      payload.StepName || "Step 1: NEW",
-      payload.Priority || "Medium",
-      payload.AssigneeEmail || "",
-      payload.AssigneeName || "",
-      payload.ReporterEmail || userEmail,
-      payload.ReporterName || "",
-      payload.DueDate || "",
-      payload.Tags || "",
-      commentsJson,
-      historyJson,
-      false,
-      userEmail,
-      now,
-      userEmail,
-      now,
-      "",
-      ""
-    ];
-    sheet.appendRow(rowValues);
-    logAudit_(userEmail, "CREATE", "TaskTracker", id, `Created task: ${payload.Title} (${id})`);
-  }
-
-  return { success: true, taskId: id, message: "Task saved successfully." };
-}
-
-function updateTaskStatus_(payload) {
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TASKS, CRM_SCHEMAS.TASKS);
-  const id = payload.taskId || payload.TaskId;
-  const newStepIndex = Number(payload.stepIndex || payload.StepIndex);
-  const newStepName = payload.stepName || payload.StepName;
-  const userEmail = payload.userEmail || "admin@srinvestments.com";
-  const userName = payload.userName || userEmail;
-  const now = new Date().toISOString();
-
-  const rowIndex = findRowIndexById_(sheet, id);
-  if (rowIndex <= 0) throw new Error("Task not found: " + id);
-
-  const currentValues = sheet.getRange(rowIndex, 1, 1, CRM_SCHEMAS.TASKS.length).getValues()[0];
-  const oldStepName = currentValues[4];
-
-  // Update step columns and trail
-  let history = [];
-  try {
-    history = JSON.parse(currentValues[13] || "[]");
-  } catch(e) { history = []; }
-
-  history.push({
-    timestamp: now,
-    author: userName,
-    action: `Moved from "${oldStepName}" to "${newStepName}"`
-  });
-
-  currentValues[3] = newStepIndex;
-  currentValues[4] = newStepName;
-  currentValues[13] = JSON.stringify(history);
-  currentValues[17] = userEmail; // Updated_By
-  currentValues[18] = now;       // Updated_At
-
-  sheet.getRange(rowIndex, 1, 1, CRM_SCHEMAS.TASKS.length).setValues([currentValues]);
-  logAudit_(userEmail, "STATUS_CHANGE", "TaskTracker", id, `Moved task ${id} from ${oldStepName} to ${newStepName}`);
-  return { success: true, taskId: id, stepIndex: newStepIndex, stepName: newStepName };
-}
-
-function deleteTask_(payload) {
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TASKS, CRM_SCHEMAS.TASKS);
-  const id = payload.taskId || payload.TaskId;
-  const userEmail = payload.userEmail || "admin@srinvestments.com";
-  const rowIndex = findRowIndexById_(sheet, id);
-  if (rowIndex <= 0) throw new Error("Task not found: " + id);
-
-  const now = new Date().toISOString();
-  sheet.getRange(rowIndex, 15).setValue(true);      // IsDeleted
-  sheet.getRange(rowIndex, 19).setValue(userEmail); // Deleted_By
-  sheet.getRange(rowIndex, 20).setValue(now);       // Deleted_At
-
-  logAudit_(userEmail, "SOFT_DELETE", "TaskTracker", id, `Soft-deleted task: ${id}`);
-  return { success: true, message: "Task soft-deleted." };
-}
-
-/**
- * ==========================================
- * PERSONAL TODO LIST BACKEND
- * ==========================================
- */
-function getToDos_(payload) {
-  payload = payload || {};
-  const userEmail = (payload.userEmail || "").trim().toLowerCase();
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TODOS, CRM_SCHEMAS.TODOS);
-  let rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.TODOS);
-
-  if (!payload.includeDeleted) {
-    rows = rows.filter(r => !r.IsDeleted || r.IsDeleted === "false" || r.IsDeleted === false);
-  }
-
-  if (userEmail) {
-    rows = rows.filter(r => String(r.UserEmail || "").trim().toLowerCase() === userEmail);
-  }
-
-  return rows;
-}
-
-function saveToDo_(payload) {
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TODOS, CRM_SCHEMAS.TODOS);
-  const id = payload.TodoId || ("TODO_" + Date.now());
-  const now = new Date().toISOString();
-  const userEmail = payload.userEmail || payload.UserEmail || "admin@srinvestments.com";
-
-  let rowIndex = findRowIndexById_(sheet, id);
-  if (rowIndex > 0) {
-    const rowValues = [
-      id,
-      userEmail,
-      payload.Title || "",
-      payload.Notes || "",
-      payload.Priority || "Medium",
-      payload.DueDate || "",
-      payload.IsCompleted ? true : false,
-      payload.Category || "General",
-      payload.IsDeleted ? true : false,
-      payload.Created_By || userEmail,
-      payload.Created_At || now,
-      userEmail,
-      now,
-      payload.Deleted_By || "",
-      payload.Deleted_At || ""
-    ];
-    sheet.getRange(rowIndex, 1, 1, CRM_SCHEMAS.TODOS.length).setValues([rowValues]);
-  } else {
-    const rowValues = [
-      id,
-      userEmail,
-      payload.Title || "",
-      payload.Notes || "",
-      payload.Priority || "Medium",
-      payload.DueDate || "",
-      false,
-      payload.Category || "General",
-      false,
-      userEmail,
-      now,
-      userEmail,
-      now,
-      "",
-      ""
-    ];
-    sheet.appendRow(rowValues);
-  }
-
-  return { success: true, todoId: id };
-}
-
-function deleteToDo_(payload) {
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TODOS, CRM_SCHEMAS.TODOS);
-  const id = payload.todoId || payload.TodoId;
-  const userEmail = payload.userEmail || "admin@srinvestments.com";
-  const rowIndex = findRowIndexById_(sheet, id);
-  if (rowIndex <= 0) return { success: true };
-
-  const now = new Date().toISOString();
-  sheet.getRange(rowIndex, 9).setValue(true);       // IsDeleted
-  sheet.getRange(rowIndex, 13).setValue(userEmail); // Deleted_By
-  sheet.getRange(rowIndex, 14).setValue(now);       // Deleted_At
-
-  return { success: true };
 }
 
 /**

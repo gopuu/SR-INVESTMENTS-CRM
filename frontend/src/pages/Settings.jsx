@@ -7,7 +7,6 @@ import {
   CheckCircle, 
   AlertCircle, 
   RefreshCw,
-  Mail,
   Archive,
   Download,
   History,
@@ -34,7 +33,7 @@ export default function Settings({ onOpenBackup }) {
   const [auditModuleFilter, setAuditModuleFilter] = useState('all');
   const [auditActionFilter, setAuditActionFilter] = useState('all');
 
-  // Company & SES Settings State
+  // Company Settings State
   const [companySettings, setCompanySettings] = useState({
     COMPANY_NAME: 'SR INVESTMENTS',
     ARN_NUMBER: 'ARN-189241',
@@ -42,11 +41,7 @@ export default function Settings({ onOpenBackup }) {
     GSTIN: '27AAACR1234F1Z5',
     SUPPORT_EMAIL: 'support@srinvestments.com',
     CONTACT_PHONE: '+91 98765 43210',
-    OFFICE_ADDRESS: '101, Fortune Hub, Financial District, Bandra-Kurla Complex, Mumbai 400051',
-    SES_REGION: 'ap-south-1',
-    SES_SENDER_EMAIL: 'notifications@srinvestments.com',
-    SES_ACCESS_KEY: 'AKIA_DEMO_SR_INVESTMENTS',
-    SES_SECRET_KEY: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+    OFFICE_ADDRESS: '101, Fortune Hub, Financial District, Bandra-Kurla Complex, Mumbai 400051'
   });
 
   // User Rights Matrix State
@@ -154,7 +149,7 @@ export default function Settings({ onOpenBackup }) {
     setMsg({ text: '', type: '' });
     try {
       await crmApi.call('saveCompanySettings', companySettings);
-      setMsg({ text: 'Company & Amazon SES settings updated successfully!', type: 'success' });
+      setMsg({ text: 'Company settings updated successfully!', type: 'success' });
     } catch (err) {
       setMsg({ text: err.message || 'Failed to save settings', type: 'error' });
     } finally {
@@ -215,7 +210,7 @@ export default function Settings({ onOpenBackup }) {
     setShowDeletedGlobally(val);
     setMsg({
       text: val 
-        ? 'Show Deleted Data ENABLED: All modules (Customers, Staff, Tasks, etc.) will now display soft-deleted records.' 
+        ? 'Show Deleted Data ENABLED: All modules (Customers, Staff, etc.) will now display soft-deleted records.' 
         : 'Show Deleted Data DISABLED: Only active records are displayed across modules.',
       type: 'info'
     });
@@ -225,7 +220,7 @@ export default function Settings({ onOpenBackup }) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <Header 
         title="CRM Settings & Configurations" 
-        subtitle="Manage company profile, Amazon SES mailer, role-based user rights & Google Sheets backend"
+        subtitle="Manage company profile, role-based user rights & Google Sheets backend"
         onRefresh={loadSettings}
         refreshing={loading}
         onOpenBackup={onOpenBackup}
@@ -251,25 +246,6 @@ export default function Settings({ onOpenBackup }) {
             }}
           >
             <Building2 size={16} /> Company Details
-          </button>
-
-          <button
-            onClick={() => setActiveTab('ses')}
-            style={{
-              padding: '0.75rem 1.25rem',
-              border: 'none',
-              background: 'transparent',
-              fontSize: '0.875rem',
-              fontWeight: '600',
-              color: activeTab === 'ses' ? '#2563eb' : '#64748b',
-              borderBottom: activeTab === 'ses' ? '2px solid #2563eb' : '2px solid transparent',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}
-          >
-            <Mail size={16} /> Amazon SES Mailer Config
           </button>
 
           <button
@@ -446,92 +422,7 @@ export default function Settings({ onOpenBackup }) {
           </div>
         )}
 
-        {/* TAB 2: AMAZON SES CONFIGURATION */}
-        {activeTab === 'ses' && (
-          <div className="crm-card" style={{ padding: '2rem' }}>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', marginBottom: '0.25rem' }}>
-              Amazon Simple Email Service (SES) API Credentials
-            </h3>
-            <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '1.5rem' }}>
-              Used by the Bulk Mailing module for sending personalized portfolio statements and newsletters with lowest billing cost.
-            </p>
-
-            <form onSubmit={handleSaveCompany}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-                <div className="form-group">
-                  <label className="form-label">AWS Region</label>
-                  <select
-                    className="form-select"
-                    value={companySettings.SES_REGION || 'ap-south-1'}
-                    onChange={(e) => setCompanySettings({ ...companySettings, SES_REGION: e.target.value })}
-                  >
-                    <option value="ap-south-1">Asia Pacific (Mumbai) - ap-south-1</option>
-                    <option value="us-east-1">US East (N. Virginia) - us-east-1</option>
-                    <option value="eu-west-1">Europe (Ireland) - eu-west-1</option>
-                    <option value="ap-southeast-1">Asia Pacific (Singapore) - ap-southeast-1</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Verified Sender Email</label>
-                  <input
-                    type="email"
-                    className="form-input"
-                    placeholder="notifications@srinvestments.com"
-                    value={companySettings.SES_SENDER_EMAIL || ''}
-                    onChange={(e) => setCompanySettings({ ...companySettings, SES_SENDER_EMAIL: e.target.value })}
-                    required
-                  />
-                  <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.25rem' }}>
-                    Must be verified in your AWS SES console.
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">AWS Access Key ID</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="AKIAIOSFODNN7EXAMPLE"
-                    value={companySettings.SES_ACCESS_KEY || ''}
-                    onChange={(e) => setCompanySettings({ ...companySettings, SES_ACCESS_KEY: e.target.value })}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">AWS Secret Access Key</label>
-                  <input
-                    type="password"
-                    className="form-input"
-                    placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-                    value={companySettings.SES_SECRET_KEY || ''}
-                    onChange={(e) => setCompanySettings({ ...companySettings, SES_SECRET_KEY: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div style={{
-                marginTop: '1.25rem',
-                padding: '1rem',
-                backgroundColor: '#eff6ff',
-                borderRadius: '8px',
-                border: '1px solid #bfdbfe',
-                fontSize: '0.8rem',
-                color: '#1e40af'
-              }}>
-                <strong>Amazon SES Billing Rate:</strong> $0.10 per 1,000 emails sent. Invoices are billed directly by Amazon Web Services to your AWS account. The CRM tracks every sent message with timestamps and estimated cost breakdowns.
-              </div>
-
-              <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
-                <button type="submit" className="btn btn-primary" disabled={saving}>
-                  <Save size={16} /> {saving ? 'Saving...' : 'Save Amazon SES Configuration'}
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* TAB 3: USER RIGHTS & PERMISSIONS */}
+        {/* TAB 2: USER RIGHTS & PERMISSIONS */}
         {activeTab === 'rights' && (
           <div className="crm-card" style={{ padding: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
@@ -540,7 +431,7 @@ export default function Settings({ onOpenBackup }) {
                   Role-Based Access Control (RBAC) Matrix
                 </h3>
                 <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '3px 0 0 0' }}>
-                  Manage View, Create, Edit, and Delete privileges per staff role, including Drive Backup and Bulk Mailing access.
+                  Manage View, Create, Edit, and Delete privileges per staff role, including Drive Backup access.
                 </p>
               </div>
               <button className="btn btn-primary" onClick={handleSaveRights} disabled={saving}>
@@ -632,7 +523,7 @@ export default function Settings({ onOpenBackup }) {
                       </h3>
                     </div>
                     <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0, maxWidth: '650px' }}>
-                      By default (unchecked), only active records are fetched. When checked, soft-deleted / archived records will be displayed across ALL CRM modules (Customers, Staff, Tasks, ToDos, etc.) with archival timestamps and one-click restore.
+                      By default (unchecked), only active records are fetched. When checked, soft-deleted / archived records will be displayed across ALL CRM modules (Customers, Staff, etc.) with archival timestamps and one-click restore.
                     </p>
                   </div>
 
@@ -805,7 +696,6 @@ export default function Settings({ onOpenBackup }) {
                     <option value="all">All Masters</option>
                     <option value="Customers">Customers</option>
                     <option value="Staff">Staff</option>
-                    <option value="BulkMail">Bulk Mail</option>
                     <option value="Settings">Settings</option>
                   </select>
                 </div>
@@ -823,7 +713,6 @@ export default function Settings({ onOpenBackup }) {
                     <option value="UPDATE">UPDATE</option>
                     <option value="SOFT_DELETE">SOFT_DELETE</option>
                     <option value="RESTORE">RESTORE</option>
-                    <option value="BULK_MAIL">BULK_MAIL</option>
                   </select>
                 </div>
               </div>

@@ -8,7 +8,6 @@
  * Supported Actions:
  * - login (via staffId / email / mobile)
  * - googleLogin (multi-google ID verification)
- * - sendBulkEmail (Amazon SES integration)
  * - downloadDriveBackup (Full Drive ZIP generator)
  * - customers & staff CRUD
  * - settings & rights RBAC
@@ -134,48 +133,9 @@ function handleAction_(action, payload) {
     case "getAuditLogs":
       return getAuditLogs_(payload);
 
-    // Bulk Mailing via Amazon SES
-    case "sendBulkEmail":
-      return sendBulkEmailSES_(payload);
-
-    case "getCampaignLogs":
-      return getCampaignLogs_();
-
-    case "getCampaignRecipientLogs":
-      return getCampaignRecipientLogs_(payload.campaignId);
-
     // Drive Full ZIP Backup
     case "downloadDriveBackup":
       return backupDriveFilesToZip_();
-
-    // JIRA-Style Task Tracker
-    case "getTasks":
-      return getTasks_(payload);
-
-    case "saveTask":
-      return saveTask_(payload);
-
-    case "updateTaskStatus":
-      return updateTaskStatus_(payload);
-
-    case "deleteTask":
-      return deleteTask_(payload);
-
-    case "getTaskStepConfig":
-      return getTaskStepConfig_();
-
-    case "saveTaskStepConfig":
-      return saveTaskStepConfig_(payload.steps, payload.userEmail);
-
-    // Personal ToDo List & Daily Task Tracker
-    case "getToDos":
-      return getToDos_(payload);
-
-    case "saveToDo":
-      return saveToDo_(payload);
-
-    case "deleteToDo":
-      return deleteToDo_(payload);
 
     // Realtime Notifications
     case "getNotifications":

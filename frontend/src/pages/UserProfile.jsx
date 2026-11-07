@@ -276,7 +276,7 @@ export default function UserProfile() {
                 </tr>
               </thead>
               <tbody>
-                {['Dashboard', 'Customers', 'Staff', 'BulkMail', 'Settings', 'DriveBackup'].map((mod) => {
+                {['Dashboard', 'Customers', 'Staff', 'Settings', 'DriveBackup'].map((mod) => {
                   const perm = rights.find(r => r.Module && r.Module.toLowerCase() === mod.toLowerCase());
                   const isAdmin = user?.role === 'Admin';
                   return (

@@ -8,7 +8,6 @@ import {
   ShieldCheck, 
   ArrowUpRight,
   PlusCircle,
-  Mail,
   Archive,
   DollarSign
 } from 'lucide-react';
@@ -181,7 +180,7 @@ export default function Home({ onNavigate, onOpenBackup }) {
               Quick CRM Operations
             </h3>
             <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '2px 0 0 0' }}>
-              Manage investor accounts, broadcast bulk emails via Amazon SES, or download complete Drive backups
+              Manage investor accounts, review KYC status, or download complete Drive backups
             </p>
           </div>
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -190,12 +189,6 @@ export default function Home({ onNavigate, onOpenBackup }) {
               onClick={() => onNavigate('customers')}
             >
               <PlusCircle size={16} /> Add Investor
-            </button>
-            <button 
-              className="btn btn-outline-blue"
-              onClick={() => onNavigate('bulkmail')}
-            >
-              <Mail size={16} /> Bulk Mail (SES)
             </button>
             <button 
               className="btn btn-secondary"

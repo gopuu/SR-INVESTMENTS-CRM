@@ -9,11 +9,8 @@ import {
   TrendingUp, 
   ShieldCheck, 
   Calculator,
-  Mail,
   Archive,
-  ChevronRight,
-  Kanban,
-  ListTodo
+  ChevronRight
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { crmApi } from '../services/api';
@@ -26,9 +23,6 @@ export default function Sidebar({ currentPage, onNavigate, onOpenBackup }) {
     { id: 'home', label: 'Home (Dashboard)', icon: LayoutDashboard, module: 'Dashboard' },
     { id: 'customers', label: 'Customers', icon: Users, module: 'Customers' },
     { id: 'staff', label: 'Staff (Employees)', icon: UserCheck, module: 'Staff' },
-    { id: 'tasks', label: 'Task Tracker (JIRA)', icon: Kanban, module: 'Tasks' },
-    { id: 'todos', label: 'My To-Do & Notes', icon: ListTodo, module: 'ToDo' },
-    { id: 'bulkmail', label: 'Bulk Mailing (SES)', icon: Mail, module: 'BulkMail' },
     { id: 'sip', label: 'SIP Calculator', icon: Calculator, module: null },
     { id: 'settings', label: 'Settings', icon: Settings, module: 'Settings' },
     { id: 'profile', label: 'User Profile', icon: User, module: null }

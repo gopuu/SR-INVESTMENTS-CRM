@@ -124,7 +124,6 @@ export default function BackupModal({ isOpen, onClose }) {
                 <li><strong>Customer Documents:</strong> <code>SR_CRM_CustomerFiles/</code> (PAN, KYC, Folio scans)</li>
                 <li><strong>Staff Photos & Records:</strong> <code>SR_CRM_EmployeeFiles/</code></li>
                 <li><strong>Full Relational DB:</strong> Customers, Staff, AppTracker, Roles & Settings</li>
-                <li><strong>Amazon SES Campaign Logs:</strong> Delivery manifests & billing audit</li>
               </ul>
             </div>
 
