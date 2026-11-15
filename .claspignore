@@ -1,0 +1,6 @@
+# Ignore all files except Apps Script code and manifest
+**/*
+!*.gs
+!*.html
+!appsscript.json
+

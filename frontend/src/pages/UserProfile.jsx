@@ -14,7 +14,7 @@ import { useAuth } from '../context/AuthContext';
 import { crmApi } from '../services/api';
 import Header from '../components/Header';
 
-export default function UserProfile() {
+export default function UserProfile({ onOpenBackup }) {
   const { user, rights, updateProfile } = useAuth();
   const [name, setName] = useState(user?.name || '');
   const [profileSaving, setProfileSaving] = useState(false);
@@ -79,6 +79,7 @@ export default function UserProfile() {
       <Header 
         title="User Profile & Security" 
         subtitle="Manage your personal credentials, session details and active role permissions"
+        onOpenBackup={onOpenBackup}
       />
 
       <div className="page-wrapper">
@@ -276,7 +277,7 @@ export default function UserProfile() {
                 </tr>
               </thead>
               <tbody>
-                {['Dashboard', 'Customers', 'Staff', 'Settings', 'DriveBackup'].map((mod) => {
+                {['Dashboard', 'Customers', 'Staff', 'MasterHub', 'Settings', 'DriveBackup'].map((mod) => {
                   const perm = rights.find(r => r.Module && r.Module.toLowerCase() === mod.toLowerCase());
                   const isAdmin = user?.role === 'Admin';
                   return (

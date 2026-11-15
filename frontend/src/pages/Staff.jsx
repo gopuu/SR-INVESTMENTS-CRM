@@ -21,13 +21,18 @@ import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
 import Modal from '../components/Modal';
 
-export default function Staff() {
+export default function Staff({ onOpenBackup }) {
   const { hasPermission } = useAuth();
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [showDeleted, setShowDeleted] = useState(() => crmApi.getShowDeletedGlobally());
+
+  // Master Hub Datasets for Dropdowns
+  const [departments, setDepartments] = useState([]);
+  const [designations, setDesignations] = useState([]);
+  const [roles, setRoles] = useState([]);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -43,8 +48,9 @@ export default function Staff() {
     Email: '',
     GoogleEmails: '', // Multiple Google IDs
     Mobile: '',
+    AlternateMobile: '', // Alternate Mobile numbers
     Department: 'Wealth Management',
-    Designation: 'Relationship Manager',
+    Designation: 'Senior Investment Advisor',
     Role: 'Staff',
     Password: 'password123',
     JoiningDate: '',
@@ -57,6 +63,19 @@ export default function Staff() {
 
   const [formData, setFormData] = useState(initialFormState);
 
+  const loadMasters = async () => {
+    try {
+      const res = await crmApi.call('getMasters');
+      if (res) {
+        if (Array.isArray(res.departments) && res.departments.length) setDepartments(res.departments);
+        if (Array.isArray(res.designations) && res.designations.length) setDesignations(res.designations);
+        if (Array.isArray(res.roles) && res.roles.length) setRoles(res.roles);
+      }
+    } catch (e) {
+      console.warn('Could not fetch masters for staff dropdowns:', e);
+    }
+  };
+
   const loadStaff = async () => {
     setLoading(true);
     setError('');
@@ -65,7 +84,12 @@ export default function Staff() {
         search,
         includeDeleted: showDeleted
       });
-      setEmployees(res || []);
+      // Sanitize status to avoid any historical column offset bugs
+      const cleaned = (res || []).map(emp => ({
+        ...emp,
+        Status: String(emp.Status || '').trim().toLowerCase() === 'inactive' ? 'Inactive' : 'Active'
+      }));
+      setEmployees(cleaned);
     } catch (err) {
       setError(err.message || 'Failed to fetch staff members');
     } finally {
@@ -75,6 +99,7 @@ export default function Staff() {
 
   useEffect(() => {
     loadStaff();
+    loadMasters();
   }, [showDeleted]);
 
   useEffect(() => {
@@ -82,6 +107,8 @@ export default function Staff() {
       if (ev.module === 'Staff' || ev.type === 'DATA_CHANGED') {
         if (ev.subType === 'SHOW_DELETED_CHANGED') {
           setShowDeleted(Boolean(ev.value));
+        } else if (ev.module === 'MasterHub') {
+          loadMasters();
         } else {
           loadStaff();
         }
@@ -100,7 +127,11 @@ export default function Staff() {
     const nextCode = getNextEmployeeCode(employees);
     setFormData({
       ...initialFormState,
-      EmployeeCode: nextCode // Auto-calculated preview
+      EmployeeCode: nextCode,
+      Department: departments[0]?.DepartmentName || 'Wealth Management',
+      Designation: designations[0]?.DesignationName || 'Senior Investment Advisor',
+      Role: roles[0]?.RoleName || 'Staff',
+      Status: 'Active'
     });
     setImagePreview('');
     setSelectedImage(null);
@@ -109,6 +140,7 @@ export default function Staff() {
 
   const openEditModal = (emp) => {
     setEditingEmployee(emp);
+    const safeStatus = String(emp.Status || '').trim().toLowerCase() === 'inactive' ? 'Inactive' : 'Active';
     setFormData({
       EmployeeId: emp.EmployeeId || '',
       EmployeeCode: emp.EmployeeCode || '',
@@ -116,12 +148,13 @@ export default function Staff() {
       Email: emp.Email || '',
       GoogleEmails: emp.GoogleEmails || '',
       Mobile: emp.Mobile || '',
-      Department: emp.Department || 'Wealth Management',
-      Designation: emp.Designation || 'Relationship Manager',
-      Role: emp.Role || 'Staff',
+      AlternateMobile: emp.AlternateMobile || '',
+      Department: emp.Department || departments[0]?.DepartmentName || 'Wealth Management',
+      Designation: emp.Designation || designations[0]?.DesignationName || 'Senior Investment Advisor',
+      Role: emp.Role || roles[0]?.RoleName || 'Staff',
       Password: emp.Password || 'password123',
       JoiningDate: emp.JoiningDate || '',
-      Status: emp.Status || 'Active',
+      Status: safeStatus,
       Address: emp.Address || '',
       City: emp.City || '',
       State: emp.State || '',
@@ -160,6 +193,19 @@ export default function Staff() {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (!formData.FullName || !formData.FullName.trim()) {
+      alert('Staff Member Name is required.');
+      return;
+    }
+    if (!formData.Email || !formData.Email.trim()) {
+      alert('Primary Email is compulsory (required for inner join & authentication).');
+      return;
+    }
+    if (!formData.Mobile || !formData.Mobile.trim()) {
+      alert('Primary Mobile Number is compulsory.');
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
@@ -203,6 +249,7 @@ export default function Staff() {
         subtitle="Manage mutual fund distributors, relationship managers & backoffice staff"
         onRefresh={loadStaff}
         refreshing={loading}
+        onOpenBackup={onOpenBackup}
       />
 
       <div className="page-wrapper">
@@ -215,7 +262,7 @@ export default function Staff() {
                   type="text"
                   className="form-input"
                   style={{ paddingLeft: '2.4rem' }}
-                  placeholder="Search by name, code, email, designation..."
+                  placeholder="Search by name, code, email, mobile, alternate..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -343,18 +390,31 @@ export default function Staff() {
                         <span className="badge badge-info">{e.Department || 'General'}</span>
                       </td>
                       <td>
-                        <div style={{ fontSize: '0.8125rem', fontWeight: '500' }}>{e.Email || 'No email'}</div>
+                        <div style={{ fontSize: '0.8125rem', fontWeight: '600', color: '#0f172a' }}>{e.Email || 'No email'}</div>
                         {e.GoogleEmails && (
                           <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '2px' }}>
                             <span style={{ color: '#2563eb', fontWeight: '600' }}>Google IDs:</span> {e.GoogleEmails}
                           </div>
                         )}
                       </td>
-                      <td>{e.Mobile || '—'}</td>
                       <td>
-                        <span className={`badge ${e.Status === 'Active' ? 'badge-primary' : 'badge-danger'}`}>
-                          {e.Status || 'Active'}
-                        </span>
+                        <div style={{ fontSize: '0.8125rem', fontWeight: '600', color: '#0f172a' }}>{e.Mobile || '—'}</div>
+                        {e.AlternateMobile && (
+                          <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '2px' }}>
+                            <span style={{ color: '#059669', fontWeight: '600' }}>Alt:</span> {e.AlternateMobile}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        {(() => {
+                          const statusStr = String(e.Status || '').trim().toLowerCase();
+                          const isEmpActive = statusStr === 'active';
+                          return (
+                            <span className={`badge ${isEmpActive ? 'badge-primary' : 'badge-danger'}`}>
+                              {isEmpActive ? 'Active' : 'Inactive'}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
@@ -472,9 +532,17 @@ export default function Staff() {
                 />
               </div>
 
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
               {/* Primary Email */}
               <div className="form-group">
-                <label className="form-label">Primary Official Email <span style={{ color: '#ef4444' }}>*</span></label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <label className="form-label" style={{ margin: 0 }}>
+                    Primary Official Email <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <span style={{ fontSize: '0.675rem', color: '#2563eb', fontWeight: '700' }}>Inner Join Key</span>
+                </div>
                 <input
                   type="email"
                   className="form-input"
@@ -485,9 +553,14 @@ export default function Staff() {
                 />
               </div>
 
-              {/* Mobile */}
+              {/* Primary Mobile */}
               <div className="form-group">
-                <label className="form-label">Mobile Number (Login Allowed) <span style={{ color: '#ef4444' }}>*</span></label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <label className="form-label" style={{ margin: 0 }}>
+                    Primary Mobile Number <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <span style={{ fontSize: '0.675rem', color: '#2563eb', fontWeight: '700' }}>Login Key</span>
+                </div>
                 <input
                   type="tel"
                   className="form-input"
@@ -499,64 +572,136 @@ export default function Staff() {
               </div>
             </div>
 
-            {/* Multiple Google IDs Field */}
-            <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                <label className="form-label" style={{ margin: 0 }}>
-                  Linked Google IDs / Alternate Emails (For "Login with Google")
-                </label>
-                <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Comma-separated</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem', marginBottom: '1.25rem' }}>
+              {/* Alternate Mobile Numbers */}
+              <div className="form-group">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <label className="form-label" style={{ margin: 0 }}>
+                    Alternate Mobile Number(s)
+                  </label>
+                  <span style={{ fontSize: '0.675rem', color: '#64748b' }}>Comma-separated</span>
+                </div>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="9820199999, 9820188888"
+                  value={formData.AlternateMobile}
+                  onChange={(e) => setFormData({ ...formData, AlternateMobile: e.target.value })}
+                />
+                <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.3rem' }}>
+                  Alternate phone numbers can also be used to sign in.
+                </div>
               </div>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="rajesh.mf@gmail.com, rajesh.personal@gmail.com"
-                value={formData.GoogleEmails}
-                onChange={(e) => setFormData({ ...formData, GoogleEmails: e.target.value })}
-              />
-              <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '0.3rem' }}>
-                Staff can sign in via Google using ANY of these registered email addresses.
+
+              {/* Multiple Google IDs Field */}
+              <div className="form-group">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <label className="form-label" style={{ margin: 0 }}>
+                    Linked Google IDs / Alternate Emails
+                  </label>
+                  <span style={{ fontSize: '0.675rem', color: '#64748b' }}>Comma-separated</span>
+                </div>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="rajesh.mf@gmail.com, rajesh.personal@gmail.com"
+                  value={formData.GoogleEmails}
+                  onChange={(e) => setFormData({ ...formData, GoogleEmails: e.target.value })}
+                />
+                <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.3rem' }}>
+                  Staff can sign in via Google using ANY of these addresses.
+                </div>
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              {/* Department (Loaded from Department Master) */}
               <div className="form-group">
-                <label className="form-label">Department</label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <label className="form-label" style={{ margin: 0 }}>Department</label>
+                  <span style={{ fontSize: '0.675rem', color: '#2563eb', fontWeight: '600' }}>Master Hub</span>
+                </div>
                 <select
                   className="form-select"
                   value={formData.Department}
                   onChange={(e) => setFormData({ ...formData, Department: e.target.value })}
                 >
-                  <option value="Wealth Management">Wealth Management</option>
-                  <option value="Operations & KYC">Operations & KYC</option>
-                  <option value="Mutual Funds">Mutual Funds</option>
-                  <option value="Accounts & Finance">Accounts & Finance</option>
-                  <option value="Administration">Administration</option>
+                  {departments.length > 0 ? (
+                    departments.filter(d => !d.IsDeleted && d.Status === 'Active').map(d => (
+                      <option key={d.DepartmentId || d.DepartmentCode} value={d.DepartmentName}>
+                        {d.DepartmentName} ({d.DepartmentCode})
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="Wealth Management">Wealth Management</option>
+                      <option value="Operations & KYC">Operations & KYC</option>
+                      <option value="Mutual Funds">Mutual Funds</option>
+                      <option value="Accounts & Finance">Accounts & Finance</option>
+                      <option value="Administration">Administration</option>
+                      <option value="Compliance & Legal">Compliance & Legal</option>
+                    </>
+                  )}
                 </select>
               </div>
 
+              {/* Designation (Loaded from Designation Master) */}
               <div className="form-group">
-                <label className="form-label">Designation</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. Senior Investment Advisor"
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <label className="form-label" style={{ margin: 0 }}>Designation</label>
+                  <span style={{ fontSize: '0.675rem', color: '#2563eb', fontWeight: '600' }}>Master Hub</span>
+                </div>
+                <select
+                  className="form-select"
                   value={formData.Designation}
                   onChange={(e) => setFormData({ ...formData, Designation: e.target.value })}
-                />
+                >
+                  {designations.length > 0 ? (
+                    designations.filter(d => !d.IsDeleted && d.Status === 'Active').map(d => (
+                      <option key={d.DesignationId || d.DesignationCode} value={d.DesignationName}>
+                        {d.DesignationName} ({d.Department || d.DesignationCode})
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="Senior Investment Advisor">Senior Investment Advisor</option>
+                      <option value="Relationship Manager">Relationship Manager</option>
+                      <option value="Mutual Fund Specialist">Mutual Fund Specialist</option>
+                      <option value="Branch Manager">Branch Manager</option>
+                      <option value="Compliance Officer">Compliance Officer</option>
+                      <option value="Operations Executive">Operations Executive</option>
+                      <option value="Backoffice Executive">Backoffice Executive</option>
+                      <option value="Administrator">Administrator</option>
+                    </>
+                  )}
+                </select>
               </div>
 
+              {/* CRM System Role (Loaded from Role Master) */}
               <div className="form-group">
-                <label className="form-label">CRM System Role</label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <label className="form-label" style={{ margin: 0 }}>CRM System Role</label>
+                  <span style={{ fontSize: '0.675rem', color: '#2563eb', fontWeight: '600' }}>Master Hub</span>
+                </div>
                 <select
                   className="form-select"
                   value={formData.Role}
                   onChange={(e) => setFormData({ ...formData, Role: e.target.value })}
                 >
-                  <option value="Relationship Manager">Relationship Manager</option>
-                  <option value="Backoffice Staff">Backoffice Staff</option>
-                  <option value="Staff">General Staff</option>
-                  <option value="Admin">Administrator</option>
+                  {roles.length > 0 ? (
+                    roles.filter(r => !r.IsDeleted && r.Status === 'Active').map(r => (
+                      <option key={r.RoleId || r.RoleCode} value={r.RoleName}>
+                        {r.RoleName} ({r.RoleCode})
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="Admin">Administrator (Full Access)</option>
+                      <option value="Relationship Manager">Relationship Manager</option>
+                      <option value="Backoffice Staff">Backoffice Staff</option>
+                      <option value="Staff">General Staff</option>
+                    </>
+                  )}
                 </select>
               </div>
 

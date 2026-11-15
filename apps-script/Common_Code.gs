@@ -9,31 +9,82 @@
 
 const CRM_CONFIG = {
   // Live Google Spreadsheet ID
-  SPREADSHEET_ID: "1Bll7386rIJD2CIl1VX--0Okcn-jxXOpII0OHh9FSKSM",
+  SPREADSHEET_ID: "16OLRsLsRxn9Bn1P6eWs4QaC9Yj-oEVBASwEwVA-r_ww",
 
   // Live Google Drive Folder ID
-  DRIVE_ROOT_FOLDER_ID: "1IxulBQJTKrxYAyYMUhz5bllvaMZUYvy",
+  DRIVE_ROOT_FOLDER_ID: "1rVz2OnKPDHbXuq-ujsJg2R3vzYDwnzMU",
   
   SUBFOLDERS: {
-    CUSTOMERS: "SR_CRM_CustomerFiles",
-    EMPLOYEES: "SR_CRM_EmployeeFiles"
+    CUSTOMERS: "CustomerFiles",
+    EMPLOYEES: "EmployeeFiles",
+    DOCUMENTS: "UserDocuments"
   },
 
   SHEETS: {
-    APP_TRACKER: "AppTracker",
     EMPLOYEE_EMAILS: "EmployeeEmails",
     EMPLOYEES: "Employees",
     CUSTOMERS: "Customers",
     USERS: "Users",
     SETTINGS: "CompanySettings",
     RIGHTS: "RolesRights",
-    AUDIT: "AuditLogs",
-    NOTIFICATIONS: "Notifications"
+    NOTIFICATIONS: "Notifications",
+    DEPARTMENTS: "MasterDepartments",
+    DESIGNATIONS: "MasterDesignations",
+    ROLES: "MasterRoles",
+    // SaaS Multi-Tenant Central Registries
+    TENANT_MASTER: "Tenant_Master",
+    USER_MASTER: "User_Master",
+    TENANT_USER_MAPPING: "Tenant_User_Mapping",
+    TENANT_LICENSES: "Tenant_Licenses",
+    USER_DOCUMENTS: "User_Documents",
+    SUBSCRIPTION_PLANS: "Subscription_Plans_Master",
+    DEFAULT_CONFIG: "Default-Config",
+    DAILY_DISPATCH_TRACKER: "Daily_Dispatch_Tracker"
   }
 };
 
 // Database Schema Definitions
 const CRM_SCHEMAS = {
+  // Daily Email & SMS Dispatch Tracker (Central SaaS DB)
+  DAILY_DISPATCH_TRACKER: [
+    "Date", "EmailCount", "SmsCount", "Updated_At"
+  ],
+  // Platform Default Configuration (Central SaaS DB)
+  DEFAULT_CONFIG: [
+    "Key", "Value", "Description",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
+  ],
+  // Subscription Plans Master (SaaS Tiers & Limits)
+  SUBSCRIPTION_PLANS: [
+    "PlanId", "PlanName", "PlanCode", "Price", "DurationMonths", "StaffLimit",
+    "CustomerLimit", "Features", "IsPopular", "Badge", "Description", "Status",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
+  ],
+  // Central SaaS Registries with 7 audit fields
+  TENANT_MASTER: [
+    "TenantId", "CompanyName", "ArnNumber", "SpreadsheetId", "DriveRootFolderId",
+    "SupportEmail", "ContactPhone", "OfficeAddress", "Status",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
+  ],
+  USER_MASTER: [
+    "UserId", "Email", "AlternateEmailsList", "Password", "FullName", "Mobile", "AlternateMobile",
+    "IsSuperAdmin", "Status",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
+  ],
+  TENANT_USER_MAPPING: [
+    "MappingId", "UserId", "TenantId", "Role", "Status",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
+  ],
+  TENANT_LICENSES: [
+    "Id", "TenantId", "LicenseType", "StartDate", "EndDate", "Amount",
+    "IsActive", "Status", "Notes",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
+  ],
+  USER_DOCUMENTS: [
+    "Id", "UserId", "TenantId", "DocName", "DocType", "DocPath",
+    "DriveFileId", "ViewUrl",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
+  ],
   USERS: [
     "UserId", "Name", "Email", "Password", "Role", "Status", "CreatedAt", "LastLogin",
     "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
@@ -46,7 +97,7 @@ const CRM_SCHEMAS = {
     "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
   ],
   EMPLOYEES: [
-    "EmployeeId", "EmployeeCode", "FullName", "Email", "GoogleEmails", "Mobile",
+    "EmployeeId", "EmployeeCode", "FullName", "Email", "GoogleEmails", "Mobile", "AlternateMobile",
     "Department", "Designation", "Role", "Password", "JoiningDate", "Status",
     "Address", "City", "State", "PhotoUrl", "DriveFileId",
     "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
@@ -59,9 +110,6 @@ const CRM_SCHEMAS = {
     "Role", "Module", "CanView", "CanCreate", "CanEdit", "CanDelete",
     "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
   ],
-  AUDIT: [
-    "LogId", "Timestamp", "UserEmail", "Action", "Module", "RecordId", "Details"
-  ],
   APP_TRACKER: [
     "Date", "Status", "Module", "Task", "Description / Updates"
   ],
@@ -71,32 +119,176 @@ const CRM_SCHEMAS = {
   NOTIFICATIONS: [
     "NotifId", "Timestamp", "ActorEmail", "ActorName", "ActorRole", "IsSuperUser", "TargetAudience",
     "Action", "Module", "RecordId", "Title", "Message", "TargetRoute", "ReadByEmails"
+  ],
+  DEPARTMENTS: [
+    "DepartmentId", "DepartmentCode", "DepartmentName", "Description", "Status",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
+  ],
+  DESIGNATIONS: [
+    "DesignationId", "DesignationCode", "DesignationName", "Department", "Description", "Status",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
+  ],
+  ROLES: [
+    "RoleId", "RoleCode", "RoleName", "Description", "Status",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
   ]
 };
 
+// Central SaaS Master Registry Sheets (Live EXCLUSIVELY in Central_SaaS_Master_DB)
+const CENTRAL_MASTER_SHEETS = [
+  "Tenant_Master",
+  "User_Master",
+  "Tenant_User_Mapping",
+  "Tenant_Licenses",
+  "Tenant_Licensing",
+  "Subscription_Plans_Master",
+  "Default-Config",
+  "Default_Config",
+  "Daily_Dispatch_Tracker"
+];
+
+// Operational CRM Tables (Live EXCLUSIVELY in _CRM_DATABASE_TEMPLATE and Tenant databases)
+const TENANT_OPERATIONAL_SHEETS = [
+  "Customers",
+  "Employees",
+  "Notifications",
+  "User_Documents",
+  "CompanySettings",
+  "RolesRights",
+  "MasterDepartments",
+  "MasterDesignations",
+  "MasterRoles",
+  "Users",
+  "EmployeeEmails"
+];
+
 /**
- * Open CRM Database Spreadsheet
+ * Open CRM Database Spreadsheet (Central SaaS Master DB)
  */
 function getSpreadsheet_() {
   try {
     return SpreadsheetApp.openById(CRM_CONFIG.SPREADSHEET_ID);
   } catch (err) {
-    throw new Error("Unable to open Spreadsheet ID: " + CRM_CONFIG.SPREADSHEET_ID + ". Ensure the script has access permissions.");
+    throw new Error("Unable to open Central Spreadsheet ID: " + CRM_CONFIG.SPREADSHEET_ID + ". Ensure the script has access permissions.");
   }
 }
 
 /**
- * Get or initialize specific sheet by name
+ * Resolves or creates the blueprint _CRM_DATABASE_TEMPLATE in the Drive root folder
  */
-function getOrCreateSheet_(sheetName, schema) {
-  const ss = getSpreadsheet_();
-  let sheet = ss.getSheetByName(sheetName);
+function getOrCreateTemplateSpreadsheet_() {
+  try {
+    const root = getDriveRootFolder_();
+    const files = root.getFilesByName("_CRM_DATABASE_TEMPLATE");
+    if (files.hasNext()) {
+      const file = files.next();
+      return SpreadsheetApp.openById(file.getId());
+    }
 
+    // Create blueprint template spreadsheet in CRM root folder
+    const newSs = SpreadsheetApp.create("_CRM_DATABASE_TEMPLATE");
+    const newFile = DriveApp.getFileById(newSs.getId());
+    root.addFile(newFile);
+    try {
+      DriveApp.getRootFolder().removeFile(newFile);
+    } catch (e) {}
+
+    setupTenantTemplateDatabase(newSs.getId());
+    return newSs;
+  } catch (err) {
+    Logger.log("getOrCreateTemplateSpreadsheet_ error: " + err.message);
+    throw new Error("Could not locate or initialize _CRM_DATABASE_TEMPLATE: " + err.message);
+  }
+}
+
+/**
+ * Dynamically resolves and opens a Tenant's dedicated Spreadsheet.
+ * CRITICAL ISOLATION RULE: NEVER returns Central_SaaS_Master_DB for tenant operational data!
+ */
+function getTenantSpreadsheet_(tenantId) {
+  // 1. If tenantId is passed, locate tenant's dedicated SpreadsheetId in Tenant_Master
+  if (tenantId) {
+    try {
+      const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+      const tenants = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.TENANT_MASTER);
+      const t = tenants.find(x => 
+        String(x.TenantId).trim().toUpperCase() === String(tenantId).trim().toUpperCase() && 
+        !x.IsDeleted
+      );
+      if (t && t.SpreadsheetId && String(t.SpreadsheetId).trim() !== "") {
+        const sid = String(t.SpreadsheetId).trim();
+        // Prevent accidental loopback to Central DB
+        if (sid !== CRM_CONFIG.SPREADSHEET_ID) {
+          return SpreadsheetApp.openById(sid);
+        }
+      }
+    } catch (err) {
+      Logger.log("getTenantSpreadsheet_ lookup error for " + tenantId + ": " + err.message);
+    }
+  }
+
+  // 2. If tenantId is missing or has no dedicated sheet, check if first active tenant has a dedicated DB
+  try {
+    const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+    const tenants = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.TENANT_MASTER);
+    const activeTenantWithDb = tenants.find(x => 
+      !x.IsDeleted && 
+      x.SpreadsheetId && 
+      String(x.SpreadsheetId).trim() !== "" && 
+      String(x.SpreadsheetId).trim() !== CRM_CONFIG.SPREADSHEET_ID
+    );
+    if (activeTenantWithDb) {
+      return SpreadsheetApp.openById(String(activeTenantWithDb.SpreadsheetId).trim());
+    }
+  } catch (e) {}
+
+  // 3. Fallback to blueprint _CRM_DATABASE_TEMPLATE (NEVER Central_SaaS_Master_DB!)
+  return getOrCreateTemplateSpreadsheet_();
+}
+
+/**
+ * Dynamically resolves and opens a Tenant's dedicated Drive Folder
+ */
+function getTenantDriveRootFolder_(tenantId) {
+  if (!tenantId) return getDriveRootFolder_();
+  try {
+    const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+    const tenants = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.TENANT_MASTER);
+    const t = tenants.find(x => String(x.TenantId).trim().toUpperCase() === String(tenantId).trim().toUpperCase() && !x.IsDeleted);
+    if (t && t.DriveRootFolderId && String(t.DriveRootFolderId).trim() !== "") {
+      return DriveApp.getFolderById(String(t.DriveRootFolderId).trim());
+    }
+  } catch (err) {
+    Logger.log("getTenantDriveRootFolder_ error for " + tenantId + ": " + err.message);
+  }
+  return getDriveRootFolder_();
+}
+
+/**
+ * Ensures a sheet tab exists in the spreadsheet, and ensures all columns in schema exist in Row 1.
+ * - If tab does not exist -> creates tab.
+ * - If tab is empty -> creates all columns from schema in Row 1 with Royal Blue header formatting.
+ * - If tab exists with columns -> checks Row 1: if any column from schema does not exist, appends it dynamically!
+ */
+function ensureSheetAndColumns_(ss, sheetName, schema) {
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet && (sheetName === "Tenant_Licenses" || sheetName === "Tenant_Licensing")) {
+    sheet = ss.getSheetByName("Tenant_Licensing") || ss.getSheetByName("Tenant_Licenses");
+  }
+  if (!sheet && (sheetName === "Default-Config" || sheetName === "Default_Config")) {
+    sheet = ss.getSheetByName("Default-Config") || ss.getSheetByName("Default_Config");
+  }
+
+  // 1. IF TAB DOES NOT EXIST, CREATE IT
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
   }
 
-  if (sheet.getLastRow() === 0 && schema && schema.length) {
+  const lastCol = sheet.getLastColumn();
+  const lastRow = sheet.getLastRow();
+
+  // 2. IF TAB HAS NO HEADERS, INITIALIZE WITH COMPLETE SCHEMA
+  if ((lastRow === 0 || lastCol === 0) && schema && schema.length) {
     sheet.getRange(1, 1, 1, schema.length).setValues([schema]);
     sheet.setFrozenRows(1);
     sheet.getRange(1, 1, 1, schema.length)
@@ -104,32 +296,213 @@ function getOrCreateSheet_(sheetName, schema) {
       .setBackground("#1e40af") // Royal Blue
       .setFontColor("#ffffff");
     sheet.autoResizeColumns(1, schema.length);
+  } else if (schema && schema.length && lastCol > 0) {
+    // 3. IF TAB EXISTS, VERIFY EACH COLUMN: IF COLUMN DOES NOT EXIST, CREATE IT!
+    const existingHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h || "").trim());
+    const existingLower = existingHeaders.map(h => h.toLowerCase());
+
+    // Automatic column renaming / migration for User_Master (GoogleEmails -> AlternateEmailsList)
+    if (sheetName === "User_Master" || sheetName === CRM_CONFIG.SHEETS.USER_MASTER) {
+      const gIdx = existingHeaders.findIndex(h => h.toLowerCase() === "googleemails");
+      if (gIdx !== -1) {
+        sheet.getRange(1, gIdx + 1).setValue("AlternateEmailsList");
+        existingHeaders[gIdx] = "AlternateEmailsList";
+        existingLower[gIdx] = "alternateemailslist";
+        Logger.log("[COLUMN_RENAME] User_Master: Successfully renamed column 'GoogleEmails' to 'AlternateEmailsList' at column " + (gIdx + 1));
+      }
+    }
+
+    const missingColumns = [];
+    schema.forEach(colName => {
+      if (existingLower.indexOf(colName.toLowerCase()) === -1) {
+        missingColumns.push(colName);
+      }
+    });
+
+    if (missingColumns.length > 0) {
+      const startCol = lastCol + 1;
+      const numColsToAdd = missingColumns.length;
+      sheet.getRange(1, startCol, 1, numColsToAdd).setValues([missingColumns]);
+      sheet.getRange(1, startCol, 1, numColsToAdd)
+        .setFontWeight("bold")
+        .setBackground("#1e40af") // Royal Blue
+        .setFontColor("#ffffff");
+      sheet.autoResizeColumns(startCol, numColsToAdd);
+      Logger.log("[AUTO_COLUMN_SYNC] Sheet '" + sheetName + "' appended missing column(s): " + missingColumns.join(", "));
+    }
   }
 
   return sheet;
 }
 
 /**
- * Read rows as JSON Objects based on schema
+ * Get or initialize specific sheet by name with strict Central vs Tenant isolation.
+ * 
+ * Rules:
+ * - Central Master sheets (Tenant_Master, User_Master, Tenant_User_Mapping, Tenant_Licenses, Subscription_Plans_Master)
+ *   MUST exist ONLY in Central_SaaS_Master_DB.
+ * - Tenant Operational sheets (Customers, Employees, Notifications, User_Documents, Settings, etc.)
+ *   MUST exist ONLY in _CRM_DATABASE_TEMPLATE or the tenant's dedicated database.
+ * - If tab does not exist -> creates tab.
+ * - If any column does not exist -> creates column in Row 1.
  */
-function getSheetRowsAsObjects_(sheet, schema) {
-  const lastRow = sheet.getLastRow();
-  if (lastRow <= 1) return [];
+function getOrCreateSheet_(sheetName, schema, tenantId) {
+  const isCentralSheet = CENTRAL_MASTER_SHEETS.indexOf(sheetName) !== -1;
 
-  const values = sheet.getRange(2, 1, lastRow - 1, schema.length).getValues();
+  let ss;
+  if (isCentralSheet) {
+    ss = getSpreadsheet_();
+  } else {
+    // Operational tenant sheet (Customers, Employees, Notifications, User_Documents, Settings, etc.)
+    ss = getTenantSpreadsheet_(tenantId);
+
+    // STRICT ISOLATION GUARD:
+    // If ss is somehow the Central Master DB, NEVER insert tenant operational sheets into Central DB!
+    if (ss.getId() === CRM_CONFIG.SPREADSHEET_ID) {
+      Logger.log("[MULTI-TENANT GUARD BLOCKED] Attempted to open/create operational sheet '" + sheetName + "' in Central DB. Redirecting to template.");
+      ss = getOrCreateTemplateSpreadsheet_();
+    }
+  }
+
+  // Final sanity check before creating operational sheet
+  if (!isCentralSheet && ss.getId() === CRM_CONFIG.SPREADSHEET_ID) {
+    throw new Error("Strict SaaS Isolation: Cannot create operational sheet '" + sheetName + "' in Central_SaaS_Master_DB.");
+  }
+
+  return ensureSheetAndColumns_(ss, sheetName, schema);
+}
+
+/**
+ * Read rows as JSON Objects dynamically mapped against actual Sheet Row 1 Headers.
+ * This completely prevents column shifting even if the user's spreadsheet has columns
+ * in a different sequence or from earlier versions.
+ */
+function getSheetRowsAsObjects_(sheet, fallbackSchema) {
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+  if (lastRow <= 1 || lastCol === 0) return [];
+
+  // Read actual header names from Row 1
+  const rawHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  const headers = rawHeaders.map(h => String(h || "").trim());
+
+  const headerIndexMap = {};
+  headers.forEach((h, idx) => {
+    if (h) {
+      headerIndexMap[h] = idx;
+      headerIndexMap[h.toLowerCase()] = idx;
+    }
+  });
+
+  const values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
   return values
     .filter(row => row.some(cell => String(cell).trim() !== ""))
     .map(row => {
       const obj = {};
-      schema.forEach((col, i) => {
+
+      // 1. Map values directly by sheet header name
+      headers.forEach((headerName, i) => {
+        if (!headerName) return;
         let val = row[i];
         if (val instanceof Date) {
           val = Utilities.formatDate(val, "Asia/Kolkata", "yyyy-MM-dd");
         }
-        obj[col] = val !== undefined && val !== null ? val : "";
+        obj[headerName] = val !== undefined && val !== null ? val : "";
       });
+
+      // 2. Ensure fallback schema fields exist on obj
+      if (fallbackSchema && fallbackSchema.length) {
+        fallbackSchema.forEach(field => {
+          if (obj[field] === undefined) {
+            const mappedIdx = headerIndexMap[field.toLowerCase()];
+            if (mappedIdx !== undefined) {
+              let val = row[mappedIdx];
+              if (val instanceof Date) {
+                val = Utilities.formatDate(val, "Asia/Kolkata", "yyyy-MM-dd");
+              }
+              obj[field] = val !== undefined && val !== null ? val : "";
+            } else {
+              obj[field] = "";
+            }
+          }
+        });
+      }
+
+      // 3. Cross-compatibility aliases for User_Master AlternateEmailsList vs GoogleEmails
+      if (obj.AlternateEmailsList !== undefined && obj.GoogleEmails === undefined) {
+        obj.GoogleEmails = obj.AlternateEmailsList;
+      } else if (obj.GoogleEmails !== undefined && obj.AlternateEmailsList === undefined) {
+        obj.AlternateEmailsList = obj.GoogleEmails;
+      }
+
+      // 4. Status sanity protection: If Status is not Active or Inactive, default safely to Active
+      if (obj.Status && obj.Status !== "Active" && obj.Status !== "Inactive") {
+        const s = String(obj.Status).trim().toLowerCase();
+        if (s === "active" || s === "act") {
+          obj.Status = "Active";
+        } else if (s === "inactive" || s === "inact") {
+          obj.Status = "Inactive";
+        } else {
+          // If a city or name (e.g. "GOPAL") was in that column due to historical shift
+          obj.Status = "Active";
+        }
+      }
+
       return obj;
     });
+}
+
+/**
+ * Writes a row to a sheet strictly by matching field keys to Row 1 headers.
+ * Appends any missing schema headers to Row 1 dynamically without column shift.
+ */
+function writeRowByHeaders_(sheet, rowIndex, rowObj, schema) {
+  let lastCol = sheet.getLastColumn();
+  let headers = lastCol > 0 ? sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h || "").trim()) : [];
+
+  if (schema && schema.length) {
+    let headersModified = false;
+    schema.forEach(col => {
+      if (!headers.includes(col)) {
+        headers.push(col);
+        headersModified = true;
+      }
+    });
+
+    if (headersModified || lastCol === 0) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      sheet.getRange(1, 1, 1, headers.length)
+        .setFontWeight("bold")
+        .setBackground("#0f172a")
+        .setFontColor("#ffffff");
+    }
+  }
+
+  const rowValues = headers.map(headerName => {
+    let val = rowObj[headerName];
+    if (val === undefined || val === null) {
+      const key = Object.keys(rowObj).find(k => k.toLowerCase() === headerName.toLowerCase());
+      val = key ? rowObj[key] : "";
+    }
+    return val !== undefined && val !== null ? val : "";
+  });
+
+  if (rowIndex > 0) {
+    sheet.getRange(rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
+  } else {
+    sheet.appendRow(rowValues);
+  }
+}
+
+/**
+ * Finds 1-based column index of a header in a sheet
+ */
+function getHeaderColIndex_(sheet, headerName) {
+  const lastCol = sheet.getLastColumn();
+  if (lastCol === 0) return -1;
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h || "").trim().toLowerCase());
+  const idx = headers.indexOf(headerName.toLowerCase());
+  return idx >= 0 ? idx + 1 : -1;
 }
 
 /**
@@ -146,26 +519,26 @@ function getDriveRootFolder_() {
 }
 
 /**
- * Get or create subfolder inside Drive root
+ * Get or create subfolder inside Drive root or tenant-specific drive folder
  */
-function getDriveSubfolder_(folderName) {
-  const root = getDriveRootFolder_();
+function getDriveSubfolder_(folderName, tenantId) {
+  const root = tenantId ? getTenantDriveRootFolder_(tenantId) : getDriveRootFolder_();
   const folders = root.getFoldersByName(folderName);
   if (folders.hasNext()) return folders.next();
   return root.createFolder(folderName);
 }
 
 /**
- * Upload file to Drive and delete old file if updating
+ * Upload file to Drive and delete old file if updating (supports tenant routing)
  */
-function uploadDriveFile_(folderName, fileName, mimeType, base64Data, oldFileId) {
+function uploadDriveFile_(folderName, fileName, mimeType, base64Data, oldFileId, tenantId) {
   if (!base64Data) throw new Error("Base64 file data required.");
 
   if (oldFileId) {
     deleteDriveFileSafely_(oldFileId);
   }
 
-  const subfolder = getDriveSubfolder_(folderName);
+  const subfolder = getDriveSubfolder_(folderName, tenantId);
   const cleanBase64 = base64Data.includes(",") ? base64Data.split(",")[1] : base64Data;
   const decodedBytes = Utilities.base64Decode(cleanBase64);
   const blob = Utilities.newBlob(decodedBytes, mimeType || "application/octet-stream", fileName || "file");
@@ -179,6 +552,27 @@ function uploadDriveFile_(folderName, fileName, mimeType, base64Data, oldFileId)
     viewUrl: "https://drive.google.com/uc?export=view&id=" + file.getId(),
     thumbnailUrl: "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w400"
   };
+}
+
+/**
+ * Hashes a password string with SHA-256 (64 hex characters)
+ * If already a 64-char hex string, returns it intact
+ */
+function hashPasswordSHA256_(password) {
+  if (!password) return "";
+  const str = String(password).trim();
+  if (/^[a-f0-9]{64}$/i.test(str)) {
+    return str.toLowerCase();
+  }
+  const rawBytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, str, Utilities.Charset.UTF_8);
+  let hex = "";
+  for (let i = 0; i < rawBytes.length; i++) {
+    let byteVal = rawBytes[i];
+    if (byteVal < 0) byteVal += 256;
+    const byteHex = byteVal.toString(16);
+    hex += (byteHex.length === 1 ? "0" : "") + byteHex;
+  }
+  return hex.toLowerCase();
 }
 
 /**
@@ -197,8 +591,10 @@ function deleteDriveFileSafely_(fileId) {
 /**
  * Generate full ZIP backup of Google Drive folder and files
  */
-function backupDriveFilesToZip_() {
-  const root = getDriveRootFolder_();
+function backupDriveFilesToZip_(payload) {
+  payload = payload || {};
+  const tenantId = payload.tenantId || payload.activeTenantId || null;
+  const root = tenantId ? getTenantDriveRootFolder_(tenantId) : getDriveRootFolder_();
   const blobs = [];
 
   // Helper to collect files recursively
@@ -218,13 +614,15 @@ function backupDriveFilesToZip_() {
 
   collectBlobs(root, "SRInvestmentsCRM");
 
-  // Also include Database JSON snapshot
-  const ss = getSpreadsheet_();
+  // Also include Database JSON snapshot (from tenant operational database)
+  const custSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.CUSTOMERS, CRM_SCHEMAS.CUSTOMERS, tenantId);
+  const empSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES, tenantId);
   const dbSnapshot = {
     exportedAt: new Date().toISOString(),
+    tenantId: tenantId || "Default",
     firm: "SR INVESTMENTS",
-    customers: getSheetRowsAsObjects_(getOrCreateSheet_(CRM_CONFIG.SHEETS.CUSTOMERS, CRM_SCHEMAS.CUSTOMERS), CRM_SCHEMAS.CUSTOMERS),
-    employees: getSheetRowsAsObjects_(getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES), CRM_SCHEMAS.EMPLOYEES)
+    customers: getSheetRowsAsObjects_(custSheet, CRM_SCHEMAS.CUSTOMERS),
+    employees: getSheetRowsAsObjects_(empSheet, CRM_SCHEMAS.EMPLOYEES)
   };
   blobs.push(Utilities.newBlob(JSON.stringify(dbSnapshot, null, 2), "application/json", "Database_Snapshot.json"));
 
@@ -244,61 +642,12 @@ function backupDriveFilesToZip_() {
 }
 
 /**
- * Log action to AuditLogs sheet with full CRUD trail
+ * Audit information is strictly embedded directly inside each Master table/sheet:
+ * (IsDeleted, Created_At, Created_By, Updated_At, Updated_By, Deleted_At, Deleted_By).
+ * Separate AuditLogs sheet is eliminated per architectural requirements.
  */
 function logAudit_(userEmail, action, moduleOrDetails, recordId, details) {
-  try {
-    let mod = "General";
-    let recId = "";
-    let det = "";
-
-    if (details !== undefined) {
-      mod = moduleOrDetails || "General";
-      recId = recordId || "";
-      det = details || "";
-    } else if (recordId !== undefined) {
-      mod = moduleOrDetails || "General";
-      det = recordId || "";
-    } else {
-      det = moduleOrDetails || "";
-    }
-
-    const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.AUDIT, CRM_SCHEMAS.AUDIT);
-    sheet.appendRow([
-      createId_("LOG"),
-      new Date().toISOString(),
-      userEmail || "System",
-      action || "INFO",
-      mod,
-      recId,
-      det
-    ]);
-  } catch (e) {
-    Logger.log("Audit log failed: " + e.message);
-  }
-}
-
-/**
- * Returns latest audit logs for SEBI compliance review
- */
-function getAuditLogs_(filters) {
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.AUDIT, CRM_SCHEMAS.AUDIT);
-  let rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.AUDIT);
-  
-  if (filters && filters.module) {
-    rows = rows.filter(r => r.Module === filters.module);
-  }
-  if (filters && filters.search) {
-    const q = String(filters.search).toLowerCase();
-    rows = rows.filter(r => 
-      (r.Action && r.Action.toLowerCase().includes(q)) ||
-      (r.UserEmail && r.UserEmail.toLowerCase().includes(q)) ||
-      (r.RecordId && r.RecordId.toLowerCase().includes(q)) ||
-      (r.Details && r.Details.toLowerCase().includes(q))
-    );
-  }
-  
-  return rows.reverse();
+  Logger.log("[MASTER_AUDIT] " + (userEmail || "System") + " | " + action + " | " + (moduleOrDetails || "") + " | " + (recordId || "") + " | " + (details || ""));
 }
 
 function createId_(prefix) {
@@ -315,61 +664,495 @@ function jsonResponse_(data) {
 }
 
 /**
- * CRM Setup
+ * ==============================================================
+ * CENTRAL SAAS MASTER DATABASE SETUP (Central_SaaS_Master_DB ONLY)
+ * Sets up the Central SaaS Master Registries in Central_SaaS_Master_DB:
+ * 1. Tenant_Master
+ * 2. User_Master
+ * 3. Tenant_User_Mapping
+ * 4. Tenant_Licenses
+ * 5. Subscription_Plans_Master
+ * 6. Default-Config (Central System Config)
+ * ==============================================================
  */
-function setupCRM() {
-  const ss = getSpreadsheet_();
+function setupCentralDatabase() {
+  const centralSchemas = {
+    [CRM_CONFIG.SHEETS.TENANT_MASTER]: CRM_SCHEMAS.TENANT_MASTER,
+    [CRM_CONFIG.SHEETS.USER_MASTER]: CRM_SCHEMAS.USER_MASTER,
+    [CRM_CONFIG.SHEETS.TENANT_USER_MAPPING]: CRM_SCHEMAS.TENANT_USER_MAPPING,
+    [CRM_CONFIG.SHEETS.TENANT_LICENSES]: CRM_SCHEMAS.TENANT_LICENSES,
+    [CRM_CONFIG.SHEETS.SUBSCRIPTION_PLANS]: CRM_SCHEMAS.SUBSCRIPTION_PLANS,
+    [CRM_CONFIG.SHEETS.DEFAULT_CONFIG]: CRM_SCHEMAS.DEFAULT_CONFIG
+  };
 
-  Object.keys(CRM_CONFIG.SHEETS).forEach(key => {
-    const sheetName = CRM_CONFIG.SHEETS[key];
-    const schema = CRM_SCHEMAS[key];
-    getOrCreateSheet_(sheetName, schema);
+  Object.keys(centralSchemas).forEach(sheetName => {
+    getOrCreateSheet_(sheetName, centralSchemas[sheetName]);
   });
 
-  // Ensure Roles Rights includes Dashboard, Customers, Staff, Settings, DriveBackup
-  const rightsSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.RIGHTS, CRM_SCHEMAS.RIGHTS);
-  if (rightsSheet.getLastRow() <= 1) {
-    const defaultRights = [
-      ["Admin", "Dashboard", true, true, true, true],
-      ["Admin", "Customers", true, true, true, true],
-      ["Admin", "Staff", true, true, true, true],
-      ["Admin", "Settings", true, true, true, true],
-      ["Admin", "DriveBackup", true, true, true, true],
-      ["Relationship Manager", "Dashboard", true, false, false, false],
-      ["Relationship Manager", "Customers", true, true, true, false],
-      ["Relationship Manager", "Staff", true, false, false, false],
-      ["Relationship Manager", "Settings", false, false, false, false],
-      ["Relationship Manager", "DriveBackup", false, false, false, false],
-      ["Backoffice Staff", "Dashboard", true, false, false, false],
-      ["Backoffice Staff", "Customers", true, true, true, false],
-      ["Backoffice Staff", "Staff", false, false, false, false],
-      ["Backoffice Staff", "Settings", false, false, false, false],
-      ["Backoffice Staff", "DriveBackup", false, false, false, false]
-    ];
-    rightsSheet.getRange(2, 1, defaultRights.length, 6).setValues(defaultRights);
+  seedCentralSaaSRegistries_();
+  seedSubscriptionPlans_();
+  seedDefaultConfig_();
+
+  Logger.log("[CENTRAL_DB] Central SaaS Master DB verified successfully.");
+  return { success: true, message: "Central SaaS Master Database initialized successfully (Central Registries only)." };
+}
+
+/**
+ * ==============================================================
+ * BLUEPRINT TEMPLATE / TENANT DATABASE SETUP
+ * Sets up all 11 operational CRM tables in _CRM_DATABASE_TEMPLATE
+ * or in a specific tenant's dedicated database.
+ * ==============================================================
+ */
+function setupTenantTemplateDatabase(spreadsheetId) {
+  let ss;
+  if (spreadsheetId) {
+    ss = SpreadsheetApp.openById(spreadsheetId);
+  } else {
+    ss = getOrCreateTemplateSpreadsheet_();
   }
 
-  // Ensure Drive folders exist
+  const tenantSchemas = [
+    { name: CRM_CONFIG.SHEETS.CUSTOMERS, schema: CRM_SCHEMAS.CUSTOMERS },
+    { name: CRM_CONFIG.SHEETS.EMPLOYEES, schema: CRM_SCHEMAS.EMPLOYEES },
+    { name: CRM_CONFIG.SHEETS.NOTIFICATIONS, schema: CRM_SCHEMAS.NOTIFICATIONS },
+    { name: CRM_CONFIG.SHEETS.USER_DOCUMENTS, schema: CRM_SCHEMAS.USER_DOCUMENTS },
+    { name: CRM_CONFIG.SHEETS.SETTINGS, schema: CRM_SCHEMAS.SETTINGS },
+    { name: CRM_CONFIG.SHEETS.RIGHTS, schema: CRM_SCHEMAS.RIGHTS },
+    { name: CRM_CONFIG.SHEETS.DEPARTMENTS, schema: CRM_SCHEMAS.DEPARTMENTS },
+    { name: CRM_CONFIG.SHEETS.DESIGNATIONS, schema: CRM_SCHEMAS.DESIGNATIONS },
+    { name: CRM_CONFIG.SHEETS.ROLES, schema: CRM_SCHEMAS.ROLES },
+    { name: CRM_CONFIG.SHEETS.USERS, schema: CRM_SCHEMAS.USERS },
+    { name: CRM_CONFIG.SHEETS.EMPLOYEE_EMAILS, schema: CRM_SCHEMAS.EMPLOYEE_EMAILS }
+  ];
+
+  tenantSchemas.forEach(item => {
+    ensureSheetAndColumns_(ss, item.name, item.schema);
+  });
+
+  seedTenantDatabaseDefaults_(ss);
+
+  // Ensure Drive subfolders exist
   getDriveSubfolder_(CRM_CONFIG.SUBFOLDERS.CUSTOMERS);
   getDriveSubfolder_(CRM_CONFIG.SUBFOLDERS.EMPLOYEES);
 
-  Logger.log("SR INVESTMENTS CRM verified successfully.");
-  return { success: true, message: "CRM sheets & Drive folders verified successfully!" };
+  Logger.log("[TEMPLATE_DB] Template database verified: " + ss.getName() + " (" + ss.getId() + ")");
+  return {
+    success: true,
+    spreadsheetId: ss.getId(),
+    spreadsheetName: ss.getName(),
+    message: "Operational CRM tables initialized in " + ss.getName()
+  };
+}
+
+/**
+ * Master CRM Setup: Initializes Central DB registries and ensures _CRM_DATABASE_TEMPLATE exists
+ */
+function setupCRM() {
+  setupCentralDatabase();
+  setupTenantTemplateDatabase();
+  return { success: true, message: "Central SaaS Master DB & _CRM_DATABASE_TEMPLATE verified successfully!" };
+}
+
+/**
+ * ==============================================================
+ * CLEAN ACCIDENTAL SHEETS FROM CENTRAL SAAS DATABASE
+ * Removes operational sheets (Customers, Employees, Notifications,
+ * User_Documents, Settings, etc.) mistakenly created in Central DB.
+ * Retains ONLY the 5 Central SaaS Master Registries.
+ * ==============================================================
+ */
+function cleanCentralDatabase() {
+  const ss = getSpreadsheet_();
+  const sheets = ss.getSheets();
+  const deleted = [];
+  const preserved = [];
+
+  // Identify central vs accidental sheets
+  sheets.forEach(sheet => {
+    const name = sheet.getName();
+    if (CENTRAL_MASTER_SHEETS.indexOf(name) !== -1) {
+      preserved.push(name);
+    }
+  });
+
+  // Safe delete accidental non-central sheets
+  sheets.forEach(sheet => {
+    const name = sheet.getName();
+    if (CENTRAL_MASTER_SHEETS.indexOf(name) === -1) {
+      if (ss.getSheets().length > 1) {
+        ss.deleteSheet(sheet);
+        deleted.push(name);
+      }
+    }
+  });
+
+  Logger.log("[CLEAN_CENTRAL_DB] Preserved: " + preserved.join(", ") + " | Deleted: " + deleted.join(", "));
+  return {
+    success: true,
+    message: "Purged " + deleted.length + " accidental operational sheets from Central SaaS DB.",
+    preservedSheets: preserved,
+    deletedSheets: deleted
+  };
+}
+
+/**
+ * Seed initial Central SaaS records if empty
+ */
+function seedCentralSaaSRegistries_() {
+  const now = new Date().toISOString();
+
+  // 1. Tenant_Master seed
+  const tenantSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+  if (tenantSheet.getLastRow() <= 1) {
+    const defaultTenant = [
+      "TEN001", "SR Investments HQ", "ARN-189241", "", CRM_CONFIG.DRIVE_ROOT_FOLDER_ID,
+      "support@srinvestments.com", "+91 98200 12345", "Mumbai, Maharashtra", "Active",
+      false, "system", now, "system", now, "", ""
+    ];
+    tenantSheet.getRange(2, 1, 1, CRM_SCHEMAS.TENANT_MASTER.length).setValues([defaultTenant]);
+  }
+
+  // 2. User_Master seed
+  const userSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USER_MASTER, CRM_SCHEMAS.USER_MASTER);
+  if (userSheet.getLastRow() <= 1) {
+    const hashedPass = hashPasswordSHA256_("admin123");
+    const defaultUser = [
+      "USR_001", "admin@srinvestments.com", "admin.sr@gmail.com, founder@gmail.com", hashedPass,
+      "System Administrator", "+91 98201 11223", "", true, "Active",
+      false, "system", now, "system", now, "", ""
+    ];
+    userSheet.getRange(2, 1, 1, CRM_SCHEMAS.USER_MASTER.length).setValues([defaultUser]);
+  }
+
+  // 3. Tenant_User_Mapping seed
+  const mapSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_USER_MAPPING, CRM_SCHEMAS.TENANT_USER_MAPPING);
+  if (mapSheet.getLastRow() <= 1) {
+    const defaultMap = [
+      "MAP_001", "USR_001", "TEN001", "Admin", "Active",
+      false, "system", now, "system", now, "", ""
+    ];
+    mapSheet.getRange(2, 1, 1, CRM_SCHEMAS.TENANT_USER_MAPPING.length).setValues([defaultMap]);
+  }
+
+  // 4. Tenant_Licenses seed
+  const licSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_LICENSES, CRM_SCHEMAS.TENANT_LICENSES);
+  if (licSheet.getLastRow() <= 1) {
+    const defaultLic = [
+      "LIC_101", "TEN001", "Enterprise", now.slice(0, 10), "2027-12-31", 120000,
+      true, "Active", "Founder Enterprise SaaS License",
+      false, "system", now, "system", now, "", ""
+    ];
+    licSheet.getRange(2, 1, 1, CRM_SCHEMAS.TENANT_LICENSES.length).setValues([defaultLic]);
+  }
+}
+
+/**
+ * Seed default settings, roles/rights, and masters in a Tenant/Template database
+ */
+function seedTenantDatabaseDefaults_(ss) {
+  const now = new Date().toISOString();
+
+  // CompanySettings
+  const setSheet = ss.getSheetByName(CRM_CONFIG.SHEETS.SETTINGS);
+  if (setSheet && setSheet.getLastRow() <= 1) {
+    const defaultSettings = [
+      ["CompanyName", "SR Investments", "Company legal trade name", false, "System", now, "System", now, "", ""],
+      ["ArnNumber", "ARN-189241", "AMFI registration number", false, "System", now, "System", now, "", ""],
+      ["SupportEmail", "support@srinvestments.com", "Primary support email", false, "System", now, "System", now, "", ""],
+      ["KycAutoVerify", "TRUE", "Enable automatic KYC verification", false, "System", now, "System", now, "", ""]
+    ];
+    setSheet.getRange(2, 1, defaultSettings.length, CRM_SCHEMAS.SETTINGS.length).setValues(defaultSettings);
+  }
+
+  // RolesRights
+  const rightsSheet = ss.getSheetByName(CRM_CONFIG.SHEETS.RIGHTS);
+  if (rightsSheet && rightsSheet.getLastRow() <= 1) {
+    const defaultRights = [
+      ["Admin", "Dashboard", true, true, true, true, false, "System", now, "System", now, "", ""],
+      ["Admin", "Customers", true, true, true, true, false, "System", now, "System", now, "", ""],
+      ["Admin", "Staff", true, true, true, true, false, "System", now, "System", now, "", ""],
+      ["Admin", "MasterHub", true, true, true, true, false, "System", now, "System", now, "", ""],
+      ["Admin", "Settings", true, true, true, true, false, "System", now, "System", now, "", ""],
+      ["Admin", "DriveBackup", true, true, true, true, false, "System", now, "System", now, "", ""],
+      ["Relationship Manager", "Dashboard", true, false, false, false, false, "System", now, "System", now, "", ""],
+      ["Relationship Manager", "Customers", true, true, true, false, false, "System", now, "System", now, "", ""],
+      ["Relationship Manager", "Staff", true, false, false, false, false, "System", now, "System", now, "", ""],
+      ["Relationship Manager", "MasterHub", true, false, false, false, false, "System", now, "System", now, "", ""],
+      ["Relationship Manager", "Settings", false, false, false, false, false, "System", now, "System", now, "", ""],
+      ["Relationship Manager", "DriveBackup", false, false, false, false, false, "System", now, "System", now, "", ""],
+      ["Backoffice Staff", "Dashboard", true, false, false, false, false, "System", now, "System", now, "", ""],
+      ["Backoffice Staff", "Customers", true, true, true, false, false, "System", now, "System", now, "", ""],
+      ["Backoffice Staff", "Staff", false, false, false, false, false, "System", now, "System", now, "", ""],
+      ["Backoffice Staff", "MasterHub", true, false, false, false, false, "System", now, "System", now, "", ""],
+      ["Backoffice Staff", "Settings", false, false, false, false, false, "System", now, "System", now, "", ""],
+      ["Backoffice Staff", "DriveBackup", false, false, false, false, false, "System", now, "System", now, "", ""]
+    ];
+    rightsSheet.getRange(2, 1, defaultRights.length, CRM_SCHEMAS.RIGHTS.length).setValues(defaultRights);
+  }
+
+  // MasterDepartments
+  const deptSheet = ss.getSheetByName(CRM_CONFIG.SHEETS.DEPARTMENTS);
+  if (deptSheet && deptSheet.getLastRow() <= 1) {
+    const defaultDepts = [
+      ["DEP_01", "WM", "Wealth Management", "Client advisory & wealth portfolios", "Active", false, "System", now, "System", now, "", ""],
+      ["DEP_02", "OPS", "Operations & KYC", "Client onboarding, KYC & document verification", "Active", false, "System", now, "System", now, "", ""],
+      ["DEP_03", "MF", "Mutual Funds", "Mutual fund distributions, CAS & order processing", "Active", false, "System", now, "System", now, "", ""],
+      ["DEP_04", "ACC", "Accounts & Finance", "Commission reconciliation & accounting", "Active", false, "System", now, "System", now, "", ""],
+      ["DEP_05", "ADM", "Administration", "CRM system management & access controls", "Active", false, "System", now, "System", now, "", ""],
+      ["DEP_06", "CMP", "Compliance & Legal", "AMFI & SEBI regulatory compliance audit", "Active", false, "System", now, "System", now, "", ""]
+    ];
+    deptSheet.getRange(2, 1, defaultDepts.length, CRM_SCHEMAS.DEPARTMENTS.length).setValues(defaultDepts);
+  }
+
+  // MasterDesignations
+  const desigSheet = ss.getSheetByName(CRM_CONFIG.SHEETS.DESIGNATIONS);
+  if (desigSheet && desigSheet.getLastRow() <= 1) {
+    const defaultDesigs = [
+      ["DES_01", "SIA", "Senior Investment Advisor", "Wealth Management", "Advises high net worth clients", "Active", false, "System", now, "System", now, "", ""],
+      ["DES_02", "RM", "Relationship Manager", "Wealth Management", "Manages customer relationships & portfolios", "Active", false, "System", now, "System", now, "", ""],
+      ["DES_03", "MFS", "Mutual Fund Specialist", "Mutual Funds", "Specialized mutual fund product advisory", "Active", false, "System", now, "System", now, "", ""],
+      ["DES_04", "BM", "Branch Manager", "Administration", "Branch operations and advisory supervision", "Active", false, "System", now, "System", now, "", ""],
+      ["DES_05", "CO", "Compliance Officer", "Compliance & Legal", "Statutory AMFI & SEBI compliance surveillance", "Active", false, "System", now, "System", now, "", ""],
+      ["DES_06", "OE", "Operations Executive", "Operations & KYC", "Client KYC verification & documentation", "Active", false, "System", now, "System", now, "", ""],
+      ["DES_07", "BE", "Backoffice Executive", "Operations & KYC", "Data entry, backoffice operations and investor requests", "Active", false, "System", now, "System", now, "", ""],
+      ["DES_08", "ADM", "Administrator", "Administration", "Overall CRM administration and security", "Active", false, "System", now, "System", now, "", ""]
+    ];
+    desigSheet.getRange(2, 1, defaultDesigs.length, CRM_SCHEMAS.DESIGNATIONS.length).setValues(defaultDesigs);
+  }
+
+  // MasterRoles
+  const roleSheet = ss.getSheetByName(CRM_CONFIG.SHEETS.ROLES);
+  if (roleSheet && roleSheet.getLastRow() <= 1) {
+    const defaultRoles = [
+      ["ROL_01", "ADMIN", "Admin", "Complete CRM administration, settings & audit logs", "Active", false, "System", now, "System", now, "", ""],
+      ["ROL_02", "RM", "Relationship Manager", "Customer advisory, staff view & transaction tools", "Active", false, "System", now, "System", now, "", ""],
+      ["ROL_03", "BO", "Backoffice Staff", "Operations, KYC verification & record management", "Active", false, "System", now, "System", now, "", ""],
+      ["ROL_04", "STF", "Staff", "Standard team member with basic view & self-service access", "Active", false, "System", now, "System", now, "", ""]
+    ];
+    roleSheet.getRange(2, 1, defaultRoles.length, CRM_SCHEMAS.ROLES.length).setValues(defaultRoles);
+  }
+}
+
+/**
+ * ==========================================
+ * MASTER HUB BACKEND (DEPARTMENTS, DESIGNATIONS, ROLES)
+ * Multi-Tenant Aware: Routes to tenant database
+ * ==========================================
+ */
+
+function getMasters_(payload) {
+  return {
+    departments: getDepartments_(payload),
+    designations: getDesignations_(payload),
+    roles: getRoles_(payload)
+  };
+}
+
+function getDepartments_(filters) {
+  filters = filters || {};
+  const tenantId = filters.tenantId || filters.activeTenantId || null;
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.DEPARTMENTS, CRM_SCHEMAS.DEPARTMENTS, tenantId);
+  let rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.DEPARTMENTS);
+  const includeDel = filters && (filters.includeDeleted === true || filters.includeDeleted === "true");
+  if (!includeDel) {
+    rows = rows.filter(r => !r.IsDeleted || r.IsDeleted === "false" || r.IsDeleted === false);
+  }
+  return rows;
+}
+
+function getDesignations_(filters) {
+  filters = filters || {};
+  const tenantId = filters.tenantId || filters.activeTenantId || null;
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.DESIGNATIONS, CRM_SCHEMAS.DESIGNATIONS, tenantId);
+  let rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.DESIGNATIONS);
+  const includeDel = filters && (filters.includeDeleted === true || filters.includeDeleted === "true");
+  if (!includeDel) {
+    rows = rows.filter(r => !r.IsDeleted || r.IsDeleted === "false" || r.IsDeleted === false);
+  }
+  return rows;
+}
+function getRoles_(filters) {
+  filters = filters || {};
+  const tenantId = filters.tenantId || filters.activeTenantId || null;
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.ROLES, CRM_SCHEMAS.ROLES, tenantId);
+  let rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.ROLES);
+  const includeDel = filters && (filters.includeDeleted === true || filters.includeDeleted === "true");
+  if (!includeDel) {
+    rows = rows.filter(r => !r.IsDeleted || r.IsDeleted === "false" || r.IsDeleted === false);
+  }
+  return rows;
+}
+
+function saveMasterItem_(payload) {
+  payload = payload || {};
+  const tenantId = payload.tenantId || payload.activeTenantId || null;
+  const type = String(payload.type || "").toLowerCase();
+  const data = payload.data || {};
+  const userEmail = payload.userEmail || "admin@srinvestments.com";
+  const now = new Date().toISOString();
+
+  let sheetName, schema, idField, prefix, codeField, nameField;
+  if (type === "department") {
+    sheetName = CRM_CONFIG.SHEETS.DEPARTMENTS;
+    schema = CRM_SCHEMAS.DEPARTMENTS;
+    idField = "DepartmentId";
+    codeField = "DepartmentCode";
+    nameField = "DepartmentName";
+    prefix = "DEP";
+  } else if (type === "designation") {
+    sheetName = CRM_CONFIG.SHEETS.DESIGNATIONS;
+    schema = CRM_SCHEMAS.DESIGNATIONS;
+    idField = "DesignationId";
+    codeField = "DesignationCode";
+    nameField = "DesignationName";
+    prefix = "DES";
+  } else if (type === "role") {
+    sheetName = CRM_CONFIG.SHEETS.ROLES;
+    schema = CRM_SCHEMAS.ROLES;
+    idField = "RoleId";
+    codeField = "RoleCode";
+    nameField = "RoleName";
+    prefix = "ROL";
+  } else {
+    throw new Error("Invalid master type: " + type);
+  }
+
+  const sheet = getOrCreateSheet_(sheetName, schema, tenantId);
+  const rows = getSheetRowsAsObjects_(sheet, schema);
+  const id = data[idField] || createId_(prefix);
+  const existingIndex = rows.findIndex(r => r[idField] === id);
+  const existingRecord = existingIndex >= 0 ? rows[existingIndex] : null;
+
+  const recordObj = {
+    ...data,
+    [idField]: id,
+    [codeField]: cleanStr_(data[codeField] || (prefix + "_" + (rows.length + 1))),
+    [nameField]: cleanStr_(data[nameField]),
+    Description: cleanStr_(data.Description),
+    Status: cleanStr_(data.Status || "Active"),
+    IsDeleted: existingRecord ? Boolean(existingRecord.IsDeleted === true || existingRecord.IsDeleted === "TRUE") : false,
+    Created_By: existingRecord ? (existingRecord.Created_By || userEmail) : userEmail,
+    Created_At: existingRecord ? (existingRecord.Created_At || now) : now,
+    Updated_By: userEmail,
+    Updated_At: now,
+    Deleted_By: existingRecord ? (existingRecord.Deleted_By || "") : "",
+    Deleted_At: existingRecord ? (existingRecord.Deleted_At || "") : ""
+  };
+
+  const rowIndex = existingIndex >= 0 ? existingIndex + 2 : 0;
+  writeRowByHeaders_(sheet, rowIndex, recordObj, schema);
+  logAudit_(userEmail, existingIndex >= 0 ? "UPDATE" : "CREATE", "MasterHub", recordObj[codeField], 
+    `${existingIndex >= 0 ? "Updated" : "Created"} ${type}: ${recordObj[nameField]} (${recordObj[codeField]})`);
+
+  return { success: true, item: recordObj };
+}
+
+function deleteMasterItem_(payload) {
+  payload = payload || {};
+  const tenantId = payload.tenantId || payload.activeTenantId || null;
+  const type = String(payload.type || "").toLowerCase();
+  const id = payload.id;
+  const userEmail = payload.userEmail || "admin@srinvestments.com";
+  const now = new Date().toISOString();
+
+  let sheetName, schema, idField;
+  if (type === "department") {
+    sheetName = CRM_CONFIG.SHEETS.DEPARTMENTS;
+    schema = CRM_SCHEMAS.DEPARTMENTS;
+    idField = "DepartmentId";
+  } else if (type === "designation") {
+    sheetName = CRM_CONFIG.SHEETS.DESIGNATIONS;
+    schema = CRM_SCHEMAS.DESIGNATIONS;
+    idField = "DesignationId";
+  } else if (type === "role") {
+    sheetName = CRM_CONFIG.SHEETS.ROLES;
+    schema = CRM_SCHEMAS.ROLES;
+    idField = "RoleId";
+  } else {
+    throw new Error("Invalid master type: " + type);
+  }
+
+  const sheet = getOrCreateSheet_(sheetName, schema, tenantId);
+  const rows = getSheetRowsAsObjects_(sheet, schema);
+  const index = rows.findIndex(r => r[idField] === id);
+  if (index === -1) throw new Error("Record not found: " + id);
+
+  const rowNum = index + 2;
+  const colIsDel = getHeaderColIndex_(sheet, "IsDeleted");
+  const colDelBy = getHeaderColIndex_(sheet, "Deleted_By");
+  const colDelAt = getHeaderColIndex_(sheet, "Deleted_At");
+
+  if (colIsDel > 0) sheet.getRange(rowNum, colIsDel).setValue(true);
+  if (colDelBy > 0) sheet.getRange(rowNum, colDelBy).setValue(userEmail);
+  if (colDelAt > 0) sheet.getRange(rowNum, colDelAt).setValue(now);
+
+  logAudit_(userEmail, "SOFT_DELETE", "MasterHub", id, `Soft-deleted ${type}: ${id}`);
+  return { success: true, message: `${type} soft-deleted.` };
+}
+
+function restoreMasterItem_(payload) {
+  payload = payload || {};
+  const tenantId = payload.tenantId || payload.activeTenantId || null;
+  const type = String(payload.type || "").toLowerCase();
+  const id = payload.id;
+  const userEmail = payload.userEmail || "admin@srinvestments.com";
+  const now = new Date().toISOString();
+
+  let sheetName, schema, idField;
+  if (type === "department") {
+    sheetName = CRM_CONFIG.SHEETS.DEPARTMENTS;
+    schema = CRM_SCHEMAS.DEPARTMENTS;
+    idField = "DepartmentId";
+  } else if (type === "designation") {
+    sheetName = CRM_CONFIG.SHEETS.DESIGNATIONS;
+    schema = CRM_SCHEMAS.DESIGNATIONS;
+    idField = "DesignationId";
+  } else if (type === "role") {
+    sheetName = CRM_CONFIG.SHEETS.ROLES;
+    schema = CRM_SCHEMAS.ROLES;
+    idField = "RoleId";
+  } else {
+    throw new Error("Invalid master type: " + type);
+  }
+
+  const sheet = getOrCreateSheet_(sheetName, schema, tenantId);
+  const rows = getSheetRowsAsObjects_(sheet, schema);
+  const index = rows.findIndex(r => r[idField] === id);
+  if (index === -1) throw new Error("Record not found: " + id);
+
+  const rowNum = index + 2;
+  const colIsDel = getHeaderColIndex_(sheet, "IsDeleted");
+  const colUpBy = getHeaderColIndex_(sheet, "Updated_By");
+  const colUpAt = getHeaderColIndex_(sheet, "Updated_At");
+  const colDelBy = getHeaderColIndex_(sheet, "Deleted_By");
+  const colDelAt = getHeaderColIndex_(sheet, "Deleted_At");
+
+  if (colIsDel > 0) sheet.getRange(rowNum, colIsDel).setValue(false);
+  if (colUpBy > 0) sheet.getRange(rowNum, colUpBy).setValue(userEmail);
+  if (colUpAt > 0) sheet.getRange(rowNum, colUpAt).setValue(now);
+  if (colDelBy > 0) sheet.getRange(rowNum, colDelBy).setValue("");
+  if (colDelAt > 0) sheet.getRange(rowNum, colDelAt).setValue("");
+
+  logAudit_(userEmail, "RESTORE", "MasterHub", id, `Restored ${type}: ${id}`);
+  return { success: true, message: `${type} restored.` };
 }
 
 /**
  * ==========================================
  * REALTIME NOTIFICATIONS BACKEND
+ * Multi-Tenant Aware: Routes to tenant database
  * ==========================================
  */
 function getNotifications_(payload) {
   payload = payload || {};
+  const tenantId = payload.tenantId || payload.activeTenantId || null;
   const userEmail = (payload.userEmail || "").trim().toLowerCase();
   const isSuperUser = Boolean(payload.isSuperUser);
   const role = payload.role || "Staff";
   const isAdmin = isSuperUser || role.toLowerCase() === "admin";
 
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.NOTIFICATIONS, CRM_SCHEMAS.NOTIFICATIONS);
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.NOTIFICATIONS, CRM_SCHEMAS.NOTIFICATIONS, tenantId);
   let rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.NOTIFICATIONS);
 
   // Filter based on audience rule:
@@ -386,7 +1169,9 @@ function getNotifications_(payload) {
 }
 
 function sendNotification_(payload) {
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.NOTIFICATIONS, CRM_SCHEMAS.NOTIFICATIONS);
+  payload = payload || {};
+  const tenantId = payload.tenantId || payload.activeTenantId || null;
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.NOTIFICATIONS, CRM_SCHEMAS.NOTIFICATIONS, tenantId);
   const now = new Date().toISOString();
   const id = "NOTIF_" + Date.now();
 
@@ -412,4 +1197,874 @@ function sendNotification_(payload) {
 
   sheet.appendRow(rowValues);
   return { success: true, notifId: id, targetAudience: targetAudience };
+}
+
+/**
+ * =========================================================================
+ * SAAS MULTI-TENANT & CLIENT LICENSING BACKEND MODULE
+ * =========================================================================
+ */
+
+/**
+ * Fetch all client organizations (tenants) with joined active license details
+ */
+function getTenants_(payload) {
+  payload = payload || {};
+  const showDeleted = Boolean(payload.showDeleted);
+  const tenantSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+  let tenants = getSheetRowsAsObjects_(tenantSheet, CRM_SCHEMAS.TENANT_MASTER);
+
+  if (!showDeleted) {
+    tenants = tenants.filter(t => !t.IsDeleted && String(t.IsDeleted).toLowerCase() !== "true");
+  }
+
+  // Read licenses to merge latest subscription info
+  const licenseSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_LICENSES, CRM_SCHEMAS.TENANT_LICENSES);
+  const licenses = getSheetRowsAsObjects_(licenseSheet, CRM_SCHEMAS.TENANT_LICENSES);
+
+  return tenants.map(t => {
+    const tenantLicenses = licenses.filter(l => 
+      String(l.TenantId).trim().toUpperCase() === String(t.TenantId).trim().toUpperCase() &&
+      !l.IsDeleted
+    );
+    // Find active license or latest
+    const activeLicense = tenantLicenses.find(l => Boolean(l.IsActive) || String(l.Status).toLowerCase() === "active") 
+      || tenantLicenses[tenantLicenses.length - 1] 
+      || null;
+
+    return {
+      ...t,
+      activeLicense: activeLicense ? {
+        id: activeLicense.Id,
+        licenseType: activeLicense.LicenseType || "Professional",
+        startDate: activeLicense.StartDate,
+        endDate: activeLicense.EndDate,
+        isActive: Boolean(activeLicense.IsActive),
+        status: activeLicense.Status || "Active",
+        amount: activeLicense.Amount || 0
+      } : null
+    };
+  });
+}
+
+/**
+ * Create or Update a Client Organization (Tenant)
+ */
+function saveTenant_(payload) {
+  payload = payload || {};
+  const tenantSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+  const tenants = getSheetRowsAsObjects_(tenantSheet, CRM_SCHEMAS.TENANT_MASTER);
+  const now = new Date().toISOString();
+  const userEmail = payload.userEmail || "superadmin@srinvestments.com";
+
+  let tenantId = (payload.TenantId || "").trim();
+  const isNew = !tenantId;
+
+  if (isNew) {
+    const count = tenants.length + 1;
+    tenantId = "TEN" + String(count).padStart(3, "0");
+  }
+
+  const tenantRecord = {
+    TenantId: tenantId,
+    CompanyName: cleanStr_(payload.CompanyName) || "New Client Organization",
+    ArnNumber: cleanStr_(payload.ArnNumber) || "",
+    SpreadsheetId: cleanStr_(payload.SpreadsheetId) || "",
+    DriveRootFolderId: cleanStr_(payload.DriveRootFolderId) || "",
+    SupportEmail: cleanStr_(payload.SupportEmail) || "",
+    ContactPhone: cleanStr_(payload.ContactPhone) || "",
+    OfficeAddress: cleanStr_(payload.OfficeAddress) || "",
+    Status: cleanStr_(payload.Status) || "Active",
+    IsDeleted: false,
+    Updated_By: userEmail,
+    Updated_At: now
+  };
+
+  if (isNew) {
+    tenantRecord.Created_By = userEmail;
+    tenantRecord.Created_At = now;
+    tenantRecord.Deleted_By = "";
+    tenantRecord.Deleted_At = "";
+  }
+
+  // Locate existing row
+  let targetRowIndex = -1;
+  if (!isNew) {
+    const rawIds = tenantSheet.getRange(2, 1, Math.max(tenantSheet.getLastRow() - 1, 1), 1).getValues();
+    for (let i = 0; i < rawIds.length; i++) {
+      if (String(rawIds[i][0]).trim().toUpperCase() === tenantId.toUpperCase()) {
+        targetRowIndex = i + 2;
+        break;
+      }
+    }
+  }
+
+  writeRowByHeaders_(tenantSheet, targetRowIndex, tenantRecord, CRM_SCHEMAS.TENANT_MASTER);
+
+  // If initial license configuration is passed with new tenant, create license record
+  if (payload.initialLicense) {
+    saveTenantLicense_({
+      TenantId: tenantId,
+      LicenseType: payload.initialLicense.licenseType || "Enterprise",
+      StartDate: payload.initialLicense.startDate || now.slice(0, 10),
+      EndDate: payload.initialLicense.endDate || "",
+      Amount: payload.initialLicense.amount || 0,
+      Status: "Active",
+      Notes: "Initial license subscription setup",
+      userEmail: userEmail
+    });
+  }
+
+  return { success: true, tenantId: tenantId, message: "Client organization saved successfully." };
+}
+
+/**
+ * Soft delete a client organization (Tenant)
+ */
+function deleteTenant_(payload) {
+  payload = payload || {};
+  const tenantId = (payload.tenantId || payload.TenantId || "").trim();
+  if (!tenantId) throw new Error("Tenant ID is required.");
+
+  const tenantSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+  const now = new Date().toISOString();
+  const userEmail = payload.userEmail || "superadmin@srinvestments.com";
+
+  let targetRowIndex = -1;
+  const rawIds = tenantSheet.getRange(2, 1, Math.max(tenantSheet.getLastRow() - 1, 1), 1).getValues();
+  for (let i = 0; i < rawIds.length; i++) {
+    if (String(rawIds[i][0]).trim().toUpperCase() === tenantId.toUpperCase()) {
+      targetRowIndex = i + 2;
+      break;
+    }
+  }
+
+  if (targetRowIndex === -1) throw new Error("Client organization not found.");
+
+  writeRowByHeaders_(tenantSheet, targetRowIndex, {
+    IsDeleted: true,
+    Deleted_By: userEmail,
+    Deleted_At: now,
+    Status: "Suspended"
+  }, CRM_SCHEMAS.TENANT_MASTER);
+
+  return { success: true, message: "Client organization soft deleted." };
+}
+
+/**
+ * Get License History for a Tenant
+ */
+function getTenantLicenses_(payload) {
+  payload = payload || {};
+  const tenantId = (payload.tenantId || payload.TenantId || "").trim();
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_LICENSES, CRM_SCHEMAS.TENANT_LICENSES);
+  let rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.TENANT_LICENSES);
+
+  if (tenantId) {
+    rows = rows.filter(r => String(r.TenantId).trim().toUpperCase() === tenantId.toUpperCase());
+  }
+
+  if (!payload.showDeleted) {
+    rows = rows.filter(r => !r.IsDeleted && String(r.IsDeleted).toLowerCase() !== "true");
+  }
+
+  return rows.reverse();
+}
+
+/**
+ * Save / Renew a Tenant License
+ */
+function saveTenantLicense_(payload) {
+  payload = payload || {};
+  const tenantId = (payload.tenantId || payload.TenantId || "").trim();
+  if (!tenantId) throw new Error("Tenant ID is required for licensing.");
+
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_LICENSES, CRM_SCHEMAS.TENANT_LICENSES);
+  const licenses = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.TENANT_LICENSES);
+  const now = new Date().toISOString();
+  const userEmail = payload.userEmail || "superadmin@srinvestments.com";
+
+  let id = (payload.id || payload.Id || "").trim();
+  const isNew = !id;
+  if (isNew) {
+    id = "LIC_" + Date.now();
+  }
+
+  // If this license is being set to Active, mark earlier licenses for this tenant as Renewed/Inactive
+  const newStatus = payload.Status || "Active";
+  if (newStatus === "Active") {
+    // update previous active licenses
+    licenses.forEach((lic, idx) => {
+      if (String(lic.TenantId).trim().toUpperCase() === tenantId.toUpperCase() && lic.Id !== id && lic.IsActive) {
+        writeRowByHeaders_(sheet, idx + 2, {
+          IsActive: false,
+          Status: "Renewed",
+          Updated_By: userEmail,
+          Updated_At: now
+        }, CRM_SCHEMAS.TENANT_LICENSES);
+      }
+    });
+  }
+
+  const record = {
+    Id: id,
+    TenantId: tenantId,
+    LicenseType: payload.LicenseType || payload.licenseType || "Professional",
+    StartDate: payload.StartDate || payload.startDate || now.slice(0, 10),
+    EndDate: payload.EndDate || payload.endDate || "",
+    Amount: payload.Amount !== undefined ? payload.Amount : 0,
+    IsActive: newStatus === "Active",
+    Status: newStatus,
+    Notes: payload.Notes || payload.notes || "",
+    IsDeleted: false,
+    Updated_By: userEmail,
+    Updated_At: now
+  };
+
+  if (isNew) {
+    record.Created_By = userEmail;
+    record.Created_At = now;
+    record.Deleted_By = "";
+    record.Deleted_At = "";
+  }
+
+  let targetRowIndex = -1;
+  if (!isNew) {
+    const rawIds = sheet.getRange(2, 1, Math.max(sheet.getLastRow() - 1, 1), 1).getValues();
+    for (let i = 0; i < rawIds.length; i++) {
+      if (String(rawIds[i][0]).trim() === id) {
+        targetRowIndex = i + 2;
+        break;
+      }
+    }
+  }
+
+  writeRowByHeaders_(sheet, targetRowIndex, record, CRM_SCHEMAS.TENANT_LICENSES);
+  return { success: true, licenseId: id, message: "Subscription license updated successfully." };
+}
+
+/**
+ * Get User Documents (Multi-Tenant Aware)
+ */
+function getUserDocuments_(payload) {
+  payload = payload || {};
+  const userId = (payload.userId || payload.UserId || "").trim();
+  const tenantId = (payload.tenantId || payload.TenantId || payload.activeTenantId || "").trim();
+
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USER_DOCUMENTS, CRM_SCHEMAS.USER_DOCUMENTS, tenantId);
+  let rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.USER_DOCUMENTS);
+
+  if (!payload.showDeleted) {
+    rows = rows.filter(r => !r.IsDeleted && String(r.IsDeleted).toLowerCase() !== "true");
+  }
+
+  if (userId) {
+    rows = rows.filter(r => String(r.UserId).trim().toLowerCase() === userId.toLowerCase());
+  }
+
+  if (tenantId) {
+    rows = rows.filter(r => String(r.TenantId).trim().toUpperCase() === tenantId.toUpperCase());
+  }
+
+  return rows.reverse();
+}
+
+/**
+ * Upload User / Tenant Document (Multi-Tenant Aware)
+ */
+function uploadUserDocument_(payload) {
+  payload = payload || {};
+  const fileData = payload.file;
+  if (!fileData || !fileData.base64) throw new Error("Document file content is required.");
+
+  const tenantId = (payload.tenantId || payload.TenantId || payload.activeTenantId || "").trim();
+  const userId = (payload.userId || payload.UserId || "").trim();
+  const docName = cleanStr_(payload.docName || fileData.name || "User_Document");
+  const docType = cleanStr_(payload.docType || "General Document");
+  const userEmail = payload.userEmail || "user@srinvestments.com";
+  const now = new Date().toISOString();
+
+  // Upload to tenant or root folder
+  const driveRoot = getTenantDriveRootFolder_(tenantId);
+  const blob = Utilities.newBlob(Utilities.base64Decode(fileData.base64.split(",")[1] || fileData.base64), fileData.mimeType || "application/pdf", docName);
+  const file = driveRoot.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  const docId = "DOC_" + Date.now();
+  const record = {
+    Id: docId,
+    UserId: userId,
+    TenantId: tenantId,
+    DocName: docName,
+    DocType: docType,
+    DocPath: file.getUrl(),
+    DriveFileId: file.getId(),
+    ViewUrl: file.getUrl(),
+    IsDeleted: false,
+    Created_By: userEmail,
+    Created_At: now,
+    Updated_By: userEmail,
+    Updated_At: now,
+    Deleted_By: "",
+    Deleted_At: ""
+  };
+
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USER_DOCUMENTS, CRM_SCHEMAS.USER_DOCUMENTS, tenantId);
+  writeRowByHeaders_(sheet, -1, record, CRM_SCHEMAS.USER_DOCUMENTS);
+
+  return {
+    success: true,
+    documentId: docId,
+    fileId: file.getId(),
+    viewUrl: file.getUrl()
+  };
+}
+
+/**
+ * ==============================================================
+ * SUBSCRIPTION PLANS MASTER (SaaS Tiers & Quota Limits)
+ * ==============================================================
+ */
+
+function getSubscriptionPlans_(payload) {
+  payload = payload || {};
+  const showDeleted = Boolean(payload.showDeleted);
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.SUBSCRIPTION_PLANS, CRM_SCHEMAS.SUBSCRIPTION_PLANS);
+  let plans = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.SUBSCRIPTION_PLANS);
+
+  // If empty, seed initial default plans (Starter, Professional, Enterprise)
+  if (!plans || plans.length === 0) {
+    seedSubscriptionPlans_(sheet);
+    plans = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.SUBSCRIPTION_PLANS);
+  }
+
+  if (!showDeleted) {
+    plans = plans.filter(p => !p.IsDeleted && String(p.IsDeleted).toLowerCase() !== "true");
+  }
+
+  return plans.map(p => ({
+    PlanId: p.PlanId,
+    PlanName: p.PlanName,
+    PlanCode: p.PlanCode,
+    Price: Number(p.Price || 0),
+    DurationMonths: Number(p.DurationMonths || 12),
+    StaffLimit: Number(p.StaffLimit || 5),
+    CustomerLimit: Number(p.CustomerLimit || 1000),
+    Features: p.Features || "",
+    IsPopular: p.IsPopular === true || String(p.IsPopular).toLowerCase() === "true",
+    Badge: p.Badge || "",
+    Description: p.Description || "",
+    Status: p.Status || "Active",
+    IsDeleted: p.IsDeleted === true || String(p.IsDeleted).toLowerCase() === "true",
+    Created_By: p.Created_By || "",
+    Created_At: p.Created_At || "",
+    Updated_By: p.Updated_By || "",
+    Updated_At: p.Updated_At || ""
+  }));
+}
+
+function seedSubscriptionPlans_(sheet) {
+  const now = new Date().toISOString();
+  const seed = [
+    {
+      PlanId: "PLAN001",
+      PlanName: "Starter",
+      PlanCode: "STARTER",
+      Price: 25000,
+      DurationMonths: 3,
+      StaffLimit: 3,
+      CustomerLimit: 1000,
+      Features: "Up to 3 Staff, 1k Investors, Core CRM, Basic Portfolio, Email Support",
+      IsPopular: false,
+      Badge: "",
+      Description: "Up to 3 Staff • 1k Investors • Core CRM",
+      Status: "Active",
+      IsDeleted: false,
+      Created_By: "system@srinvestments.com",
+      Created_At: now,
+      Updated_By: "system@srinvestments.com",
+      Updated_At: now,
+      Deleted_By: "",
+      Deleted_At: ""
+    },
+    {
+      PlanId: "PLAN002",
+      PlanName: "Professional",
+      PlanCode: "PROFESSIONAL",
+      Price: 60000,
+      DurationMonths: 12,
+      StaffLimit: 15,
+      CustomerLimit: 10000,
+      Features: "Up to 15 Staff, 10k Investors, SIP Tracker, Reports, Role Rights",
+      IsPopular: true,
+      Badge: "POPULAR",
+      Description: "Up to 15 Staff • 10k Investors • SIP Tracker • Reports",
+      Status: "Active",
+      IsDeleted: false,
+      Created_By: "system@srinvestments.com",
+      Created_At: now,
+      Updated_By: "system@srinvestments.com",
+      Updated_At: now,
+      Deleted_By: "",
+      Deleted_At: ""
+    },
+    {
+      PlanId: "PLAN003",
+      PlanName: "Enterprise",
+      PlanCode: "ENTERPRISE",
+      Price: 120000,
+      DurationMonths: 24,
+      StaffLimit: 999,
+      CustomerLimit: 99999,
+      Features: "Unlimited Staff & Investors, Custom Drive Vault, Dedicated Sheet Database, Priority SLA Support, Full Audit Trail",
+      IsPopular: false,
+      Badge: "",
+      Description: "Unlimited Staff & Investors • Custom Drive Vault • Priority SLA",
+      Status: "Active",
+      IsDeleted: false,
+      Created_By: "system@srinvestments.com",
+      Created_At: now,
+      Updated_By: "system@srinvestments.com",
+      Updated_At: now,
+      Deleted_By: "",
+      Deleted_At: ""
+    }
+  ];
+
+  seed.forEach(item => {
+    writeRowByHeaders_(sheet, -1, item, CRM_SCHEMAS.SUBSCRIPTION_PLANS);
+  });
+}
+
+function saveSubscriptionPlan_(payload) {
+  payload = payload || {};
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.SUBSCRIPTION_PLANS, CRM_SCHEMAS.SUBSCRIPTION_PLANS);
+  const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.SUBSCRIPTION_PLANS);
+  const now = new Date().toISOString();
+  const userEmail = payload.userEmail || "superadmin@srinvestments.com";
+
+  let planId = (payload.PlanId || "").trim();
+  const isNew = !planId;
+
+  if (isNew) {
+    const count = rows.length + 1;
+    planId = "PLAN" + String(count).padStart(3, "0");
+  }
+
+  const record = {
+    PlanId: planId,
+    PlanName: cleanStr_(payload.PlanName) || "New Subscription Plan",
+    PlanCode: (cleanStr_(payload.PlanCode) || cleanStr_(payload.PlanName) || "CUSTOM").toUpperCase(),
+    Price: Number(payload.Price || 0),
+    DurationMonths: Number(payload.DurationMonths || 12),
+    StaffLimit: Number(payload.StaffLimit || 5),
+    CustomerLimit: Number(payload.CustomerLimit || 1000),
+    Features: cleanStr_(payload.Features) || "",
+    IsPopular: Boolean(payload.IsPopular),
+    Badge: cleanStr_(payload.Badge) || (payload.IsPopular ? "POPULAR" : ""),
+    Description: cleanStr_(payload.Description) || "",
+    Status: cleanStr_(payload.Status) || "Active",
+    IsDeleted: false,
+    Updated_By: userEmail,
+    Updated_At: now
+  };
+
+  if (isNew) {
+    record.Created_By = userEmail;
+    record.Created_At = now;
+    record.Deleted_By = "";
+    record.Deleted_At = "";
+  }
+
+  let targetRowIndex = -1;
+  if (!isNew) {
+    const rawIds = sheet.getRange(2, 1, Math.max(sheet.getLastRow() - 1, 1), 1).getValues();
+    for (let i = 0; i < rawIds.length; i++) {
+      if (String(rawIds[i][0]).trim().toUpperCase() === planId.toUpperCase()) {
+        targetRowIndex = i + 2;
+        break;
+      }
+    }
+  }
+
+  writeRowByHeaders_(sheet, targetRowIndex, record, CRM_SCHEMAS.SUBSCRIPTION_PLANS);
+  return record;
+}
+
+function deleteSubscriptionPlan_(payload) {
+  payload = payload || {};
+  const planId = (payload.PlanId || payload.id || "").trim();
+  if (!planId) throw new Error("PlanId is required to delete subscription plan");
+
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.SUBSCRIPTION_PLANS, CRM_SCHEMAS.SUBSCRIPTION_PLANS);
+  const now = new Date().toISOString();
+  const userEmail = payload.userEmail || "superadmin@srinvestments.com";
+
+  const rawIds = sheet.getRange(2, 1, Math.max(sheet.getLastRow() - 1, 1), 1).getValues();
+  let targetRowIndex = -1;
+  for (let i = 0; i < rawIds.length; i++) {
+    if (String(rawIds[i][0]).trim().toUpperCase() === planId.toUpperCase()) {
+      targetRowIndex = i + 2;
+      break;
+    }
+  }
+
+  if (targetRowIndex === -1) throw new Error("Subscription plan not found: " + planId);
+
+  const headers = getSheetHeaders_(sheet);
+  const delIdx = headers.indexOf("IsDeleted") + 1;
+  const byIdx = headers.indexOf("Deleted_By") + 1;
+  const atIdx = headers.indexOf("Deleted_At") + 1;
+
+  if (delIdx > 0) sheet.getRange(targetRowIndex, delIdx).setValue(true);
+  if (byIdx > 0) sheet.getRange(targetRowIndex, byIdx).setValue(userEmail);
+  if (atIdx > 0) sheet.getRange(targetRowIndex, atIdx).setValue(now);
+
+  return { success: true, planId: planId };
+}
+
+/**
+ * ==============================================================
+ * DEFAULT-CONFIG (CENTRAL SAAS MASTER CONFIGURATION)
+ * Stores global platform configurations in Central_SaaS_Master_DB:
+ * - GoogleClientId
+ * - GasDeploymentUrl
+ * - SystemName
+ * - SupportEmail
+ * Enables zero-hardcoding and instant cloud updates.
+ * ==============================================================
+ */
+
+function isConfigTrue_(val, defaultVal) {
+  if (val === undefined || val === null || String(val).trim() === "") {
+    return defaultVal !== undefined ? defaultVal : true;
+  }
+  const s = String(val).trim().toLowerCase();
+  return s === "true" || s === "1" || s === "yes" || s === "enabled";
+}
+
+function getDefaultConfig_() {
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.DEFAULT_CONFIG, CRM_SCHEMAS.DEFAULT_CONFIG);
+  let rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.DEFAULT_CONFIG);
+
+  if (!rows || rows.length === 0) {
+    seedDefaultConfig_(sheet);
+    rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.DEFAULT_CONFIG);
+  }
+
+  const config = {};
+  rows.forEach(r => {
+    if (!r.IsDeleted || String(r.IsDeleted).toLowerCase() !== "true") {
+      const k = String(r.Key || "").trim();
+      if (k) {
+        config[k] = r.Value !== undefined && r.Value !== null ? String(r.Value).trim() : "";
+        config[k.toLowerCase()] = config[k];
+      }
+    }
+  });
+
+  const now = new Date().toISOString();
+  const valCol = getHeaderColIndex_(sheet, "Value");
+  const descCol = getHeaderColIndex_(sheet, "Description");
+  const upByCol = getHeaderColIndex_(sheet, "Updated_By");
+  const upAtCol = getHeaderColIndex_(sheet, "Updated_At");
+
+  // Helper to ensure a key exists in Default-Config sheet with proper default value
+  const ensureConfigKey = (keyName, defaultValue, description) => {
+    const cleanKey = String(keyName).trim();
+    const idx = rows.findIndex(r => String(r.Key || "").trim().toLowerCase() === cleanKey.toLowerCase());
+    
+    if (idx >= 0) {
+      // Row exists: if Value is empty, fill it with defaultValue
+      const existingVal = rows[idx].Value !== undefined && rows[idx].Value !== null ? String(rows[idx].Value).trim() : "";
+      if (existingVal === "" && defaultValue !== "") {
+        const rowNum = idx + 2;
+        try {
+          if (valCol > 0) sheet.getRange(rowNum, valCol).setValue(defaultValue);
+          if (descCol > 0 && !rows[idx].Description) sheet.getRange(rowNum, descCol).setValue(description);
+          if (upByCol > 0) sheet.getRange(rowNum, upByCol).setValue("system");
+          if (upAtCol > 0) sheet.getRange(rowNum, upAtCol).setValue(now);
+        } catch (e) {
+          Logger.log("Update empty cell notice: " + e.message);
+        }
+        config[cleanKey] = defaultValue;
+        config[cleanKey.toLowerCase()] = defaultValue;
+      }
+    } else {
+      // Row doesn't exist: insert it
+      try {
+        writeRowByHeaders_(sheet, 0, {
+          Key: cleanKey,
+          Value: defaultValue,
+          Description: description,
+          IsDeleted: false,
+          Created_By: "system",
+          Created_At: now,
+          Updated_By: "system",
+          Updated_At: now,
+          Deleted_By: "",
+          Deleted_At: ""
+        }, CRM_SCHEMAS.DEFAULT_CONFIG);
+        config[cleanKey] = defaultValue;
+        config[cleanKey.toLowerCase()] = defaultValue;
+      } catch (e) {
+        Logger.log("Auto-seed " + cleanKey + " notice: " + e.message);
+      }
+    }
+  };
+
+  // 1. Login Company Name
+  ensureConfigKey("LoginCompanyName", "SR INVESTMENTS CRM", "Company Name displayed on Login screen");
+
+  // 2. Flags for Forgot Password OTP
+  ensureConfigKey("IsForgotPasswordWithEmail", "TRUE", "Enable/disable Password Reset OTP via Email (TRUE/FALSE)");
+  ensureConfigKey("IsForgotPasswordWithMobileNo", "TRUE", "Enable/disable Password Reset OTP via Mobile SMS (TRUE/FALSE)");
+
+  // 3. SMS Gateway Settings (Auto-seed so visible in sheet)
+  ensureConfigKey("SmsProvider", "FAST2SMS", "SMS Gateway Provider: FAST2SMS, TWILIO, MSG91, or CUSTOM_URL");
+  ensureConfigKey("SmsApiKey", "", "SMS Gateway API Key / Auth Token (e.g. Fast2SMS API key)");
+  ensureConfigKey("SmsSenderId", "", "SMS Sender ID (or Twilio Phone Number)");
+  ensureConfigKey("SmsTemplateId", "", "DLT Template ID (Required for MSG91 / Indian DLT Gateways)");
+  ensureConfigKey("SmsCustomUrl", "", "Custom SMS Gateway Webhook URL with {MOBILE}, {OTP}, {API_KEY} placeholders");
+
+  // 4. Daily Dispatch Quota Limits (Configured per day)
+  ensureConfigKey("EmailMaxLimitPerDay", "200", "Maximum OTP Emails allowed to be sent per day (Default: 200)");
+  ensureConfigKey("SmsMaxLimitPerDay", "100", "Maximum OTP SMS allowed to be sent per day (configured manually per SMS plan)");
+
+  return config;
+}
+
+function saveDefaultConfig_(payload) {
+  payload = payload || {};
+  const configs = payload.configs || payload;
+  const userEmail = payload.userEmail || "superadmin@srinvestments.com";
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.DEFAULT_CONFIG, CRM_SCHEMAS.DEFAULT_CONFIG);
+  const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.DEFAULT_CONFIG);
+  const now = new Date().toISOString();
+
+  Object.keys(configs).forEach(key => {
+    if (key === "userEmail" || key === "userName" || key === "tenantId" || key === "activeTenantId") return;
+    const val = String(configs[key] ?? "").trim();
+    const cleanKey = String(key).trim();
+    const idx = rows.findIndex(r => String(r.Key || "").trim().toLowerCase() === cleanKey.toLowerCase());
+
+    if (idx >= 0) {
+      const rowNum = idx + 2;
+      const valCol = getHeaderColIndex_(sheet, "Value");
+      const upByCol = getHeaderColIndex_(sheet, "Updated_By");
+      const upAtCol = getHeaderColIndex_(sheet, "Updated_At");
+      if (valCol > 0) sheet.getRange(rowNum, valCol).setValue(val);
+      if (upByCol > 0) sheet.getRange(rowNum, upByCol).setValue(userEmail);
+      if (upAtCol > 0) sheet.getRange(rowNum, upAtCol).setValue(now);
+    } else {
+      writeRowByHeaders_(sheet, 0, {
+        Key: cleanKey,
+        Value: val,
+        Description: "Platform default configuration setting",
+        IsDeleted: false,
+        Created_By: userEmail,
+        Created_At: now,
+        Updated_By: userEmail,
+        Updated_At: now,
+        Deleted_By: "",
+        Deleted_At: ""
+      }, CRM_SCHEMAS.DEFAULT_CONFIG);
+    }
+  });
+
+  logAudit_(userEmail, "UPDATE_CONFIG", "Default-Config", "Platform configuration updated");
+  return { success: true, message: "Default configuration saved successfully." };
+}
+
+function seedDefaultConfig_(sheet) {
+  sheet = sheet || getOrCreateSheet_(CRM_CONFIG.SHEETS.DEFAULT_CONFIG, CRM_SCHEMAS.DEFAULT_CONFIG);
+  const now = new Date().toISOString();
+  const seedData = [
+    {
+      Key: "LoginCompanyName",
+      Value: "SR INVESTMENTS CRM",
+      Description: "Company Name displayed on Login screen"
+    },
+    {
+      Key: "GoogleClientId",
+      Value: "984368661381-642hg3170e2r59md6706eard99bc9dm5.apps.googleusercontent.com",
+      Description: "Google OAuth 2.0 Web Client ID for Google Sign-In"
+    },
+    {
+      Key: "GasDeploymentUrl",
+      Value: "https://script.google.com/macros/s/AKfycby3bg1iDpQTYbj4vmD2dPHyTOlnqNUrg_aOSC5gxdwse5bt0mxtG_cja9t2zh7x8q9bBw/exec",
+      Description: "Active Google Apps Script Web App Deployment URL"
+    },
+    {
+      Key: "SystemName",
+      Value: "SR Investments Mutual Fund & Wealth Advisory CRM",
+      Description: "Platform System Trade Name"
+    },
+    {
+      Key: "SupportEmail",
+      Value: "admin@srinvestments.com",
+      Description: "Global Platform Administrator Email"
+    },
+    {
+      Key: "IsForgotPasswordWithEmail",
+      Value: "TRUE",
+      Description: "Enable/disable Password Reset OTP via Email (TRUE/FALSE)"
+    },
+    {
+      Key: "IsForgotPasswordWithMobileNo",
+      Value: "TRUE",
+      Description: "Enable/disable Password Reset OTP via Mobile SMS (TRUE/FALSE)"
+    },
+    {
+      Key: "SmsProvider",
+      Value: "FAST2SMS",
+      Description: "SMS Gateway Provider (FAST2SMS, TWILIO, MSG91, or CUSTOM_URL)"
+    },
+    {
+      Key: "SmsApiKey",
+      Value: "",
+      Description: "SMS Gateway API Key / Auth Token (e.g. Fast2SMS API key)"
+    },
+    {
+      Key: "SmsSenderId",
+      Value: "",
+      Description: "SMS Sender ID (or Twilio Phone Number)"
+    },
+    {
+      Key: "SmsTemplateId",
+      Value: "",
+      Description: "DLT Template ID (Required for MSG91 / Indian DLT Gateways)"
+    },
+    {
+      Key: "SmsCustomUrl",
+      Value: "",
+      Description: "Custom SMS Gateway Webhook URL with {MOBILE}, {OTP}, {API_KEY} placeholders"
+    },
+    {
+      Key: "EmailMaxLimitPerDay",
+      Value: "200",
+      Description: "Maximum OTP Emails allowed to be sent per day (Default: 200)"
+    },
+    {
+      Key: "SmsMaxLimitPerDay",
+      Value: "100",
+      Description: "Maximum OTP SMS allowed to be sent per day (configured manually per SMS plan)"
+    }
+  ];
+
+  seedData.forEach(item => {
+    writeRowByHeaders_(sheet, 0, {
+      Key: item.Key,
+      Value: item.Value,
+      Description: item.Description,
+      IsDeleted: false,
+      Created_By: "system",
+      Created_At: now,
+      Updated_By: "system",
+      Updated_At: now,
+      Deleted_By: "",
+      Deleted_At: ""
+    }, CRM_SCHEMAS.DEFAULT_CONFIG);
+  });
+}
+
+/**
+ * Resolves current date in YYYY-MM-DD format (IST timezone)
+ */
+function getTodayDateString_() {
+  return Utilities.formatDate(new Date(), "Asia/Kolkata", "yyyy-MM-dd");
+}
+
+/**
+ * Reads daily email & SMS dispatch counts for a given date from Central DB Daily_Dispatch_Tracker sheet
+ */
+function getDailyDispatchCounts_(dateStr) {
+  dateStr = dateStr || getTodayDateString_();
+  try {
+    const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.DAILY_DISPATCH_TRACKER, CRM_SCHEMAS.DAILY_DISPATCH_TRACKER);
+    const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.DAILY_DISPATCH_TRACKER);
+    const row = rows.find(r => String(r.Date || "").trim() === dateStr);
+    if (row) {
+      return {
+        date: dateStr,
+        emailCount: Number(row.EmailCount || 0),
+        smsCount: Number(row.SmsCount || 0)
+      };
+    }
+  } catch (err) {
+    Logger.log("getDailyDispatchCounts_ error: " + err.message);
+  }
+  return {
+    date: dateStr,
+    emailCount: 0,
+    smsCount: 0
+  };
+}
+
+/**
+ * Atomically increments the daily dispatch count for "EMAIL" or "SMS" in Central DB Daily_Dispatch_Tracker
+ */
+function incrementDailyDispatchCount_(type) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
+    Logger.log("Lock wait timeout in incrementDailyDispatchCount_: " + e.message);
+  }
+
+  try {
+    const dateStr = getTodayDateString_();
+    const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.DAILY_DISPATCH_TRACKER, CRM_SCHEMAS.DAILY_DISPATCH_TRACKER);
+    const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.DAILY_DISPATCH_TRACKER);
+    const idx = rows.findIndex(r => String(r.Date || "").trim() === dateStr);
+    const now = new Date().toISOString();
+    const emailCol = getHeaderColIndex_(sheet, "EmailCount");
+    const smsCol = getHeaderColIndex_(sheet, "SmsCount");
+    const upAtCol = getHeaderColIndex_(sheet, "Updated_At");
+
+    if (idx >= 0) {
+      const rowNum = idx + 2;
+      let emailCount = Number(rows[idx].EmailCount || 0);
+      let smsCount = Number(rows[idx].SmsCount || 0);
+
+      if (String(type).toUpperCase() === "EMAIL") {
+        emailCount += 1;
+        if (emailCol > 0) sheet.getRange(rowNum, emailCol).setValue(emailCount);
+      } else if (String(type).toUpperCase() === "SMS") {
+        smsCount += 1;
+        if (smsCol > 0) sheet.getRange(rowNum, smsCol).setValue(smsCount);
+      }
+      if (upAtCol > 0) sheet.getRange(rowNum, upAtCol).setValue(now);
+      return { date: dateStr, emailCount: emailCount, smsCount: smsCount };
+    } else {
+      let emailCount = String(type).toUpperCase() === "EMAIL" ? 1 : 0;
+      let smsCount = String(type).toUpperCase() === "SMS" ? 1 : 0;
+      writeRowByHeaders_(sheet, 0, {
+        Date: dateStr,
+        EmailCount: emailCount,
+        SmsCount: smsCount,
+        Updated_At: now
+      }, CRM_SCHEMAS.DAILY_DISPATCH_TRACKER);
+      return { date: dateStr, emailCount: emailCount, smsCount: smsCount };
+    }
+  } catch (err) {
+    Logger.log("incrementDailyDispatchCount_ error: " + err.message);
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
+/**
+ * Returns today's dispatch stats and quota limits
+ */
+function getDailyDispatchStats_() {
+  const cfg = typeof getDefaultConfig_ === "function" ? getDefaultConfig_() : {};
+  const counts = getDailyDispatchCounts_();
+  return {
+    date: counts.date,
+    emailCount: counts.emailCount,
+    emailMaxLimit: Number(cfg.EmailMaxLimitPerDay || cfg.emailmaxlimitperday || 200),
+    smsCount: counts.smsCount,
+    smsMaxLimit: Number(cfg.SmsMaxLimitPerDay || cfg.smsmaxlimitperday || 100)
+  };
 }

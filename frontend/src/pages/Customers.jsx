@@ -21,7 +21,7 @@ import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
 import Modal from '../components/Modal';
 
-export default function Customers() {
+export default function Customers({ onOpenBackup }) {
   const { hasPermission } = useAuth();
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -200,6 +200,7 @@ export default function Customers() {
         subtitle="Manage client folios, KYC compliance, risk profiling & bank mandates"
         onRefresh={loadCustomers}
         refreshing={loading}
+        onOpenBackup={onOpenBackup}
       />
 
       <div className="page-wrapper">

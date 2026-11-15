@@ -7,22 +7,36 @@ import {
   TrendingUp, 
   ShieldCheck, 
   Calculator,
-  Archive,
-  ChevronRight
+  ChevronRight,
+  Boxes,
+  Building2,
+  Crown,
+  CreditCard
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { crmApi } from '../services/api';
 
-export default function Sidebar({ currentPage, onNavigate, onOpenBackup }) {
-  const { user, hasPermission } = useAuth();
+export default function Sidebar({ currentPage, onNavigate }) {
+  const { user, tenant, hasPermission, isSuperAdmin } = useAuth();
   const isDemo = crmApi.isDemoMode();
+
+  const currentCompanyName = tenant?.CompanyName || tenant?.companyName || user?.companyName || 'SR Investments';
+  const companyInitials = (() => {
+    const words = currentCompanyName.split(' ').filter(Boolean);
+    return words.length >= 2 ? (words[0][0] + words[1][0]).toUpperCase() : (words[0]?.slice(0, 2).toUpperCase() || 'SR');
+  })();
 
   const navItems = [
     { id: 'home', label: 'Home (Dashboard)', icon: LayoutDashboard, module: 'Dashboard' },
     { id: 'customers', label: 'Customers', icon: Users, module: 'Customers' },
     { id: 'staff', label: 'Staff (Employees)', icon: UserCheck, module: 'Staff' },
+    { id: 'masters', label: 'Master HUB', icon: Boxes, module: null },
     { id: 'sip', label: 'SIP Calculator', icon: Calculator, module: null },
-    { id: 'settings', label: 'Settings', icon: Settings, module: 'Settings' }
+    { id: 'settings', label: 'Settings', icon: Settings, module: 'Settings' },
+    ...(isSuperAdmin ? [
+      { id: 'superadmin', label: 'Tenant Master (SaaS)', icon: Building2, module: null },
+      { id: 'subscription-plans', label: 'Subscription Plans', icon: CreditCard, module: null }
+    ] : [])
   ];
 
   return (
@@ -54,13 +68,14 @@ export default function Sidebar({ currentPage, onNavigate, onOpenBackup }) {
           color: '#ffffff',
           fontWeight: '800',
           fontSize: '1.15rem',
-          boxShadow: '0 4px 12px rgba(37, 99, 235, 0.4)'
+          boxShadow: '0 4px 12px rgba(37, 99, 235, 0.4)',
+          letterSpacing: '0.04em'
         }}>
-          SR
+          {companyInitials}
         </div>
         <div>
           <div style={{ fontWeight: '700', fontSize: '0.95rem', letterSpacing: '0.02em', color: '#ffffff' }}>
-            SR INVESTMENTS
+            {currentCompanyName}
           </div>
           <div style={{ fontSize: '0.725rem', color: '#93c5fd', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <TrendingUp size={12} color="#60a5fa" /> Mutual Fund CRM
@@ -146,39 +161,24 @@ export default function Sidebar({ currentPage, onNavigate, onOpenBackup }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <Icon size={18} color={isActive ? '#ffffff' : '#94a3b8'} />
                 <span>{item.label}</span>
+                {item.badge && (
+                  <span style={{
+                    backgroundColor: '#f59e0b',
+                    color: '#0f172a',
+                    fontSize: '0.625rem',
+                    padding: '1px 6px',
+                    borderRadius: '4px',
+                    fontWeight: '800',
+                    letterSpacing: '0.04em'
+                  }}>
+                    {item.badge}
+                  </span>
+                )}
               </div>
               {isActive && <ChevronRight size={14} color="#ffffff" />}
             </button>
           );
         })}
-
-        {/* Quick Backup Action in Sidebar */}
-        {(user?.role === 'Admin' || hasPermission('DriveBackup', 'CanView')) && onOpenBackup && (
-          <button
-            onClick={onOpenBackup}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem',
-              width: '100%',
-              padding: '0.65rem 0.85rem',
-              marginTop: '0.5rem',
-              borderRadius: '8px',
-              border: '1px dashed #334155',
-              backgroundColor: 'transparent',
-              color: '#93c5fd',
-              fontSize: '0.825rem',
-              fontWeight: '500',
-              cursor: 'pointer',
-              textAlign: 'left'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1e293b'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-          >
-            <Archive size={16} color="#60a5fa" />
-            <span>Drive Backup (.ZIP)</span>
-          </button>
-        )}
       </nav>
 
       {/* Sidebar Footer */}
@@ -192,9 +192,11 @@ export default function Sidebar({ currentPage, onNavigate, onOpenBackup }) {
         fontSize: '0.725rem',
         color: '#64748b'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-          <ShieldCheck size={14} color="#3b82f6" />
-          <span style={{ color: '#94a3b8', fontWeight: '500' }}>SR Investments CRM</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', overflow: 'hidden' }}>
+          <ShieldCheck size={14} color="#3b82f6" style={{ flexShrink: 0 }} />
+          <span style={{ color: '#94a3b8', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {currentCompanyName} CRM
+          </span>
         </div>
         <span style={{ 
           backgroundColor: '#1e293b', 

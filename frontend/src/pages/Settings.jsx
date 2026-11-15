@@ -8,12 +8,7 @@ import {
   AlertCircle, 
   RefreshCw,
   Archive,
-  Download,
-  History,
-  FileSpreadsheet,
-  FileCode,
-  Search,
-  RotateCcw
+  Download
 } from 'lucide-react';
 import { crmApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -25,13 +20,6 @@ export default function Settings({ onOpenBackup }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState({ text: '', type: '' });
-
-  // Audit Logs State
-  const [auditLogs, setAuditLogs] = useState([]);
-  const [auditLoading, setAuditLoading] = useState(false);
-  const [auditSearch, setAuditSearch] = useState('');
-  const [auditModuleFilter, setAuditModuleFilter] = useState('all');
-  const [auditActionFilter, setAuditActionFilter] = useState('all');
 
   // Company Settings State
   const [companySettings, setCompanySettings] = useState({
@@ -49,6 +37,7 @@ export default function Settings({ onOpenBackup }) {
 
   // Backend connection State
   const [gasUrl, setGasUrl] = useState(crmApi.getBackendUrl());
+  const [googleClientId, setGoogleClientId] = useState(() => crmApi.getGoogleClientId());
   const [isDemoMode, setIsDemoMode] = useState(crmApi.isDemoMode());
   const [showDeletedGlobally, setShowDeletedGlobally] = useState(() => crmApi.getShowDeletedGlobally());
   const [pingResult, setPingResult] = useState(null);
@@ -57,74 +46,6 @@ export default function Settings({ onOpenBackup }) {
   useEffect(() => {
     loadSettings();
   }, []);
-
-  useEffect(() => {
-    if (activeTab === 'audit') {
-      loadAuditLogs();
-    }
-  }, [activeTab, auditModuleFilter]);
-
-  const loadAuditLogs = async () => {
-    setAuditLoading(true);
-    try {
-      const logs = await crmApi.call('getAuditLogs', {
-        module: auditModuleFilter,
-        search: auditSearch
-      });
-      setAuditLogs(logs || []);
-    } catch (err) {
-      console.warn('Failed to load audit logs:', err);
-    } finally {
-      setAuditLoading(false);
-    }
-  };
-
-  const exportAuditExcel = () => {
-    if (!auditLogs.length) return alert('No audit records to export.');
-    const dateTag = new Date().toISOString().slice(0, 10);
-    const meta = [
-      '# SEBI COMPLIANCE AUDIT TRAIL & MASTER CRUD ACTIVITY REGISTER',
-      `# Entity: SR INVESTMENTS | AMFI Registration No: ARN-189241 | Principal EUIN: E345678`,
-      `# Report Generated: ${new Date().toLocaleString()} IST | Total Audited Records: ${auditLogs.length}`,
-      ''
-    ].join('\n');
-
-    const headers = ['Audit Log ID', 'Timestamp (IST)', 'User Email', 'Action', 'Module / Master', 'Record Reference', 'Change Description'];
-    const rows = auditLogs.map(r => [
-      r.LogId,
-      new Date(r.Timestamp).toLocaleString() + ' IST',
-      r.UserEmail,
-      r.Action,
-      r.Module,
-      r.RecordId,
-      r.Details
-    ].map(val => `"${String(val || '').replace(/"/g, '""')}"`).join('\t'));
-
-    const content = '\uFEFF' + meta + '\n' + headers.join('\t') + '\n' + rows.join('\n');
-    const blob = new Blob([content], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `SEBI_Audit_Trail_${dateTag}.xls`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const exportAuditJSON = () => {
-    if (!auditLogs.length) return alert('No audit records to export.');
-    const dateTag = new Date().toISOString().slice(0, 10);
-    const blob = new Blob([JSON.stringify({ entity: 'SR INVESTMENTS', arn: 'ARN-189241', logs: auditLogs }, null, 2)], { type: 'application/json;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `SEBI_Audit_Trail_${dateTag}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
 
   const loadSettings = async () => {
     setLoading(true);
@@ -136,6 +57,12 @@ export default function Settings({ onOpenBackup }) {
       ]);
       if (comp) setCompanySettings((prev) => ({ ...prev, ...comp }));
       if (rts) setRights(rts);
+
+      // Dynamically fetch and sync Default-Config from Central DB sheet
+      crmApi.fetchDefaultConfig().then(cfg => {
+        const cid = cfg?.GoogleClientId || cfg?.googleclientid;
+        if (cid) setGoogleClientId(cid);
+      }).catch(() => {});
     } catch (err) {
       console.warn('Failed to load settings:', err);
     } finally {
@@ -177,18 +104,47 @@ export default function Settings({ onOpenBackup }) {
   };
 
   const handleSaveBackendUrl = () => {
-    crmApi.setBackendUrl(gasUrl);
+    let clean = (gasUrl || '').trim();
+    if (clean && !clean.endsWith('/exec')) {
+      clean = clean.replace(/\/+$/, '') + '/exec';
+      setGasUrl(clean);
+    }
+    crmApi.setBackendUrl(clean);
     setMsg({ text: 'Backend URL saved! Click "Test Connection" to verify.', type: 'success' });
+  };
+
+  const handleSaveGoogleClientId = async () => {
+    crmApi.setGoogleClientId(googleClientId);
+    try {
+      await crmApi.saveDefaultConfig({ GoogleClientId: googleClientId });
+      setMsg({ text: 'Google OAuth Client ID saved to Central DB & local storage! All browsers and incognito sessions will use it automatically.', type: 'success' });
+    } catch {
+      setMsg({ text: 'Google OAuth Client ID saved locally (will sync to Central DB when backend is connected).', type: 'info' });
+    }
   };
 
   const testConnection = async () => {
     setPinging(true);
     setPingResult(null);
     try {
-      const res = await crmApi.call('health');
-      setPingResult({ success: true, message: `Connected! Service timestamp: ${res.timestamp || new Date().toISOString()}` });
+      let clean = (gasUrl || '').trim();
+      if (clean && !clean.endsWith('/exec')) {
+        clean = clean.replace(/\/+$/, '') + '/exec';
+        setGasUrl(clean);
+      }
+      if (clean) {
+        crmApi.setBackendUrl(clean);
+      }
+      const res = await crmApi.testConnection(clean);
+      setPingResult({ 
+        success: true, 
+        message: `Connected successfully! Google Apps Script is active (${res.timestamp || new Date().toISOString()}).` 
+      });
     } catch (err) {
-      setPingResult({ success: false, message: `Connection failed: ${err.message}` });
+      setPingResult({ 
+        success: false, 
+        message: `Connection failed: ${err.message}` 
+      });
     } finally {
       setPinging(false);
     }
@@ -285,25 +241,6 @@ export default function Settings({ onOpenBackup }) {
           >
             <Database size={16} /> Google Apps Script / Drive Sync
           </button>
-
-          <button
-            onClick={() => setActiveTab('audit')}
-            style={{
-              padding: '0.75rem 1.25rem',
-              border: 'none',
-              background: 'transparent',
-              fontSize: '0.875rem',
-              fontWeight: '600',
-              color: activeTab === 'audit' ? '#2563eb' : '#64748b',
-              borderBottom: activeTab === 'audit' ? '2px solid #2563eb' : '2px solid transparent',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}
-          >
-            <History size={16} /> SEBI Audit Trail & Logs
-          </button>
         </div>
 
         {/* Message Banner */}
@@ -342,8 +279,8 @@ export default function Settings({ onOpenBackup }) {
                   <input
                     type="text"
                     className="form-input"
-                    value={companySettings.COMPANY_NAME || ''}
-                    onChange={(e) => setCompanySettings({ ...companySettings, COMPANY_NAME: e.target.value })}
+                    value={companySettings.COMPANY_NAME || companySettings.CompanyName || ''}
+                    onChange={(e) => setCompanySettings({ ...companySettings, COMPANY_NAME: e.target.value, CompanyName: e.target.value })}
                     required
                   />
                 </div>
@@ -574,7 +511,7 @@ export default function Settings({ onOpenBackup }) {
                 Google Apps Script Web App Deployment URL
               </h3>
               <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '1.25rem' }}>
-                Configured with Spreadsheet ID <code>1Bll7386rIJD2CIl1VX--0Okcn-jxXOpII0OHh9FSKSM</code> and Drive folder <code>1IxulBQJTKrxYAyYMUhz5bllvaMZUYvy</code>.
+                Configured with Central Database ID <code>1XkkOqiowqdxJfvaEbCCBVc0P0XslhA9i</code> and Root Drive folder <code>1rVz2OnKPDHbXuq-ujsJg2R3vzYDwnzMU</code>.
               </p>
 
               <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
@@ -614,7 +551,7 @@ export default function Settings({ onOpenBackup }) {
                     <div style={{ marginTop: '0.35rem', paddingTop: '0.5rem', borderTop: '1px solid #fca5a5', color: '#7f1d1d', lineHeight: 1.5 }}>
                       <strong>Why did this happen?</strong> Your Google Apps Script project is still running the old monolithic template code.
                       <ol style={{ margin: '0.35rem 0 0 1.25rem', padding: 0 }}>
-                        <li>Open your Apps Script project editor (<a href="https://script.google.com/home/projects/1lTQsf7yYtnp4HTI_MwVWqrSVQKtLoFZLXpjjEVSQnTxPzLhp6WC2SSOW/edit" target="_blank" rel="noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>Click here</a>).</li>
+                        <li>Open your Apps Script project editor (<a href="https://script.google.com/u/1/home/projects/1KcIl2YiyEa6JI68Dw5SUsmA-qRYS-P6_upTd4GL-Yij1plzfeAIYJn39/edit" title="Central_SaaS_SR_CRM_Backend - Project editor - Apps Script" target="_blank" rel="noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>Click here</a>).</li>
                         <li><strong>Delete the 5 old HTML files:</strong> <code>Common.html</code>, <code>Customer.html</code>, <code>Employee.html</code>, <code>Index.html</code>, <code>Login.html</code> (click 3 dots on each &gt; Delete).</li>
                         <li><strong>Create 1 new HTML file:</strong> Click <strong>+ &gt; HTML</strong>, name it <code>Bridge</code> (without .html), and paste the content of <code>apps-script/Bridge.html</code>.</li>
                         <li><strong>Paste updated code:</strong> Replace each <code>.gs</code> file (<code>Code.gs</code>, <code>Common_Code.gs</code>, <code>Customer_Code.gs</code>, <code>Employee_Code.gs</code>, <code>Login_Code.gs</code>) with the code from the repository.</li>
@@ -626,180 +563,45 @@ export default function Settings({ onOpenBackup }) {
                 </div>
               )}
             </div>
-          </div>
-        )}
 
-        {/* TAB 5: SEBI COMPLIANCE AUDIT TRAIL & LOGS */}
-        {activeTab === 'audit' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div className="crm-card" style={{ padding: '1.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '8px',
-                    backgroundColor: '#eff6ff',
-                    border: '1px solid #bfdbfe',
-                    color: '#2563eb',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <History size={22} />
-                  </div>
-                  <div>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
-                      SEBI Compliance Audit Trail & Master CRUD Register
-                    </h3>
-                    <div style={{ fontSize: '0.785rem', color: '#64748b', marginTop: '2px' }}>
-                      Audited non-repudiation log of all CREATE, UPDATE, SOFT_DELETE & RESTORE operations across masters.
-                    </div>
-                  </div>
-                </div>
+            {/* Google OAuth 2.0 Web Client ID */}
+            <div className="crm-card" style={{ padding: '1.75rem', marginTop: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
+                  Google OAuth 2.0 Web Client ID (Google Sign-In Account Chooser)
+                </h3>
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '1.25rem' }}>
+                Required to trigger Google's native popup listing your browser's logged-in Google accounts on the Login page.
+              </p>
 
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <button className="btn btn-outline-blue btn-sm" onClick={exportAuditExcel} title="Export audit trail to Excel">
-                    <FileSpreadsheet size={14} /> Excel
-                  </button>
-                  <button className="btn btn-outline-blue btn-sm" onClick={exportAuditJSON} title="Export audit trail to JSON">
-                    <FileCode size={14} /> JSON
-                  </button>
-                  <button className="btn btn-primary btn-sm" onClick={loadAuditLogs} title="Refresh audit log entries">
-                    <RefreshCw size={14} className={auditLoading ? 'spin-animation' : ''} /> Refresh
-                  </button>
-                </div>
+              <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="xxxxxxxxxxxx-xxxxxxxxxxxxxxxx.apps.googleusercontent.com"
+                  value={googleClientId}
+                  onChange={(e) => setGoogleClientId(e.target.value)}
+                />
+                <button className="btn btn-primary" onClick={handleSaveGoogleClientId}>
+                  Save Client ID
+                </button>
               </div>
 
-              {/* Filters toolbar */}
-              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1.25rem', alignItems: 'center' }}>
-                <div style={{ position: 'relative', flex: 1, minWidth: '240px', maxWidth: '380px' }}>
-                  <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={auditSearch}
-                    onChange={(e) => setAuditSearch(e.target.value)}
-                    placeholder="Search by user, record code, or description..."
-                    style={{ paddingLeft: '32px', height: '36px', fontSize: '0.825rem' }}
-                  />
+              <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.5, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <div>
+                  Get this from <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" style={{ color: '#2563eb' }}>Google Cloud Console &gt; Credentials</a> (Type: Web application, Authorized JavaScript origin: <code>{typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173'}</code>).
                 </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Master:</span>
-                  <select
-                    className="form-select"
-                    value={auditModuleFilter}
-                    onChange={(e) => setAuditModuleFilter(e.target.value)}
-                    style={{ height: '36px', fontSize: '0.8rem', width: 'auto' }}
-                  >
-                    <option value="all">All Masters</option>
-                    <option value="Customers">Customers</option>
-                    <option value="Staff">Staff</option>
-                    <option value="Settings">Settings</option>
-                  </select>
+                <div style={{ color: '#059669', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <ShieldCheck size={14} />
+                  <span>Stored centrally in <strong>Central_SaaS_Master_DB &gt; Default-Config</strong> tab. Any changes made in the sheet or here automatically take effect across all browsers &amp; incognito windows without redeploying code.</span>
                 </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Action:</span>
-                  <select
-                    className="form-select"
-                    value={auditActionFilter}
-                    onChange={(e) => setAuditActionFilter(e.target.value)}
-                    style={{ height: '36px', fontSize: '0.8rem', width: 'auto' }}
-                  >
-                    <option value="all">All Actions</option>
-                    <option value="CREATE">CREATE</option>
-                    <option value="UPDATE">UPDATE</option>
-                    <option value="SOFT_DELETE">SOFT_DELETE</option>
-                    <option value="RESTORE">RESTORE</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Audit Table */}
-              <div className="table-responsive">
-                <table className="crm-table" style={{ fontSize: '0.8rem' }}>
-                  <thead>
-                    <tr>
-                      <th>Audit Log ID</th>
-                      <th>Timestamp (IST)</th>
-                      <th>Performer / User</th>
-                      <th>Action</th>
-                      <th>Master Module</th>
-                      <th>Record Reference</th>
-                      <th>Change Description</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {auditLoading ? (
-                      <tr>
-                        <td colSpan="7" style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
-                          Loading SEBI compliance audit trail...
-                        </td>
-                      </tr>
-                    ) : auditLogs.length === 0 ? (
-                      <tr>
-                        <td colSpan="7" style={{ textAlign: 'center', padding: '2.5rem', color: '#94a3b8' }}>
-                          No audit entries match the selected filters.
-                        </td>
-                      </tr>
-                    ) : (
-                      auditLogs
-                        .filter(l => auditActionFilter === 'all' || l.Action === auditActionFilter)
-                        .filter(l => !auditSearch || (
-                          (l.UserEmail && l.UserEmail.toLowerCase().includes(auditSearch.toLowerCase())) ||
-                          (l.RecordId && l.RecordId.toLowerCase().includes(auditSearch.toLowerCase())) ||
-                          (l.Details && l.Details.toLowerCase().includes(auditSearch.toLowerCase()))
-                        ))
-                        .map((l) => (
-                          <tr key={l.LogId}>
-                            <td>
-                              <code style={{ fontFamily: 'monospace', fontSize: '0.72rem', backgroundColor: '#f1f5f9', padding: '2px 5px', borderRadius: '4px' }}>
-                                {l.LogId}
-                              </code>
-                            </td>
-                            <td>
-                              <div style={{ fontWeight: '500' }}>
-                                {new Date(l.Timestamp).toLocaleDateString()}
-                              </div>
-                              <div style={{ fontSize: '0.675rem', color: '#64748b' }}>
-                                {new Date(l.Timestamp).toLocaleTimeString()} IST
-                              </div>
-                            </td>
-                            <td>
-                              <strong style={{ color: '#0f172a' }}>{l.UserEmail}</strong>
-                            </td>
-                            <td>
-                              <span className="badge" style={{
-                                backgroundColor: l.Action === 'CREATE' ? '#dbeafe' : (l.Action === 'SOFT_DELETE' ? '#fee2e2' : (l.Action === 'RESTORE' ? '#f3e8ff' : '#eff6ff')),
-                                color: l.Action === 'CREATE' ? '#1e40af' : (l.Action === 'SOFT_DELETE' ? '#b91c1c' : (l.Action === 'RESTORE' ? '#7e22ce' : '#2563eb')),
-                                fontSize: '0.675rem',
-                                fontWeight: '700'
-                              }}>
-                                {l.Action}
-                              </span>
-                            </td>
-                            <td>
-                              <span className="badge badge-info" style={{ fontSize: '0.675rem' }}>
-                                {l.Module}
-                              </span>
-                            </td>
-                            <td>
-                              <strong style={{ color: '#2563eb', fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                                {l.RecordId || '—'}
-                              </strong>
-                            </td>
-                            <td>
-                              <span style={{ color: '#334155' }}>
-                                {l.Details}
-                              </span>
-                            </td>
-                          </tr>
-                        ))
-                    )}
-                  </tbody>
-                </table>
               </div>
             </div>
           </div>

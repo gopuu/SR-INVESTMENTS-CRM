@@ -8,13 +8,15 @@ import {
   ShieldCheck, 
   ArrowUpRight,
   PlusCircle,
-  Archive,
   DollarSign
 } from 'lucide-react';
 import { crmApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
 
 export default function Home({ onNavigate, onOpenBackup }) {
+  const { tenant, user } = useAuth();
+  const companyName = tenant?.CompanyName || tenant?.companyName || user?.companyName || 'SR Investments';
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -44,7 +46,7 @@ export default function Home({ onNavigate, onOpenBackup }) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <Header 
         title="Investment Overview & Dashboard" 
-        subtitle="SR INVESTMENTS — Mutual Fund Portfolio & Operations Summary"
+        subtitle={`${companyName} — Mutual Fund Portfolio & Operations Summary`}
         onRefresh={loadDashboard}
         refreshing={loading}
         onOpenBackup={onOpenBackup}
@@ -180,7 +182,7 @@ export default function Home({ onNavigate, onOpenBackup }) {
               Quick CRM Operations
             </h3>
             <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '2px 0 0 0' }}>
-              Manage investor accounts, review KYC status, or download complete Drive backups
+              Manage investor accounts, review KYC status, and register new portfolios
             </p>
           </div>
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -189,12 +191,6 @@ export default function Home({ onNavigate, onOpenBackup }) {
               onClick={() => onNavigate('customers')}
             >
               <PlusCircle size={16} /> Add Investor
-            </button>
-            <button 
-              className="btn btn-secondary"
-              onClick={onOpenBackup}
-            >
-              <Archive size={16} /> Drive Backup
             </button>
           </div>
         </div>
@@ -334,7 +330,7 @@ export default function Home({ onNavigate, onOpenBackup }) {
                 Recent Onboarded Investors
               </h3>
               <p style={{ fontSize: '0.775rem', color: '#64748b', margin: '2px 0 0 0' }}>
-                Latest mutual fund investor accounts added to SR INVESTMENTS
+                Latest mutual fund investor accounts added to {companyName}
               </p>
             </div>
             <button 

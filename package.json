@@ -7,6 +7,8 @@
     "dev": "npm run dev --prefix frontend",
     "build": "npm run build --prefix frontend",
     "push:gas": "clasp push",
+    "deploy:gas": "clasp deploy",
+    "deployments:gas": "clasp deployments",
     "pull:gas": "clasp pull",
     "login:gas": "clasp login"
   },

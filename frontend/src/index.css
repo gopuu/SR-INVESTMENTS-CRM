@@ -286,6 +286,7 @@ body {
   justify-content: center;
   z-index: 1000;
   padding: 1rem;
+  overscroll-behavior: contain;
 }
 
 .modal-content {
@@ -299,6 +300,7 @@ body {
   flex-direction: column;
   overflow: hidden;
   animation: modalEnter 0.2s ease-out;
+  overscroll-behavior: contain;
 }
 
 @keyframes modalEnter {
@@ -324,6 +326,7 @@ body {
   padding: 1.5rem;
   overflow-y: auto;
   flex: 1;
+  overscroll-behavior: contain;
 }
 
 .modal-footer {

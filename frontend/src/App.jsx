@@ -9,9 +9,12 @@ import Staff from './pages/Staff';
 import Settings from './pages/Settings';
 import UserProfile from './pages/UserProfile';
 import SipCalculator from './pages/SipCalculator';
+import MasterHub from './pages/MasterHub';
+import SuperAdminPortal from './pages/SuperAdminPortal';
+import SubscriptionPlans from './pages/SubscriptionPlans';
 
 export default function App() {
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   const [currentPage, setCurrentPage] = useState('home');
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
 
@@ -25,6 +28,13 @@ export default function App() {
     return () => window.removeEventListener('crm_navigate', handleCrmNavigate);
   }, []);
 
+  // Guard SuperAdmin portals
+  useEffect(() => {
+    if ((currentPage === 'superadmin' || currentPage === 'subscription-plans') && !isSuperAdmin) {
+      setCurrentPage('home');
+    }
+  }, [currentPage, isSuperAdmin]);
+
   if (!user) {
     return <Login />;
   }
@@ -37,17 +47,19 @@ export default function App() {
       <Sidebar 
         currentPage={currentPage} 
         onNavigate={setCurrentPage} 
-        onOpenBackup={openBackup}
       />
 
       {/* Main Dynamic Workspace */}
       <main className="main-content">
         {currentPage === 'home' && <Home onNavigate={setCurrentPage} onOpenBackup={openBackup} />}
-        {currentPage === 'customers' && <Customers />}
-        {currentPage === 'staff' && <Staff />}
-        {currentPage === 'sip' && <SipCalculator />}
+        {currentPage === 'customers' && <Customers onOpenBackup={openBackup} />}
+        {currentPage === 'staff' && <Staff onOpenBackup={openBackup} />}
+        {currentPage === 'masters' && <MasterHub onOpenBackup={openBackup} />}
+        {currentPage === 'sip' && <SipCalculator onOpenBackup={openBackup} />}
         {currentPage === 'settings' && <Settings onOpenBackup={openBackup} />}
-        {currentPage === 'profile' && <UserProfile />}
+        {currentPage === 'profile' && <UserProfile onOpenBackup={openBackup} />}
+        {currentPage === 'superadmin' && isSuperAdmin && <SuperAdminPortal onOpenBackup={openBackup} />}
+        {currentPage === 'subscription-plans' && isSuperAdmin && <SubscriptionPlans onOpenBackup={openBackup} />}
       </main>
 
       {/* Global Drive Backup ZIP Modal */}

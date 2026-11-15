@@ -8,7 +8,8 @@
  */
 
 function getEmployees_(filters) {
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES);
+  const tenantId = filters ? (filters.tenantId || filters.activeTenantId) : null;
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES, tenantId);
   let rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.EMPLOYEES);
 
   // Soft-delete filter: Exclude deleted records unless explicitly requested
@@ -24,6 +25,8 @@ function getEmployees_(filters) {
       (e.FullName && e.FullName.toLowerCase().includes(q)) ||
       (e.Email && e.Email.toLowerCase().includes(q)) ||
       (e.GoogleEmails && e.GoogleEmails.toLowerCase().includes(q)) ||
+      (e.Mobile && String(e.Mobile).toLowerCase().includes(q)) ||
+      (e.AlternateMobile && String(e.AlternateMobile).toLowerCase().includes(q)) ||
       (e.Department && e.Department.toLowerCase().includes(q)) ||
       (e.Designation && e.Designation.toLowerCase().includes(q))
     );
@@ -34,8 +37,11 @@ function getEmployees_(filters) {
 
 function saveEmployee_(data) {
   if (!data.FullName || !data.FullName.trim()) throw new Error("Staff Member Name is required.");
+  if (!data.Email || !data.Email.trim()) throw new Error("Primary Email is compulsory (required for inner join & authentication).");
+  if (!data.Mobile || !data.Mobile.trim()) throw new Error("Primary Mobile Number is compulsory.");
 
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES);
+  const tenantId = data ? (data.tenantId || data.activeTenantId) : null;
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES, tenantId);
   const now = new Date().toISOString();
   const userEmail = data.userEmail || "admin@srinvestments.com";
   const id = cleanStr_(data.EmployeeId) || createId_("EMP");
@@ -43,6 +49,66 @@ function saveEmployee_(data) {
 
   const existingIndex = rows.findIndex(r => r.EmployeeId === id);
   const existingRecord = existingIndex >= 0 ? rows[existingIndex] : null;
+
+  // 1. Gather all incoming emails (Primary + Google IDs / Alternate email list)
+  const incomingEmails = [];
+  const primaryEmailClean = cleanStr_(data.Email).toLowerCase();
+  if (primaryEmailClean) incomingEmails.push(primaryEmailClean);
+  if (data.GoogleEmails) {
+    cleanStr_(data.GoogleEmails).toLowerCase().split(",").forEach(s => {
+      const em = s.trim();
+      if (em && !incomingEmails.includes(em)) incomingEmails.push(em);
+    });
+  }
+
+  // 2. Gather all incoming mobiles (Primary + Alternate Mobile numbers)
+  const incomingMobiles = [];
+  const primaryMobileClean = cleanStr_(data.Mobile).replace(/[\s\-\(\)\+]/g, "");
+  if (primaryMobileClean) incomingMobiles.push(primaryMobileClean);
+  if (data.AlternateMobile) {
+    cleanStr_(data.AlternateMobile).split(",").forEach(s => {
+      const mob = s.trim().replace(/[\s\-\(\)\+]/g, "");
+      if (mob && !incomingMobiles.includes(mob)) incomingMobiles.push(mob);
+    });
+  }
+
+  // 3. Strict Duplicate Validation against existing staff records (Primary & Alternate)
+  rows.forEach((r, idx) => {
+    if (r.EmployeeId === id || (existingIndex >= 0 && idx === existingIndex)) return;
+    if (r.IsDeleted === true || r.IsDeleted === "TRUE" || r.IsDeleted === "true") return;
+
+    // Check emails
+    const existingRowEmails = [];
+    if (r.Email) existingRowEmails.push(cleanStr_(r.Email).toLowerCase());
+    if (r.GoogleEmails) {
+      cleanStr_(r.GoogleEmails).toLowerCase().split(",").forEach(s => {
+        const em = s.trim();
+        if (em && !existingRowEmails.includes(em)) existingRowEmails.push(em);
+      });
+    }
+
+    incomingEmails.forEach(incEmail => {
+      if (existingRowEmails.includes(incEmail)) {
+        throw new Error("Email '" + incEmail + "' already exists for staff member: " + (r.FullName || r.EmployeeCode || r.EmployeeId) + " (" + (r.EmployeeCode || "") + ").");
+      }
+    });
+
+    // Check mobiles
+    const existingRowMobiles = [];
+    if (r.Mobile) existingRowMobiles.push(cleanStr_(r.Mobile).replace(/[\s\-\(\)\+]/g, ""));
+    if (r.AlternateMobile) {
+      cleanStr_(r.AlternateMobile).split(",").forEach(s => {
+        const mob = s.trim().replace(/[\s\-\(\)\+]/g, "");
+        if (mob && !existingRowMobiles.includes(mob)) existingRowMobiles.push(mob);
+      });
+    }
+
+    incomingMobiles.forEach(incMob => {
+      if (existingRowMobiles.includes(incMob)) {
+        throw new Error("Mobile number '" + incMob + "' already exists for staff member: " + (r.FullName || r.EmployeeCode || r.EmployeeId) + " (" + (r.EmployeeCode || "") + ").");
+      }
+    });
+  });
 
   // Backend Autoincrement: If new staff, generate next SR-EMP sequence (scans all rows including archived)
   let code = "";
@@ -62,7 +128,8 @@ function saveEmployee_(data) {
       code + "_" + data.photoFileName,
       data.photoMimeType || "image/jpeg",
       data.photoBase64,
-      existingRecord ? existingRecord.DriveFileId : null // Automatically trashes previous photo
+      existingRecord ? existingRecord.DriveFileId : null, // Automatically trashes previous photo
+      tenantId
     );
     photoUrl = uploadRes.viewUrl;
     driveFileId = uploadRes.fileId;
@@ -77,38 +144,49 @@ function saveEmployee_(data) {
   const deletedBy = existingRecord ? (existingRecord.Deleted_By || "") : "";
   const deletedAt = existingRecord ? (existingRecord.Deleted_At || "") : "";
 
-  const rowValues = [
-    id,
-    code,
-    cleanStr_(data.FullName),
-    cleanStr_(data.Email),
-    cleanStr_(data.GoogleEmails), // Multiple Google IDs
-    cleanStr_(data.Mobile),
-    cleanStr_(data.Department || "Wealth Management"),
-    cleanStr_(data.Designation || "Relationship Manager"),
-    cleanStr_(data.Role || "Staff"),
-    cleanStr_(data.Password || "password123"),
-    cleanStr_(data.JoiningDate),
-    cleanStr_(data.Status || "Active"),
-    cleanStr_(data.Address),
-    cleanStr_(data.City),
-    cleanStr_(data.State),
-    photoUrl,
-    driveFileId,
-    isDeleted,
-    createdBy,
-    createdAt,
-    updatedBy,
-    updatedAt,
-    deletedBy,
-    deletedAt
-  ];
+  // Sanitize status to Active or Inactive
+  let status = cleanStr_(data.Status || "Active");
+  if (status !== "Active" && status !== "Inactive") {
+    status = "Active";
+  }
+
+  const recordObj = {
+    EmployeeId: id,
+    EmployeeCode: code,
+    FullName: cleanStr_(data.FullName),
+    Email: primaryEmailClean,
+    GoogleEmails: cleanStr_(data.GoogleEmails), // Multiple Google IDs
+    Mobile: cleanStr_(data.Mobile),
+    AlternateMobile: cleanStr_(data.AlternateMobile),
+    Department: cleanStr_(data.Department || "Wealth Management"),
+    Designation: cleanStr_(data.Designation || "Relationship Manager"),
+    Role: cleanStr_(data.Role || "Staff"),
+    Password: hashPasswordSHA256_(cleanStr_(data.Password || "password123")),
+    JoiningDate: cleanStr_(data.JoiningDate),
+    Status: status,
+    Address: cleanStr_(data.Address),
+    City: cleanStr_(data.City),
+    State: cleanStr_(data.State),
+    PhotoUrl: photoUrl,
+    DriveFileId: driveFileId,
+    IsDeleted: isDeleted,
+    Created_By: createdBy,
+    Created_At: createdAt,
+    Updated_By: updatedBy,
+    Updated_At: updatedAt,
+    Deleted_By: deletedBy,
+    Deleted_At: deletedAt
+  };
+
+  const rowIndex = existingIndex >= 0 ? existingIndex + 2 : 0;
+  writeRowByHeaders_(sheet, rowIndex, recordObj, CRM_SCHEMAS.EMPLOYEES);
+
+  // Automatic Dual Sync: Update Central User_Master & Tenant_User_Mapping seamlessly
+  syncEmployeeToUserMaster_(recordObj, tenantId, userEmail);
 
   if (existingIndex >= 0) {
-    sheet.getRange(existingIndex + 2, 1, 1, CRM_SCHEMAS.EMPLOYEES.length).setValues([rowValues]);
     logAudit_(userEmail, "UPDATE", "Staff", code, "Updated staff: " + code + " (" + data.FullName + ")");
   } else {
-    sheet.appendRow(rowValues);
     logAudit_(userEmail, "CREATE", "Staff", code, "Created staff: " + code + " (" + data.FullName + ")");
   }
 
@@ -128,7 +206,8 @@ function deleteEmployee_(payload) {
   const userEmail = (typeof payload === "object" && payload.userEmail) ? payload.userEmail : "admin@srinvestments.com";
   if (!employeeId) throw new Error("EmployeeId is required.");
 
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES);
+  const tenantId = (payload && typeof payload === "object") ? (payload.tenantId || payload.activeTenantId) : null;
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES, tenantId);
   const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.EMPLOYEES);
   const index = rows.findIndex(r => r.EmployeeId === employeeId);
   if (index === -1) throw new Error("Staff member not found.");
@@ -137,13 +216,16 @@ function deleteEmployee_(payload) {
   const now = new Date().toISOString();
   const rowNum = index + 2;
 
-  const colIsDeleted = CRM_SCHEMAS.EMPLOYEES.indexOf("IsDeleted") + 1;
-  const colDeletedBy = CRM_SCHEMAS.EMPLOYEES.indexOf("Deleted_By") + 1;
-  const colDeletedAt = CRM_SCHEMAS.EMPLOYEES.indexOf("Deleted_At") + 1;
+  const colIsDeleted = getHeaderColIndex_(sheet, "IsDeleted");
+  const colDeletedBy = getHeaderColIndex_(sheet, "Deleted_By");
+  const colDeletedAt = getHeaderColIndex_(sheet, "Deleted_At");
 
-  sheet.getRange(rowNum, colIsDeleted).setValue(true);
-  sheet.getRange(rowNum, colDeletedBy).setValue(userEmail);
-  sheet.getRange(rowNum, colDeletedAt).setValue(now);
+  if (colIsDeleted > 0) sheet.getRange(rowNum, colIsDeleted).setValue(true);
+  if (colDeletedBy > 0) sheet.getRange(rowNum, colDeletedBy).setValue(userEmail);
+  if (colDeletedAt > 0) sheet.getRange(rowNum, colDeletedAt).setValue(now);
+
+  // Sync deactivation to central Tenant_User_Mapping
+  syncEmployeeDeleteToUserMapping_(rec.Email, tenantId, userEmail);
 
   logAudit_(userEmail, "SOFT_DELETE", "Staff", rec.EmployeeCode || employeeId, 
     "Soft-deleted staff member: " + (rec.FullName || "") + " (" + (rec.EmployeeCode || employeeId) + ")");
@@ -159,7 +241,8 @@ function restoreEmployee_(payload) {
   const userEmail = (typeof payload === "object" && payload.userEmail) ? payload.userEmail : "admin@srinvestments.com";
   if (!employeeId) throw new Error("EmployeeId is required.");
 
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES);
+  const tenantId = (payload && typeof payload === "object") ? (payload.tenantId || payload.activeTenantId) : null;
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES, tenantId);
   const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.EMPLOYEES);
   const index = rows.findIndex(r => r.EmployeeId === employeeId);
   if (index === -1) throw new Error("Staff member not found.");
@@ -168,11 +251,17 @@ function restoreEmployee_(payload) {
   const now = new Date().toISOString();
   const rowNum = index + 2;
 
-  sheet.getRange(rowNum, CRM_SCHEMAS.EMPLOYEES.indexOf("IsDeleted") + 1).setValue(false);
-  sheet.getRange(rowNum, CRM_SCHEMAS.EMPLOYEES.indexOf("Updated_By") + 1).setValue(userEmail);
-  sheet.getRange(rowNum, CRM_SCHEMAS.EMPLOYEES.indexOf("Updated_At") + 1).setValue(now);
-  sheet.getRange(rowNum, CRM_SCHEMAS.EMPLOYEES.indexOf("Deleted_By") + 1).setValue("");
-  sheet.getRange(rowNum, CRM_SCHEMAS.EMPLOYEES.indexOf("Deleted_At") + 1).setValue("");
+  const colIsDeleted = getHeaderColIndex_(sheet, "IsDeleted");
+  const colUpdatedBy = getHeaderColIndex_(sheet, "Updated_By");
+  const colUpdatedAt = getHeaderColIndex_(sheet, "Updated_At");
+  const colDeletedBy = getHeaderColIndex_(sheet, "Deleted_By");
+  const colDeletedAt = getHeaderColIndex_(sheet, "Deleted_At");
+
+  if (colIsDeleted > 0) sheet.getRange(rowNum, colIsDeleted).setValue(false);
+  if (colUpdatedBy > 0) sheet.getRange(rowNum, colUpdatedBy).setValue(userEmail);
+  if (colUpdatedAt > 0) sheet.getRange(rowNum, colUpdatedAt).setValue(now);
+  if (colDeletedBy > 0) sheet.getRange(rowNum, colDeletedBy).setValue("");
+  if (colDeletedAt > 0) sheet.getRange(rowNum, colDeletedAt).setValue("");
 
   logAudit_(userEmail, "RESTORE", "Staff", rec.EmployeeCode || employeeId, 
     "Restored staff member: " + (rec.FullName || "") + " (" + (rec.EmployeeCode || employeeId) + ")");
@@ -197,4 +286,136 @@ function calculateNextEmployeeCode_(rows) {
   const nextNum = maxNum + 1;
   const padded = nextNum < 10 ? "0" + nextNum : String(nextNum);
   return "SR-EMP" + padded;
+}
+
+/**
+ * Dual-Sync: Keeps Central User_Master & Tenant_User_Mapping synchronized automatically
+ * with tenant Employees table during CREATE/UPDATE
+ */
+function syncEmployeeToUserMaster_(employeeObj, tenantId, userEmail) {
+  if (!employeeObj || !employeeObj.Email) return;
+  try {
+    const email = cleanStr_(employeeObj.Email).toLowerCase();
+    const fullName = cleanStr_(employeeObj.FullName);
+    const mobile = cleanStr_(employeeObj.Mobile);
+    const alternateMobile = cleanStr_(employeeObj.AlternateMobile);
+    const password = hashPasswordSHA256_(cleanStr_(employeeObj.Password || "password123"));
+    const googleEmails = cleanStr_(employeeObj.GoogleEmails);
+    const role = cleanStr_(employeeObj.Role || "Staff");
+    const status = cleanStr_(employeeObj.Status || "Active");
+    const now = new Date().toISOString();
+
+    // 1. Sync Central User_Master (Identity & Credentials)
+    const userSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USER_MASTER, CRM_SCHEMAS.USER_MASTER);
+    const userRows = getSheetRowsAsObjects_(userSheet, CRM_SCHEMAS.USER_MASTER);
+    const userIndex = userRows.findIndex(u => u.Email && u.Email.toLowerCase() === email);
+
+    let userId = "";
+    if (userIndex >= 0) {
+      userId = userRows[userIndex].UserId;
+      const updatedUser = {
+        FullName: fullName,
+        Mobile: mobile,
+        AlternateMobile: alternateMobile,
+        GoogleEmails: googleEmails,
+        Password: password,
+        Status: status,
+        Updated_By: userEmail,
+        Updated_At: now
+      };
+      writeRowByHeaders_(userSheet, userIndex + 2, updatedUser, CRM_SCHEMAS.USER_MASTER);
+    } else {
+      userId = "USR_" + String(userRows.length + 1).padStart(3, '0');
+      const newUser = {
+        UserId: userId,
+        Email: email,
+        GoogleEmails: googleEmails,
+        Password: password,
+        FullName: fullName,
+        Mobile: mobile,
+        AlternateMobile: alternateMobile,
+        IsSuperAdmin: false,
+        Status: status,
+        IsDeleted: false,
+        Created_By: userEmail,
+        Created_At: now,
+        Updated_By: userEmail,
+        Updated_At: now,
+        Deleted_By: "",
+        Deleted_At: ""
+      };
+      writeRowByHeaders_(userSheet, -1, newUser, CRM_SCHEMAS.USER_MASTER);
+    }
+
+    // 2. Sync Central Tenant_User_Mapping (Tenant Authorization)
+    if (tenantId) {
+      const mapSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_USER_MAPPING, CRM_SCHEMAS.TENANT_USER_MAPPING);
+      const mapRows = getSheetRowsAsObjects_(mapSheet, CRM_SCHEMAS.TENANT_USER_MAPPING);
+      const cleanTid = String(tenantId).trim().toUpperCase();
+      const mapIndex = mapRows.findIndex(m => 
+        String(m.TenantId).trim().toUpperCase() === cleanTid &&
+        (m.UserId === userId || (m.UserId && m.UserId.toLowerCase() === email))
+      );
+
+      if (mapIndex >= 0) {
+        const updatedMap = {
+          Role: role,
+          Status: status,
+          IsDeleted: employeeObj.IsDeleted === true,
+          Updated_By: userEmail,
+          Updated_At: now
+        };
+        writeRowByHeaders_(mapSheet, mapIndex + 2, updatedMap, CRM_SCHEMAS.TENANT_USER_MAPPING);
+      } else {
+        const newMap = {
+          MappingId: "MAP_" + String(mapRows.length + 1).padStart(3, '0'),
+          UserId: userId,
+          TenantId: cleanTid,
+          Role: role,
+          Status: status,
+          IsDeleted: false,
+          Created_By: userEmail,
+          Created_At: now,
+          Updated_By: userEmail,
+          Updated_At: now,
+          Deleted_By: "",
+          Deleted_At: ""
+        };
+        writeRowByHeaders_(mapSheet, -1, newMap, CRM_SCHEMAS.TENANT_USER_MAPPING);
+      }
+    }
+  } catch (err) {
+    Logger.log("syncEmployeeToUserMaster_ warning: " + err.message);
+  }
+}
+
+/**
+ * Dual-Sync: Deactivates access in Central Tenant_User_Mapping when soft-deleted in tenant Employees
+ */
+function syncEmployeeDeleteToUserMapping_(email, tenantId, userEmail) {
+  if (!email || !tenantId) return;
+  try {
+    const mapSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_USER_MAPPING, CRM_SCHEMAS.TENANT_USER_MAPPING);
+    const mapRows = getSheetRowsAsObjects_(mapSheet, CRM_SCHEMAS.TENANT_USER_MAPPING);
+    const cleanMail = String(email).trim().toLowerCase();
+    const cleanTid = String(tenantId).trim().toUpperCase();
+    const mapIndex = mapRows.findIndex(m =>
+      String(m.TenantId).trim().toUpperCase() === cleanTid &&
+      String(m.UserId).trim().toLowerCase() === cleanMail
+    );
+    if (mapIndex >= 0) {
+      const now = new Date().toISOString();
+      const rowNum = mapIndex + 2;
+      const colStatus = getHeaderColIndex_(mapSheet, "Status");
+      const colIsDeleted = getHeaderColIndex_(mapSheet, "IsDeleted");
+      const colDeletedBy = getHeaderColIndex_(mapSheet, "Deleted_By");
+      const colDeletedAt = getHeaderColIndex_(mapSheet, "Deleted_At");
+      if (colStatus > 0) mapSheet.getRange(rowNum, colStatus).setValue("Inactive");
+      if (colIsDeleted > 0) mapSheet.getRange(rowNum, colIsDeleted).setValue(true);
+      if (colDeletedBy > 0) mapSheet.getRange(rowNum, colDeletedBy).setValue(userEmail);
+      if (colDeletedAt > 0) mapSheet.getRange(rowNum, colDeletedAt).setValue(now);
+    }
+  } catch (err) {
+    Logger.log("syncEmployeeDeleteToUserMapping_ warning: " + err.message);
+  }
 }

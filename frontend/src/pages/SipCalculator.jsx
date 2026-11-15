@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import Header from '../components/Header';
 
-export default function SipCalculator() {
+export default function SipCalculator({ onOpenBackup }) {
   const [sipAmount, setSipAmount] = useState(10000);
   const [returnRate, setReturnRate] = useState(13);
   const [years, setYears] = useState(10);
@@ -75,6 +75,7 @@ export default function SipCalculator() {
       <Header 
         title="Mutual Fund SIP & Wealth Calculator" 
         subtitle="Simulate Systematic Investment Plans (SIP), compound growth & Step-up projections for investors"
+        onOpenBackup={onOpenBackup}
       />
 
       <div className="page-wrapper">
