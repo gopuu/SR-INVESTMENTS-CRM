@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { crmApi } from '../services/api';
+import { showError, showSuccess } from '../utils/swal';
 
 function parseJwt(token) {
   try {
@@ -207,7 +208,9 @@ export default function Login() {
         setMultiTenantData(res);
       }
     } catch (err) {
-      setError(err.message || 'Login failed. Please verify credentials.');
+      const msg = err.message || 'Login failed. Please verify credentials.';
+      setError(msg);
+      showError(msg);
     } finally {
       setLoading(false);
     }
@@ -224,7 +227,9 @@ export default function Login() {
         setMultiTenantData(res);
       }
     } catch (err) {
-      setError(err.message || 'Google authentication failed.');
+      const msg = err.message || 'Google authentication failed.';
+      setError(msg);
+      showError(msg);
     } finally {
       setLoading(false);
     }
@@ -327,7 +332,9 @@ export default function Login() {
     try {
       await selectWorkspace(ws, multiTenantData);
     } catch (err) {
-      setError(err.message || 'Failed to open workspace.');
+      const msg = err.message || 'Failed to open workspace.';
+      setError(msg);
+      showError(msg);
     } finally {
       setLoading(false);
     }

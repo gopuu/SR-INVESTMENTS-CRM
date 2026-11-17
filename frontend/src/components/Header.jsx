@@ -199,151 +199,6 @@ export default function Header({ title, subtitle, onRefresh, refreshing, onOpenB
           </button>
         )}
 
-        {/* Active Organization / Workspace Pill (with Switcher if multiple) */}
-        {tenant && (
-          <div style={{ position: 'relative' }} ref={tenantMenuRef}>
-            <button
-              onClick={() => {
-                if (workspaces && workspaces.length > 1) {
-                  setShowTenantMenu(prev => !prev);
-                }
-              }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                padding: '0.3rem 0.75rem',
-                borderRadius: '9999px',
-                fontSize: '0.75rem',
-                fontWeight: '700',
-                backgroundColor: '#ffffff',
-                color: '#0f172a',
-                border: '1px solid #cbd5e1',
-                cursor: workspaces && workspaces.length > 1 ? 'pointer' : 'default',
-                transition: 'all 0.15s ease',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-              }}
-              title={workspaces && workspaces.length > 1 ? "Click to switch active organization" : "Active Organization Workspace"}
-            >
-              <Building2 size={13} color="#2563eb" />
-              <span style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {tenant.CompanyName || tenant.companyName || tenant.tenantId || 'SR Investments'}
-              </span>
-              <span style={{
-                fontSize: '0.65rem',
-                backgroundColor: '#eff6ff',
-                color: '#1d4ed8',
-                padding: '1px 5px',
-                borderRadius: '4px',
-                border: '1px solid #bfdbfe'
-              }}>
-                {tenant.role || user?.role || 'Staff'}
-              </span>
-              {workspaces && workspaces.length > 1 && (
-                <ChevronDown 
-                  size={12} 
-                  color="#64748b" 
-                  style={{ 
-                    transform: showTenantMenu ? 'rotate(180deg)' : 'none', 
-                    transition: 'transform 0.2s ease' 
-                  }} 
-                />
-              )}
-            </button>
-
-            {/* Tenant switcher dropdown */}
-            {showTenantMenu && workspaces && workspaces.length > 1 && (
-              <div style={{
-                position: 'absolute',
-                top: '38px',
-                right: 0,
-                width: '280px',
-                backgroundColor: '#ffffff',
-                borderRadius: '12px',
-                boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.15)',
-                border: '1px solid #e2e8f0',
-                overflow: 'hidden',
-                zIndex: 1000,
-                animation: 'fadeIn 0.15s ease'
-              }}>
-                <div style={{
-                  padding: '0.65rem 0.85rem',
-                  backgroundColor: '#f8fafc',
-                  borderBottom: '1px solid #e2e8f0',
-                  fontSize: '0.725rem',
-                  fontWeight: '700',
-                  color: '#64748b',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em'
-                }}>
-                  Switch Organization
-                </div>
-                <div style={{ padding: '0.4rem', maxHeight: '240px', overflowY: 'auto' }}>
-                  {workspaces.map((ws) => {
-                    const isSelected = ws.tenantId === tenant.tenantId;
-                    return (
-                      <button
-                        key={ws.tenantId}
-                        onClick={() => {
-                          setShowTenantMenu(false);
-                          if (!isSelected) switchWorkspace(ws.tenantId);
-                        }}
-                        style={{
-                          width: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.65rem',
-                          padding: '0.55rem 0.75rem',
-                          borderRadius: '8px',
-                          border: 'none',
-                          backgroundColor: isSelected ? '#eff6ff' : 'transparent',
-                          color: '#0f172a',
-                          fontSize: '0.825rem',
-                          fontWeight: isSelected ? '700' : '500',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          transition: 'background-color 0.15s ease'
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!isSelected) e.currentTarget.style.backgroundColor = '#f8fafc';
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
-                        }}
-                      >
-                        <div style={{
-                          width: '30px',
-                          height: '30px',
-                          borderRadius: '6px',
-                          backgroundColor: isSelected ? '#2563eb' : '#e2e8f0',
-                          color: isSelected ? '#ffffff' : '#475569',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: '800',
-                          fontSize: '0.85rem',
-                          flexShrink: 0
-                        }}>
-                          {(ws.companyName || ws.tenantId || 'T').charAt(0).toUpperCase()}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: '700' }}>
-                            {ws.companyName || ws.tenantId}
-                          </div>
-                          <div style={{ fontSize: '0.675rem', color: '#64748b' }}>
-                            {ws.role} • {ws.tenantId}
-                          </div>
-                        </div>
-                        {isSelected && <CheckCircle2 size={16} color="#2563eb" style={{ flexShrink: 0 }} />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Operating Mode badge */}
         <span style={{
           display: 'inline-flex',
@@ -706,9 +561,50 @@ export default function Header({ title, subtitle, onRefresh, refreshing, onOpenB
                   }}>
                     <Building2 size={12} color="#2563eb" />
                     <span style={{ fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {tenant.CompanyName || tenant.tenantId}
+                      {tenant.CompanyName || tenant.companyName || tenant.tenantId || 'SR Investments'}
                     </span>
                     <span style={{ fontSize: '0.65rem', color: '#64748b' }}>({tenant.tenantId})</span>
+                  </div>
+                )}
+                {workspaces && workspaces.length > 1 && (
+                  <div style={{ marginTop: '0.5rem', paddingTop: '0.45rem', borderTop: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: '0.675rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>
+                      Switch Organization ({workspaces.length})
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', maxHeight: '160px', overflowY: 'auto' }}>
+                      {workspaces.map(ws => {
+                        const isSelected = ws.tenantId === (tenant?.tenantId || tenant?.TenantId);
+                        return (
+                          <button
+                            key={ws.tenantId}
+                            onClick={() => {
+                              setShowProfileMenu(false);
+                              if (!isSelected) switchWorkspace(ws.tenantId);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '0.4rem',
+                              padding: '0.4rem 0.5rem',
+                              borderRadius: '6px',
+                              border: isSelected ? '1px solid #bfdbfe' : '1px solid transparent',
+                              backgroundColor: isSelected ? '#eff6ff' : 'transparent',
+                              color: isSelected ? '#1d4ed8' : '#334155',
+                              fontSize: '0.75rem',
+                              fontWeight: isSelected ? '700' : '500',
+                              cursor: 'pointer',
+                              textAlign: 'left'
+                            }}
+                          >
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {ws.companyName || ws.tenantId}
+                            </span>
+                            {isSelected && <CheckCircle2 size={13} color="#2563eb" style={{ flexShrink: 0 }} />}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>

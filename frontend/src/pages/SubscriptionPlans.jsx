@@ -23,6 +23,7 @@ import { crmApi, subscribeCrmEvents } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
 import Modal from '../components/Modal';
+import { showSuccess, showError, showWarning, showConfirm } from '../utils/swal';
 
 const PRESET_FEATURES = [
   'Core CRM & KYC Management',
@@ -160,7 +161,7 @@ export default function SubscriptionPlans({ onOpenBackup }) {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!formData.PlanName.trim()) {
-      alert('Plan Name is required.');
+      showWarning('Plan Name is required.');
       return;
     }
     try {
@@ -175,21 +176,27 @@ export default function SubscriptionPlans({ onOpenBackup }) {
       });
       setIsModalOpen(false);
       loadPlans();
+      showSuccess(`Subscription plan "${formData.PlanName}" saved successfully!`);
     } catch (err) {
-      alert(err.message || 'Failed to save subscription plan.');
+      showError(err.message || 'Failed to save subscription plan.');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (plan) => {
-    if (!window.confirm(`Are you sure you want to delete the plan "${plan.PlanName}"?`)) return;
+    const confirmed = await showConfirm(
+      'Delete Plan?',
+      `Are you sure you want to deactivate and delete subscription plan "${plan.PlanName}"?`
+    );
+    if (!confirmed) return;
     try {
       setSaving(true);
       await crmApi.deleteSubscriptionPlan(plan.PlanId);
       loadPlans();
+      showSuccess(`Plan "${plan.PlanName}" deleted.`);
     } catch (err) {
-      alert(err.message || 'Failed to delete plan.');
+      showError(err.message || 'Failed to delete plan.');
     } finally {
       setSaving(false);
     }
@@ -204,8 +211,9 @@ export default function SubscriptionPlans({ onOpenBackup }) {
         Status: newStatus
       });
       loadPlans();
+      showSuccess(`Plan "${plan.PlanName}" is now ${newStatus}.`);
     } catch (err) {
-      alert(err.message || 'Failed to update status.');
+      showError(err.message || 'Failed to update status.');
     } finally {
       setSaving(false);
     }
@@ -237,8 +245,8 @@ export default function SubscriptionPlans({ onOpenBackup }) {
   return (
     <div>
       <Header
-        title="Subscription Plans Master (SaaS Tiers)"
-        subtitle="Manage client subscription tiers, pricing quotas, staff limits, and included SaaS capabilities."
+        title="Subscription Plans"
+        subtitle="Manage pricing tiers, quotas & staff limits"
         onOpenBackup={onOpenBackup}
         actions={
           <div style={{ display: 'flex', gap: '0.65rem' }}>
@@ -462,7 +470,7 @@ export default function SubscriptionPlans({ onOpenBackup }) {
 
         {/* VIEW MODE 1: CARDS GRID (MATCHING THE USER'S ATTACHED IMAGE) */}
         {!loading && viewMode === 'cards' && filteredPlans.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.25rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.5rem', paddingTop: '0.85rem' }}>
             {filteredPlans.map((plan) => {
               const featuresList = (plan.Features || '').split(',').map(f => f.trim()).filter(Boolean);
               const isPopular = Boolean(plan.IsPopular);
@@ -475,6 +483,8 @@ export default function SubscriptionPlans({ onOpenBackup }) {
                   className="crm-card"
                   style={{
                     position: 'relative',
+                    overflow: 'visible',
+                    zIndex: isPopular ? 2 : 1,
                     border: isPopular ? `2px solid ${cardColor}` : '1px solid #e2e8f0',
                     display: 'flex',
                     flexDirection: 'column',
@@ -487,19 +497,24 @@ export default function SubscriptionPlans({ onOpenBackup }) {
                   {isPopular && (
                     <div style={{
                       position: 'absolute',
-                      top: '-11px',
-                      right: '16px',
+                      top: '-12px',
+                      right: '20px',
                       backgroundColor: cardColor,
                       color: '#ffffff',
-                      fontSize: '0.65rem',
+                      fontSize: '0.7rem',
                       fontWeight: '800',
-                      padding: '2px 9px',
+                      padding: '3px 12px',
                       borderRadius: '9999px',
-                      letterSpacing: '0.05em',
+                      letterSpacing: '0.06em',
                       textTransform: 'uppercase',
-                      boxShadow: '0 2px 6px rgba(37, 99, 235, 0.35)'
+                      boxShadow: '0 4px 10px rgba(37, 99, 235, 0.4)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      zIndex: 10
                     }}>
-                      {plan.Badge || 'POPULAR'}
+                      <Sparkles size={11} color="#ffffff" />
+                      <span>{plan.Badge || 'POPULAR'}</span>
                     </div>
                   )}
 

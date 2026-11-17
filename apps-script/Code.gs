@@ -187,28 +187,47 @@ function handleAction_(action, payload) {
       return selectTenant_(payload);
 
     case "getTenants":
+      verifyIsSuperAdmin_(payload);
       return getTenants_(payload);
 
     case "saveTenant":
+      verifyIsSuperAdmin_(payload);
       return saveTenant_(payload);
 
     case "deleteTenant":
+      verifyIsSuperAdmin_(payload);
       return deleteTenant_(payload);
 
     case "getTenantLicenses":
+      verifyIsSuperAdmin_(payload);
       return getTenantLicenses_(payload);
 
     case "saveTenantLicense":
+      verifyIsSuperAdmin_(payload);
       return saveTenantLicense_(payload);
+
+    case "activateTenantLicense":
+      verifyIsSuperAdmin_(payload);
+      return activateTenantLicense_(payload);
+
+    // Payment Receiving Accounts Master (Central DB)
+    case "getPaymentAccounts":
+      return getPaymentAccounts_(payload);
+
+    case "modifyTenantLicensingColumns":
+      return modifyTenantLicensingColumns_();
 
     // Subscription Plans Master (SaaS Tiers & Quotas)
     case "getSubscriptionPlans":
+      verifyIsSuperAdmin_(payload);
       return getSubscriptionPlans_(payload);
 
     case "saveSubscriptionPlan":
+      verifyIsSuperAdmin_(payload);
       return saveSubscriptionPlan_(payload);
 
     case "deleteSubscriptionPlan":
+      verifyIsSuperAdmin_(payload);
       return deleteSubscriptionPlan_(payload);
 
     case "getUserDocuments":
@@ -349,17 +368,59 @@ function handleAction_(action, payload) {
  */
 function onOpen() {
   try {
+    // Automatically ensure Payment_Accounts tab exists on spreadsheet open
+    ensurePaymentAccountsSheet_();
+  } catch (e) {
+    Logger.log("Payment_Accounts check onOpen: " + e.message);
+  }
+
+  try {
     SpreadsheetApp.getUi()
       .createMenu("🚀 SaaS CRM Tools")
       .addItem("1. Setup Central SaaS Database (Masters Only)", "setupCentralDatabaseMenu_")
       .addItem("2. Setup Default-Config in Central DB", "setupDefaultConfigMenu_")
       .addItem("3. Setup _CRM_DATABASE_TEMPLATE (Operational Sheets)", "setupTemplateDatabaseMenu_")
       .addSeparator()
+      .addItem("💳 Add / Verify Payment_Accounts Tab", "setupPaymentAccountsMenu_")
+      .addItem("📋 Modify Tenant Licensing Columns (Payment Fields)", "modifyTenantLicensingColumnsMenu_")
       .addItem("🧹 Clean Accidental Sheets from Central DB", "cleanCentralDatabaseMenu_")
       .addToUi();
   } catch (e) {
     Logger.log("onOpen UI skipped (standalone execution): " + e.message);
   }
+}
+
+function setupPaymentAccountsMenu_() {
+  const ui = SpreadsheetApp.getUi();
+  const sheet = ensurePaymentAccountsSheet_();
+  ui.alert(
+    "Payment_Accounts Verified",
+    "Tab 'Payment_Accounts' is active with " + (sheet.getLastRow() - 1) + " accounts.\nHeaders and schemas verified in Central_SaaS_Master_DB.",
+    ui.ButtonSet.OK
+  );
+}
+
+function modifyTenantLicensingColumnsMenu_() {
+  const ui = SpreadsheetApp.getUi();
+  const res = modifyTenantLicensingColumns_();
+  ui.alert(
+    "Tenant Licensing Columns Updated",
+    res.message + "\n\nTotal Columns: " + res.columns.length + "\nRows: " + res.rowCount,
+    ui.ButtonSet.OK
+  );
+}
+
+/**
+ * Standalone runner to add 'Payment_Accounts' tab if not exists
+ */
+function addPaymentAccountsTab() {
+  const sheet = ensurePaymentAccountsSheet_();
+  return {
+    success: true,
+    message: "Payment_Accounts tab verified with " + (sheet.getLastRow() - 1) + " accounts.",
+    sheetName: sheet.getName(),
+    rows: sheet.getLastRow()
+  };
 }
 
 function setupDefaultConfigMenu_() {

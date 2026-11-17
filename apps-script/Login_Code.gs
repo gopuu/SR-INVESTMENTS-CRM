@@ -19,10 +19,10 @@ function resolveTenantMemberships_(userId, userEmail) {
     const cleanMail = String(userEmail || "").trim().toLowerCase();
 
     const userMappings = mappings.filter(m => 
-      !m.IsDeleted &&
-      String(m.Status).toLowerCase() === "active" &&
-      (String(m.UserId).trim().toLowerCase() === cleanUid ||
-       String(m.UserId).trim().toLowerCase() === cleanMail)
+      (!m.IsDeleted || String(m.IsDeleted).toLowerCase() !== "true") &&
+      String(m.Status || "Active").toLowerCase() === "active" &&
+      (String(m.UserId || "").trim().toLowerCase() === cleanUid ||
+       String(m.UserId || "").trim().toLowerCase() === cleanMail)
     );
 
     const tenantSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
@@ -31,19 +31,20 @@ function resolveTenantMemberships_(userId, userEmail) {
     const activeWorkspaces = [];
     userMappings.forEach(m => {
       const t = tenants.find(x => 
-        String(x.TenantId).trim().toUpperCase() === String(m.TenantId).trim().toUpperCase() && 
-        !x.IsDeleted
+        String(x.TenantId || "").trim().toUpperCase() === String(m.TenantId || "").trim().toUpperCase() && 
+        (!x.IsDeleted || String(x.IsDeleted).toLowerCase() !== "true")
       );
-      if (t) {
-        const cName = getTenantCompanyName_(t.TenantId, t.CompanyName);
-        activeWorkspaces.push({
-          tenantId: t.TenantId,
-          companyName: cName,
-          arnNumber: t.ArnNumber || "",
-          role: m.Role || "Staff",
-          status: t.Status
-        });
-      }
+      // Fetch company name from Tenant_Master. If no data exists, fallback to default "SR Investments"
+      const cName = (t && String(t.CompanyName || "").trim()) || "SR Investments";
+      const tId = (t && t.TenantId) || m.TenantId || "TEN001";
+      activeWorkspaces.push({
+        tenantId: tId,
+        companyName: cName,
+        CompanyName: cName,
+        arnNumber: (t && t.ArnNumber) || "",
+        role: m.Role || "Staff",
+        status: (t && t.Status) || "Active"
+      });
     });
 
     return activeWorkspaces;
@@ -71,6 +72,66 @@ function getTenantCompanyName_(tenantId, fallbackName) {
     Logger.log("getTenantCompanyName_ notice: " + e.message);
   }
   return fallbackName || "SR Investments";
+}
+
+/**
+ * Verifies if a tenant's subscription license is active and not expired.
+ * SuperAdmin is exempt so they can access Tenant Master to renew.
+ */
+function checkTenantLicenseActive_(tenantId, isSuperAdmin) {
+  if (isSuperAdmin) {
+    return { valid: true };
+  }
+  if (!tenantId) return { valid: true };
+
+  try {
+    const licSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_LICENSES, CRM_SCHEMAS.TENANT_LICENSES);
+    const licenses = evaluateAndSyncTenantLicenses_(licSheet, tenantId);
+    const tenantLicenses = licenses.filter(l => 
+      String(l.TenantId || "").trim().toUpperCase() === String(tenantId).trim().toUpperCase() &&
+      (!l.IsDeleted || String(l.IsDeleted).toLowerCase() !== "true")
+    );
+
+    if (tenantLicenses.length === 0) {
+      return { valid: true };
+    }
+
+    // Active license is the one with IsActive=true or Status='Active'
+    const activeLic = tenantLicenses.find(l => Boolean(l.IsActive) || String(l.Status).toLowerCase() === "active");
+
+    if (!activeLic) {
+      return { 
+        valid: false, 
+        error: "Subscription Expired: No active subscription found for your organization (" + tenantId + "). Please contact your administrator or renew your license." 
+      };
+    }
+
+    const licStatus = String(activeLic.Status || "").trim().toLowerCase();
+    if (licStatus === "expired" || licStatus === "suspended" || licStatus === "cancelled") {
+      return { 
+        valid: false, 
+        error: "License Expired: Your organization's CRM subscription is currently " + (activeLic.Status || "Expired") + ". Please contact your CRM Administrator or Super Admin to renew." 
+      };
+    }
+
+    if (activeLic.EndDate) {
+      const expDate = new Date(activeLic.EndDate);
+      // End of expiry day (23:59:59)
+      const endOfDayExp = new Date(expDate.getFullYear(), expDate.getMonth(), expDate.getDate(), 23, 59, 59, 999);
+      const now = new Date();
+      if (!isNaN(endOfDayExp.getTime()) && now.getTime() > endOfDayExp.getTime()) {
+        const formattedDate = expDate.toISOString().slice(0, 10);
+        return { 
+          valid: false, 
+          error: "License Expired: Your organization's CRM subscription expired on " + formattedDate + ". Please contact your CRM Administrator or Super Admin to renew." 
+        };
+      }
+    }
+  } catch (err) {
+    Logger.log("checkTenantLicenseActive_ warning: " + err.message);
+  }
+
+  return { valid: true };
 }
 
 function loginUser_(username, password) {
@@ -131,14 +192,25 @@ function loginUser_(username, password) {
     }
 
     // Single tenant or SuperAdmin direct access
-    const primaryTenant = workspaces[0] || {
-      tenantId: "TEN001",
-      companyName: "SR Investments",
-      role: isSuperAdmin ? "Admin" : "Staff"
-    };
-    const resolvedCompName = getTenantCompanyName_(primaryTenant.tenantId, primaryTenant.companyName);
-    primaryTenant.companyName = resolvedCompName;
-    primaryTenant.CompanyName = resolvedCompName;
+    let primaryTenant = workspaces[0];
+    if (!primaryTenant) {
+      const tenantSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+      const tenants = getSheetRowsAsObjects_(tenantSheet, CRM_SCHEMAS.TENANT_MASTER);
+      const firstTenant = tenants.find(t => !t.IsDeleted && String(t.IsDeleted).toLowerCase() !== "true");
+      const defaultName = (firstTenant && String(firstTenant.CompanyName || "").trim()) || "SR Investments";
+      const defaultId = (firstTenant && String(firstTenant.TenantId || "").trim()) || "TEN001";
+      primaryTenant = {
+        tenantId: defaultId,
+        companyName: defaultName,
+        CompanyName: defaultName,
+        role: isSuperAdmin ? "Admin" : "Staff"
+      };
+    }
+
+    const licCheck = checkTenantLicenseActive_(primaryTenant.tenantId, isSuperAdmin);
+    if (!licCheck.valid) {
+      throw new Error(licCheck.error);
+    }
 
     return {
       user: {
@@ -204,6 +276,11 @@ function loginUser_(username, password) {
       role: "Admin"
     };
 
+    const licCheck = checkTenantLicenseActive_(primaryTenant.tenantId, isSuperAdmin);
+    if (!licCheck.valid) {
+      throw new Error(licCheck.error);
+    }
+
     return {
       user: {
         userId: adminUser.UserId,
@@ -266,6 +343,11 @@ function loginUser_(username, password) {
     companyName: "SR Investments",
     role: staff.Role || "Staff"
   };
+
+  const licCheck = checkTenantLicenseActive_(primaryTenant.tenantId, false);
+  if (!licCheck.valid) {
+    throw new Error(licCheck.error);
+  }
 
   return {
     user: {
@@ -398,14 +480,25 @@ function googleLogin_(googleEmail, googleName) {
     };
   }
 
-  const primaryTenant = workspaces[0] || {
-    tenantId: "TEN001",
-    companyName: "SR Investments",
-    role: userRole || (isSuperAdmin ? "Admin" : "Staff")
-  };
-  const resolvedGoogleCompName = getTenantCompanyName_(primaryTenant.tenantId, primaryTenant.companyName);
-  primaryTenant.companyName = resolvedGoogleCompName;
-  primaryTenant.CompanyName = resolvedGoogleCompName;
+  let primaryTenant = workspaces[0];
+  if (!primaryTenant) {
+    const tenantSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+    const tenants = getSheetRowsAsObjects_(tenantSheet, CRM_SCHEMAS.TENANT_MASTER);
+    const firstTenant = tenants.find(t => !t.IsDeleted && String(t.IsDeleted).toLowerCase() !== "true");
+    const defaultName = (firstTenant && String(firstTenant.CompanyName || "").trim()) || "SR Investments";
+    const defaultId = (firstTenant && String(firstTenant.TenantId || "").trim()) || "TEN001";
+    primaryTenant = {
+      tenantId: defaultId,
+      companyName: defaultName,
+      CompanyName: defaultName,
+      role: userRole || (isSuperAdmin ? "Admin" : "Staff")
+    };
+  }
+
+  const licCheck = checkTenantLicenseActive_(primaryTenant.tenantId, isSuperAdmin);
+  if (!licCheck.valid) {
+    throw new Error(licCheck.error);
+  }
 
   logAudit_(cleanEmail, "GOOGLE_LOGIN_SUCCESS", "Auth", "Google Sign-In successful for user " + userId + " (" + cleanEmail + ")");
 
@@ -442,14 +535,18 @@ function selectTenant_(payload) {
 
   const tenantSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
   const tenants = getSheetRowsAsObjects_(tenantSheet, CRM_SCHEMAS.TENANT_MASTER);
-  const tenant = tenants.find(t => String(t.TenantId).trim().toUpperCase() === tenantId.toUpperCase() && !t.IsDeleted);
-
-  if (!tenant) throw new Error("Organization workspace not found or inactive.");
+  const tenant = tenants.find(t => String(t.TenantId || "").trim().toUpperCase() === tenantId.toUpperCase() && (!t.IsDeleted || String(t.IsDeleted).toLowerCase() !== "true"));
 
   const allWorkspaces = resolveTenantMemberships_(userId, userEmail);
   const targetWorkspace = allWorkspaces.find(w => String(w.tenantId).toUpperCase() === tenantId.toUpperCase());
   const role = targetWorkspace ? targetWorkspace.role : (payload.role || "Staff");
-  const resolvedCompName = getTenantCompanyName_(tenant.TenantId, tenant.CompanyName);
+  const resolvedCompName = (tenant && String(tenant.CompanyName || "").trim()) || (targetWorkspace && targetWorkspace.companyName) || "SR Investments";
+
+  const isSuperAdmin = Boolean(payload.isSuperAdmin);
+  const licCheck = checkTenantLicenseActive_(tenantId, isSuperAdmin);
+  if (!licCheck.valid) {
+    throw new Error(licCheck.error);
+  }
 
   return {
     user: {

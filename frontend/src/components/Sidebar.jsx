@@ -26,18 +26,75 @@ export default function Sidebar({ currentPage, onNavigate }) {
     return words.length >= 2 ? (words[0][0] + words[1][0]).toUpperCase() : (words[0]?.slice(0, 2).toUpperCase() || 'SR');
   })();
 
-  const navItems = [
+  const moduleNavItems = [
     { id: 'home', label: 'Home (Dashboard)', icon: LayoutDashboard, module: 'Dashboard' },
     { id: 'customers', label: 'Customers', icon: Users, module: 'Customers' },
     { id: 'staff', label: 'Staff (Employees)', icon: UserCheck, module: 'Staff' },
     { id: 'masters', label: 'Master HUB', icon: Boxes, module: null },
     { id: 'sip', label: 'SIP Calculator', icon: Calculator, module: null },
-    { id: 'settings', label: 'Settings', icon: Settings, module: 'Settings' },
-    ...(isSuperAdmin ? [
-      { id: 'superadmin', label: 'Tenant Master (SaaS)', icon: Building2, module: null },
-      { id: 'subscription-plans', label: 'Subscription Plans', icon: CreditCard, module: null }
-    ] : [])
+    { id: 'settings', label: 'Settings', icon: Settings, module: 'Settings' }
   ];
+
+  const superAdminNavItems = [
+    { id: 'superadmin', label: 'Tenant Master', icon: Building2, module: null },
+    { id: 'subscription-plans', label: 'Subscription Plans', icon: CreditCard, module: null }
+  ];
+
+  const renderNavItem = (item) => {
+    if (item.module && !hasPermission(item.module, 'CanView')) return null;
+    const isActive = currentPage === item.id;
+    const Icon = item.icon;
+
+    return (
+      <button
+        key={item.id}
+        onClick={() => onNavigate(item.id)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: '100%',
+          padding: '0.65rem 0.85rem',
+          borderRadius: '8px',
+          border: 'none',
+          backgroundColor: isActive ? '#2563eb' : 'transparent',
+          color: isActive ? '#ffffff' : '#94a3b8',
+          fontWeight: isActive ? '600' : '500',
+          fontSize: '0.85rem',
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
+          textAlign: 'left'
+        }}
+        onMouseEnter={(e) => {
+          if (!isActive) e.currentTarget.style.backgroundColor = '#1e293b';
+          if (!isActive) e.currentTarget.style.color = '#ffffff';
+        }}
+        onMouseLeave={(e) => {
+          if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
+          if (!isActive) e.currentTarget.style.color = '#94a3b8';
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <Icon size={18} color={isActive ? '#ffffff' : '#94a3b8'} />
+          <span>{item.label}</span>
+          {item.badge && (
+            <span style={{
+              backgroundColor: '#f59e0b',
+              color: '#0f172a',
+              fontSize: '0.625rem',
+              padding: '1px 6px',
+              borderRadius: '4px',
+              fontWeight: '800',
+              letterSpacing: '0.04em'
+            }}>
+              {item.badge}
+            </span>
+          )}
+        </div>
+        {isActive && <ChevronRight size={14} color="#ffffff" />}
+      </button>
+    );
+  };
 
   return (
     <aside style={{
@@ -120,65 +177,29 @@ export default function Sidebar({ currentPage, onNavigate }) {
       </div>
 
       {/* Navigation Links */}
-      <nav style={{ padding: '1.25rem 0.85rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+      <nav style={{ padding: '1.25rem 0.85rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem', overflowY: 'auto' }}>
         <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#64748b', fontWeight: '700', padding: '0 0.5rem 0.5rem', letterSpacing: '0.05em' }}>
           Modules
         </div>
-        {navItems.map((item) => {
-          if (item.module && !hasPermission(item.module, 'CanView')) return null;
-          const isActive = currentPage === item.id;
-          const Icon = item.icon;
+        {moduleNavItems.map(renderNavItem)}
 
-          return (
-            <button
-              key={item.id}
-              onClick={() => onNavigate(item.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                width: '100%',
-                padding: '0.65rem 0.85rem',
-                borderRadius: '8px',
-                border: 'none',
-                backgroundColor: isActive ? '#2563eb' : 'transparent',
-                color: isActive ? '#ffffff' : '#94a3b8',
-                fontWeight: isActive ? '600' : '500',
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                textAlign: 'left'
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive) e.currentTarget.style.backgroundColor = '#1e293b';
-                if (!isActive) e.currentTarget.style.color = '#ffffff';
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
-                if (!isActive) e.currentTarget.style.color = '#94a3b8';
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <Icon size={18} color={isActive ? '#ffffff' : '#94a3b8'} />
-                <span>{item.label}</span>
-                {item.badge && (
-                  <span style={{
-                    backgroundColor: '#f59e0b',
-                    color: '#0f172a',
-                    fontSize: '0.625rem',
-                    padding: '1px 6px',
-                    borderRadius: '4px',
-                    fontWeight: '800',
-                    letterSpacing: '0.04em'
-                  }}>
-                    {item.badge}
-                  </span>
-                )}
-              </div>
-              {isActive && <ChevronRight size={14} color="#ffffff" />}
-            </button>
-          );
-        })}
+        {/* Separate Super Admin Section */}
+        {isSuperAdmin && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.85rem' }}>
+            <div style={{
+              fontSize: '0.7rem',
+              textTransform: 'uppercase',
+              color: '#64748b',
+              fontWeight: '700',
+              padding: '1rem 0.5rem 0.5rem',
+              letterSpacing: '0.05em',
+              borderTop: '1px solid #1e293b'
+            }}>
+              Super Admin
+            </div>
+            {superAdminNavItems.map(renderNavItem)}
+          </div>
+        )}
       </nav>
 
       {/* Sidebar Footer */}

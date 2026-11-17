@@ -31,13 +31,35 @@ import {
   ArrowRight,
   HelpCircle,
   Info,
-  Shield
+  Shield,
+  Save,
+  Zap
 } from 'lucide-react';
 import { crmApi, subscribeCrmEvents } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
 import Modal from '../components/Modal';
-import SubscriptionPlans from './SubscriptionPlans';
+import { showSuccess, showError, showWarning, showConfirm } from '../utils/swal';
+
+// Helper to calculate the next unique auto-generated TenantId
+const getNextTenantId = (tenantsList) => {
+  let maxNum = 0;
+  (tenantsList || []).forEach(t => {
+    const m = String(t.TenantId || '').match(/^TEN(\d+)$/i);
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (n > maxNum) maxNum = n;
+    }
+  });
+  let next = maxNum + 1;
+  let candidate = 'TEN' + String(next).padStart(3, '0');
+  const existing = new Set((tenantsList || []).map(t => String(t.TenantId || '').toUpperCase()));
+  while (existing.has(candidate)) {
+    next++;
+    candidate = 'TEN' + String(next).padStart(3, '0');
+  }
+  return candidate;
+};
 
 const cleanSpreadsheetId = (val) => {
   if (!val) return '';
@@ -110,8 +132,19 @@ export default function SuperAdminPortal({ onOpenBackup }) {
     Status: 'Active',
     initialLicenseType: 'Professional',
     initialLicenseDurationMonths: 12,
-    initialLicenseAmount: 60000
+    initialLicenseAmount: 60000,
+    initialPaymentMode: 'UPI',
+    initialTxnDate: new Date().toISOString().slice(0, 10),
+    initialPaymentAccount: 'Cash in Hand',
+    initialReferenceNo: ''
   });
+
+  // Central DB Payment Receiving Accounts
+  const [paymentAccounts, setPaymentAccounts] = useState([
+    { AccountId: 'ACC001', AccountName: 'Cash in Hand', AccountType: 'Cash' },
+    { AccountId: 'ACC002', AccountName: 'Bank1 (Primary Current)', AccountType: 'Bank' },
+    { AccountId: 'ACC003', AccountName: 'Bank2 (Operating)', AccountType: 'Bank' }
+  ]);
 
   // Licensing Modal (History & Renewal)
   const [isLicenseModalOpen, setIsLicenseModalOpen] = useState(false);
@@ -123,13 +156,27 @@ export default function SuperAdminPortal({ onOpenBackup }) {
     startDate: new Date().toISOString().slice(0, 10),
     endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
     amount: 60000,
+    paymentMode: 'UPI',
+    txnDate: new Date().toISOString().slice(0, 10),
+    paymentAccount: 'Cash in Hand',
+    referenceNo: '',
     status: 'Active',
     notes: 'Standard 1-Year Subscription Renewal'
   });
 
   const [saving, setSaving] = useState(false);
-  const [adminSubTab, setAdminSubTab] = useState('tenants'); // 'tenants' | 'plans'
   const [availablePlans, setAvailablePlans] = useState(LICENSE_PRESETS);
+
+  const loadPaymentAccounts = async () => {
+    try {
+      const data = await crmApi.call('getPaymentAccounts');
+      if (Array.isArray(data) && data.length > 0) {
+        setPaymentAccounts(data);
+      }
+    } catch (e) {
+      console.warn('Failed to load payment accounts:', e);
+    }
+  };
 
   const loadPlans = async () => {
     try {
@@ -153,6 +200,7 @@ export default function SuperAdminPortal({ onOpenBackup }) {
   useEffect(() => {
     loadTenants();
     loadPlans();
+    loadPaymentAccounts();
     const unsubscribe = subscribeCrmEvents((ev) => {
       if (ev.module === 'Tenants' || ev.module === 'Licenses') {
         loadTenants();
@@ -233,8 +281,9 @@ export default function SuperAdminPortal({ onOpenBackup }) {
   // Tenant Handlers
   const openAddTenantModal = () => {
     setEditingTenant(null);
+    const nextId = getNextTenantId(tenants);
     setTenantFormData({
-      TenantId: '',
+      TenantId: nextId,
       CompanyName: '',
       ArnNumber: '',
       SpreadsheetId: '',
@@ -245,7 +294,11 @@ export default function SuperAdminPortal({ onOpenBackup }) {
       Status: 'Active',
       initialLicenseType: 'Professional',
       initialLicenseDurationMonths: 12,
-      initialLicenseAmount: 60000
+      initialLicenseAmount: 60000,
+      initialPaymentMode: 'UPI',
+      initialTxnDate: new Date().toISOString().slice(0, 10),
+      initialPaymentAccount: paymentAccounts[0]?.AccountName || 'Cash in Hand',
+      initialReferenceNo: ''
     });
     setIsTenantModalOpen(true);
   };
@@ -261,7 +314,14 @@ export default function SuperAdminPortal({ onOpenBackup }) {
       SupportEmail: t.SupportEmail || '',
       ContactPhone: t.ContactPhone || '',
       OfficeAddress: t.OfficeAddress || '',
-      Status: t.Status || 'Active'
+      Status: t.Status || 'Active',
+      initialLicenseType: 'Professional',
+      initialLicenseDurationMonths: 12,
+      initialLicenseAmount: 60000,
+      initialPaymentMode: 'UPI',
+      initialTxnDate: new Date().toISOString().slice(0, 10),
+      initialPaymentAccount: paymentAccounts[0]?.AccountName || 'Cash in Hand',
+      initialReferenceNo: ''
     });
     setIsTenantModalOpen(true);
   };
@@ -272,33 +332,43 @@ export default function SuperAdminPortal({ onOpenBackup }) {
     try {
       const payload = {
         ...tenantFormData,
+        isEdit: Boolean(editingTenant),
         initialLicense: !editingTenant ? {
           licenseType: tenantFormData.initialLicenseType,
           startDate: new Date().toISOString().slice(0, 10),
           endDate: new Date(Date.now() + tenantFormData.initialLicenseDurationMonths * 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-          amount: tenantFormData.initialLicenseAmount
+          amount: Number(tenantFormData.initialLicenseAmount) || 0,
+          paymentMode: tenantFormData.initialPaymentMode,
+          txnDate: tenantFormData.initialTxnDate,
+          paymentAccount: tenantFormData.initialPaymentAccount,
+          referenceNo: tenantFormData.initialReferenceNo
         } : null
       };
 
       await crmApi.call('saveTenant', payload);
       setIsTenantModalOpen(false);
       loadTenants();
+      showSuccess(editingTenant ? `Organization "${tenantFormData.CompanyName}" updated successfully!` : `New Client Organization "${tenantFormData.CompanyName}" (${tenantFormData.TenantId}) onboarded successfully!`);
     } catch (err) {
-      alert(err.message || 'Failed to save tenant');
+      showError(err.message || 'Failed to save tenant');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteTenant = async (t) => {
-    const confirmMsg = `Are you sure you want to soft delete client organization "${t.CompanyName}" (${t.TenantId})?`;
-    if (!window.confirm(confirmMsg)) return;
+    const confirmed = await showConfirm(
+      'Soft Delete Organization?',
+      `Are you sure you want to deactivate and soft delete client organization "${t.CompanyName}" (${t.TenantId})? This will suspend workspace access.`
+    );
+    if (!confirmed) return;
 
     try {
       await crmApi.call('deleteTenant', { tenantId: t.TenantId });
       loadTenants();
+      showSuccess(`Client organization "${t.CompanyName}" soft deleted.`);
     } catch (err) {
-      alert(err.message || 'Failed to delete client');
+      showError(err.message || 'Failed to delete client');
     }
   };
 
@@ -309,17 +379,41 @@ export default function SuperAdminPortal({ onOpenBackup }) {
     setLicenseLoading(true);
     try {
       const history = await crmApi.call('getTenantLicenses', { tenantId: t.TenantId });
-      setLicenseHistory(Array.isArray(history) ? history : []);
-      // Pre-fill renewal form
-      const startDate = new Date().toISOString().slice(0, 10);
-      const endDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const histList = Array.isArray(history) ? history : [];
+      setLicenseHistory(histList);
+
+      const today = new Date().toISOString().slice(0, 10);
+      
+      // Determine if there is currently an unexpired active license
+      const currentActive = histList.find(l => 
+        (Boolean(l.IsActive) || String(l.Status).toLowerCase() === 'active') &&
+        l.EndDate && l.EndDate >= today
+      );
+
+      let startDate = today;
+      if (currentActive && currentActive.EndDate) {
+        // Next license starts the day after current active expires
+        const nextDay = new Date(new Date(currentActive.EndDate).getTime() + 24 * 60 * 60 * 1000);
+        if (!isNaN(nextDay.getTime())) {
+          startDate = nextDay.toISOString().slice(0, 10);
+        }
+      }
+      
+      const startD = new Date(startDate);
+      const endD = new Date(startD.getTime() + 365 * 24 * 60 * 60 * 1000);
+      const endDate = !isNaN(endD.getTime()) ? endD.toISOString().slice(0, 10) : '';
+
       setNewLicenseForm({
         licenseType: t.activeLicense?.licenseType || 'Professional',
         startDate,
         endDate,
-        amount: t.activeLicense?.amount || 60000,
-        status: 'Active',
-        notes: `Subscription Renewal for ${t.CompanyName}`
+        amount: Number(t.activeLicense?.amount) || 60000,
+        paymentMode: 'UPI',
+        txnDate: today,
+        paymentAccount: paymentAccounts[0]?.AccountName || 'Cash in Hand',
+        referenceNo: '',
+        status: currentActive ? 'NEW' : (startDate <= today ? 'Active' : 'NEW'),
+        notes: `Subscription License for ${t.CompanyName}`
       });
     } catch (err) {
       console.warn('Failed to load license history:', err);
@@ -333,19 +427,91 @@ export default function SuperAdminPortal({ onOpenBackup }) {
     if (!selectedTenantForLicense) return;
     setSaving(true);
     try {
+      const today = new Date().toISOString().slice(0, 10);
+      
+      // Check if tenant currently has an active license that is not expired
+      const currentActive = licenseHistory.find(l => 
+        (Boolean(l.IsActive) || String(l.Status).toLowerCase() === 'active') &&
+        l.EndDate && l.EndDate >= today
+      );
+
+      let targetStatus = 'NEW';
+      if (currentActive) {
+        // Rule 1, 2, 3: Current is not expired -> Add as NEW (queued)
+        targetStatus = 'NEW';
+      } else {
+        // Rule 2, 4, 5: Current is expired or none.
+        // If Start-Date <= Current Date, consider it ACTIVE
+        // If Start-Date > Current Date (Start-Date <> Current), save as NEW with Activate button
+        if (newLicenseForm.startDate <= today && (!newLicenseForm.endDate || newLicenseForm.endDate >= today)) {
+          targetStatus = 'Active';
+        } else {
+          targetStatus = 'NEW';
+        }
+      }
+
       await crmApi.call('saveTenantLicense', {
         tenantId: selectedTenantForLicense.TenantId,
-        ...newLicenseForm
+        Amount: Number(newLicenseForm.amount) || 0,
+        amount: Number(newLicenseForm.amount) || 0,
+        licenseType: newLicenseForm.licenseType,
+        startDate: newLicenseForm.startDate,
+        endDate: newLicenseForm.endDate,
+        paymentMode: newLicenseForm.paymentMode,
+        txnDate: newLicenseForm.txnDate,
+        paymentAccount: newLicenseForm.paymentAccount,
+        referenceNo: newLicenseForm.referenceNo,
+        notes: newLicenseForm.notes,
+        Status: targetStatus
       });
+
       // Reload license history & tenants
       const history = await crmApi.call('getTenantLicenses', { tenantId: selectedTenantForLicense.TenantId });
       setLicenseHistory(Array.isArray(history) ? history : []);
-      loadTenants();
-      alert(`License renewal applied successfully for ${selectedTenantForLicense.CompanyName}!`);
+      
+      const refreshedTenants = await crmApi.getTenants(false);
+      setTenants(Array.isArray(refreshedTenants) ? refreshedTenants : []);
+      const refreshed = (refreshedTenants || []).find(x => x.TenantId === selectedTenantForLicense.TenantId);
+      if (refreshed) {
+        setSelectedTenantForLicense(refreshed);
+      }
+
+      if (targetStatus === 'Active') {
+        showSuccess(`Subscription license saved and ACTIVATED successfully for ${selectedTenantForLicense.CompanyName}!`);
+      } else {
+        showSuccess(`Subscription license saved as NEW for ${selectedTenantForLicense.CompanyName}! It will auto-activate on start date, or click 'Activate' in the table to activate immediately.`);
+      }
     } catch (err) {
-      alert(err.message || 'Failed to renew license');
+      showError(err.message || 'Failed to save license');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleActivateLicense = async (lic) => {
+    if (!selectedTenantForLicense) return;
+    const confirmed = await showConfirm(
+      'Activate Subscription License?',
+      `Are you sure you want to activate license "${lic.Id}" (${lic.LicenseType}) now? This will immediately make it ACTIVE and mark any previous active license as EXPIRED (Locked).`
+    );
+    if (!confirmed) return;
+
+    try {
+      await crmApi.activateTenantLicense(lic.Id, selectedTenantForLicense.TenantId);
+      
+      // Reload license history & tenants
+      const history = await crmApi.call('getTenantLicenses', { tenantId: selectedTenantForLicense.TenantId });
+      setLicenseHistory(Array.isArray(history) ? history : []);
+      
+      const refreshedTenants = await crmApi.getTenants(false);
+      setTenants(Array.isArray(refreshedTenants) ? refreshedTenants : []);
+      const refreshed = (refreshedTenants || []).find(x => x.TenantId === selectedTenantForLicense.TenantId);
+      if (refreshed) {
+        setSelectedTenantForLicense(refreshed);
+      }
+      showSuccess(`License "${lic.Id}" is now ACTIVE! Previous active license is marked as EXPIRED.`);
+    } catch (err) {
+      showError(err.message || 'Failed to activate license');
     }
   };
 
@@ -359,14 +525,24 @@ export default function SuperAdminPortal({ onOpenBackup }) {
         LicenseType: lic.LicenseType,
         StartDate: lic.StartDate,
         EndDate: lic.EndDate,
-        Amount: lic.Amount,
+        Amount: Number(lic.Amount) || 0,
+        PaymentMode: lic.PaymentMode,
+        TxnDate: lic.TxnDate,
+        PaymentAccount: lic.PaymentAccount,
+        ReferenceNo: lic.ReferenceNo,
         Notes: lic.Notes
       });
       const history = await crmApi.call('getTenantLicenses', { tenantId: selectedTenantForLicense.TenantId });
       setLicenseHistory(Array.isArray(history) ? history : []);
-      loadTenants();
+      const refreshedTenants = await crmApi.getTenants(false);
+      setTenants(Array.isArray(refreshedTenants) ? refreshedTenants : []);
+      const refreshed = (refreshedTenants || []).find(x => x.TenantId === selectedTenantForLicense.TenantId);
+      if (refreshed) {
+        setSelectedTenantForLicense(refreshed);
+      }
+      showSuccess(`License marked as ${newStatus}.`);
     } catch (err) {
-      alert(err.message || 'Failed to update license status');
+      showError(err.message || 'Failed to update license status');
     }
   };
 
@@ -390,90 +566,21 @@ export default function SuperAdminPortal({ onOpenBackup }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <Header 
-        title="Tenant Master (SaaS Client Organizations & Licensing)" 
-        subtitle="Centralized Tenant Management — Onboard Clients, Isolate Drive/Sheets & Manage Licenses"
+        title="Tenant Master" 
+        subtitle="Manage client organizations & licenses"
         onRefresh={loadTenants}
         refreshing={loading}
         onOpenBackup={onOpenBackup}
       />
 
       <div className="page-wrapper">
-        {/* Top Sub-Tab Navigation: Organizations vs Subscription Plans */}
+        {/* Top 4 KPI Metrics */}
         <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.75rem',
-          borderBottom: '1px solid #e2e8f0',
-          marginBottom: '1.5rem',
-          paddingBottom: '0.25rem'
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+          gap: '1rem',
+          marginBottom: '1.5rem'
         }}>
-          <button
-            type="button"
-            onClick={() => setAdminSubTab('tenants')}
-            style={{
-              padding: '0.65rem 1.25rem',
-              fontWeight: '700',
-              fontSize: '0.875rem',
-              border: 'none',
-              background: 'transparent',
-              color: adminSubTab === 'tenants' ? '#2563eb' : '#64748b',
-              borderBottom: adminSubTab === 'tenants' ? '2px solid #2563eb' : '2px solid transparent',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <Building2 size={16} />
-            <span>Client Organizations (Tenants)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setAdminSubTab('plans')}
-            style={{
-              padding: '0.65rem 1.25rem',
-              fontWeight: '700',
-              fontSize: '0.875rem',
-              border: 'none',
-              background: 'transparent',
-              color: adminSubTab === 'plans' ? '#2563eb' : '#64748b',
-              borderBottom: adminSubTab === 'plans' ? '2px solid #2563eb' : '2px solid transparent',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <CreditCard size={16} />
-            <span>Subscription Plans Master</span>
-            <span style={{
-              fontSize: '0.65rem',
-              backgroundColor: '#eff6ff',
-              color: '#2563eb',
-              border: '1px solid #bfdbfe',
-              padding: '1px 6px',
-              borderRadius: '9999px',
-              fontWeight: '800'
-            }}>
-              CRUD
-            </span>
-          </button>
-        </div>
-
-        {adminSubTab === 'plans' ? (
-          <SubscriptionPlans onOpenBackup={onOpenBackup} />
-        ) : (
-          <>
-            {/* Top 4 KPI Metrics */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
-              gap: '1rem',
-              marginBottom: '1.5rem'
-            }}>
           {/* Card 1: Total Tenants */}
           <div className="crm-card" style={{ padding: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -784,8 +891,6 @@ export default function SuperAdminPortal({ onOpenBackup }) {
             </table>
           </div>
         </div>
-        </>
-        )}
       </div>
 
       {/* ============================================================== */}
@@ -877,43 +982,28 @@ export default function SuperAdminPortal({ onOpenBackup }) {
                   <div className="form-group" style={{ margin: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
                       <label className="form-label" style={{ margin: 0, fontWeight: '600' }}>Tenant Code (ID)</label>
-                      {!editingTenant && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const count = tenants.length + 1;
-                            setTenantFormData(prev => ({ ...prev, TenantId: 'TEN' + String(count).padStart(3, '0') }));
-                          }}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: '#2563eb',
-                            fontSize: '0.725rem',
-                            fontWeight: '700',
-                            cursor: 'pointer',
-                            padding: 0
-                          }}
-                        >
-                          ⚡ Auto-Generate
-                        </button>
-                      )}
+                      <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                        🔒 Auto-Generated (Unique)
+                      </span>
                     </div>
                     <input
                       type="text"
                       className="form-input"
                       placeholder="e.g. TEN004"
                       value={tenantFormData.TenantId}
-                      onChange={(e) => setTenantFormData({ ...tenantFormData, TenantId: e.target.value.toUpperCase().trim() })}
-                      disabled={Boolean(editingTenant)}
+                      disabled={true}
                       style={{
                         fontFamily: 'monospace',
                         fontWeight: '700',
                         letterSpacing: '0.05em',
-                        backgroundColor: editingTenant ? '#f8fafc' : '#ffffff'
+                        backgroundColor: '#f1f5f9',
+                        color: '#334155',
+                        cursor: 'not-allowed',
+                        border: '1px solid #cbd5e1'
                       }}
                     />
                     <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.25rem' }}>
-                      Workspace URI: <code>/org/{tenantFormData.TenantId || 'TEN00X'}</code>
+                      Workspace URI: <code>/org/{tenantFormData.TenantId || 'TEN00X'}</code> (System managed)
                     </div>
                   </div>
                 </div>
@@ -991,14 +1081,23 @@ export default function SuperAdminPortal({ onOpenBackup }) {
                   </div>
 
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">Contact Phone / Mobile</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                      <label className="form-label" style={{ margin: 0 }}>Contact Phone / Mobile</label>
+                      <span style={{ fontSize: '0.675rem', color: '#64748b' }}>
+                        {tenantFormData.ContactPhone ? `${tenantFormData.ContactPhone.length}/10` : '10 digits'}
+                      </span>
+                    </div>
                     <div style={{ position: 'relative' }}>
                       <input
-                        type="text"
+                        type="tel"
                         className="form-input"
-                        placeholder="+91 98220 12345"
+                        placeholder="10-digit mobile (e.g. 9822012345)"
+                        maxLength={10}
                         value={tenantFormData.ContactPhone}
-                        onChange={(e) => setTenantFormData({ ...tenantFormData, ContactPhone: e.target.value })}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          setTenantFormData({ ...tenantFormData, ContactPhone: digits });
+                        }}
                         style={{ paddingLeft: '2.4rem' }}
                       />
                       <Phone size={15} color="#94a3b8" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)' }} />
@@ -1270,6 +1369,96 @@ export default function SuperAdminPortal({ onOpenBackup }) {
                       <span style={{ fontSize: '0.75rem', color: '#64748b' }}>₹ INR</span>
                     </div>
                   </div>
+
+                  {/* Payment Details Subsection */}
+                  <div style={{
+                    marginTop: '0.85rem',
+                    padding: '0.9rem',
+                    backgroundColor: '#ffffff',
+                    borderRadius: '8px',
+                    border: '1.5px dashed #cbd5e1'
+                  }}>
+                    <div style={{
+                      fontSize: '0.8rem',
+                      fontWeight: '800',
+                      color: '#0f172a',
+                      marginBottom: '0.75rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem'
+                    }}>
+                      <DollarSign size={15} color="#2563eb" />
+                      <span>Payment Receipt & Billing Account</span>
+                      <span style={{ fontSize: '0.675rem', color: '#64748b', fontWeight: '500' }}>
+                        (Auto-synced with Central DB Accounts)
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem' }}>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: '600' }}>Payment Mode</label>
+                        <select
+                          className="form-select"
+                          value={tenantFormData.initialPaymentMode}
+                          onChange={(e) => setTenantFormData({ ...tenantFormData, initialPaymentMode: e.target.value })}
+                          style={{ minHeight: '38px', height: '38px', padding: '0.35rem 0.65rem', fontSize: '0.825rem', lineHeight: '1.4' }}
+                        >
+                          <option value="UPI">UPI (GPay / PhonePe / Paytm)</option>
+                          <option value="Cash">Cash</option>
+                          <option value="Cheque">Cheque</option>
+                          <option value="Net Banking">Net Banking (NEFT/RTGS/IMPS)</option>
+                          <option value="Card">Debit / Credit Card</option>
+                        </select>
+                      </div>
+
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: '600' }}>Transaction Date</label>
+                        <input
+                          type="date"
+                          className="form-input"
+                          value={tenantFormData.initialTxnDate}
+                          onChange={(e) => setTenantFormData({ ...tenantFormData, initialTxnDate: e.target.value })}
+                          style={{ minHeight: '38px', height: '38px', padding: '0.35rem 0.65rem', fontSize: '0.825rem' }}
+                        />
+                      </div>
+
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: '600' }}>Deposit Account</label>
+                        <select
+                          className="form-select"
+                          value={tenantFormData.initialPaymentAccount}
+                          onChange={(e) => setTenantFormData({ ...tenantFormData, initialPaymentAccount: e.target.value })}
+                          style={{ minHeight: '38px', height: '38px', padding: '0.35rem 0.65rem', fontSize: '0.825rem', lineHeight: '1.4' }}
+                        >
+                          {paymentAccounts && paymentAccounts.length > 0 ? (
+                            paymentAccounts.map((acc) => (
+                              <option key={acc.AccountId || acc.AccountName} value={acc.AccountName}>
+                                {acc.AccountName} {acc.AccountType ? `(${acc.AccountType})` : ''}
+                              </option>
+                            ))
+                          ) : (
+                            <>
+                              <option value="Cash in Hand">Cash in Hand (Cash)</option>
+                              <option value="Bank1 (Primary Current)">Bank1 (Primary Current) (Bank)</option>
+                              <option value="Bank2 (Operating)">Bank2 (Operating) (Bank)</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: '600' }}>Txn / Cheque Ref #</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="e.g. UPI-98218128"
+                          value={tenantFormData.initialReferenceNo}
+                          onChange={(e) => setTenantFormData({ ...tenantFormData, initialReferenceNo: e.target.value })}
+                          style={{ minHeight: '38px', height: '38px', padding: '0.35rem 0.65rem', fontSize: '0.825rem' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -1391,7 +1580,7 @@ export default function SuperAdminPortal({ onOpenBackup }) {
             {/* License Renewal / Extension Form */}
             <form onSubmit={handleRenewLicense} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', backgroundColor: '#f8fafc' }}>
               <div style={{ fontSize: '0.9rem', fontWeight: '700', color: '#0f172a', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <Sparkles size={16} color="#2563eb" /> Issue New License / Renew Subscription
+                <Sparkles size={16} color="#2563eb" /> Issue / Add Subscription License
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
@@ -1468,22 +1657,117 @@ export default function SuperAdminPortal({ onOpenBackup }) {
                 </div>
               </div>
 
+              {/* Renewal Payment Details */}
+              <div style={{
+                padding: '0.75rem',
+                backgroundColor: '#ffffff',
+                borderRadius: '6px',
+                border: '1px dashed #cbd5e1',
+                marginBottom: '0.75rem'
+              }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#1e293b', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <DollarSign size={13} color="#2563eb" />
+                  <span>Renewal Payment Details</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.65rem' }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: '600' }}>Payment Mode</label>
+                    <select
+                      className="form-select"
+                      value={newLicenseForm.paymentMode}
+                      onChange={(e) => setNewLicenseForm({ ...newLicenseForm, paymentMode: e.target.value })}
+                      style={{ minHeight: '38px', height: '38px', padding: '0.35rem 0.65rem', fontSize: '0.825rem', lineHeight: '1.4' }}
+                    >
+                      <option value="UPI">UPI</option>
+                      <option value="Cash">Cash</option>
+                      <option value="Cheque">Cheque</option>
+                      <option value="Net Banking">Net Banking</option>
+                      <option value="Card">Card</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: '600' }}>Txn Date</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={newLicenseForm.txnDate}
+                      onChange={(e) => setNewLicenseForm({ ...newLicenseForm, txnDate: e.target.value })}
+                      style={{ minHeight: '38px', height: '38px', padding: '0.35rem 0.65rem', fontSize: '0.825rem' }}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: '600' }}>Receiving Account</label>
+                    <select
+                      className="form-select"
+                      value={newLicenseForm.paymentAccount}
+                      onChange={(e) => setNewLicenseForm({ ...newLicenseForm, paymentAccount: e.target.value })}
+                      style={{ minHeight: '38px', height: '38px', padding: '0.35rem 0.65rem', fontSize: '0.825rem', lineHeight: '1.4' }}
+                    >
+                      {paymentAccounts && paymentAccounts.length > 0 ? (
+                        paymentAccounts.map((acc) => (
+                          <option key={acc.AccountId || acc.AccountName} value={acc.AccountName}>
+                            {acc.AccountName} {acc.AccountType ? `(${acc.AccountType})` : ''}
+                          </option>
+                        ))
+                      ) : (
+                        <>
+                          <option value="Cash in Hand">Cash in Hand (Cash)</option>
+                          <option value="Bank1 (Primary Current)">Bank1 (Primary Current) (Bank)</option>
+                          <option value="Bank2 (Operating)">Bank2 (Operating) (Bank)</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: '600' }}>Ref #</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. UPI-12345"
+                      value={newLicenseForm.referenceNo}
+                      onChange={(e) => setNewLicenseForm({ ...newLicenseForm, referenceNo: e.target.value })}
+                      style={{ minHeight: '38px', height: '38px', padding: '0.35rem 0.65rem', fontSize: '0.825rem' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
               <button
                 type="submit"
                 className="btn btn-primary btn-sm"
                 disabled={saving}
-                style={{ width: '100%', marginTop: '0.5rem' }}
+                style={{ 
+                  width: '100%', 
+                  marginTop: '0.25rem',
+                  height: '38px',
+                  fontSize: '0.875rem',
+                  fontWeight: '700',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem',
+                  letterSpacing: '0.5px'
+                }}
               >
-                {saving ? 'Processing License...' : 'Apply & Activate License'}
+                <Save size={15} />
+                <span>{saving ? 'Saving...' : 'SAVE'}</span>
               </button>
             </form>
 
             {/* Historical Licenses Trail */}
             <div>
-              <h4 style={{ fontSize: '0.875rem', fontWeight: '700', color: '#0f172a', margin: '0 0 0.5rem 0' }}>
-                Historical Subscription Trail
-              </h4>
-              <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 0.5rem 0' }}>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
+                  Historical Subscription Trail
+                </h4>
+                <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                  Auto-transitions on expiry & start dates
+                </span>
+              </div>
+              <div style={{ maxHeight: '240px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
                 <table className="crm-table" style={{ fontSize: '0.75rem' }}>
                   <thead>
                     <tr>
@@ -1491,53 +1775,90 @@ export default function SuperAdminPortal({ onOpenBackup }) {
                       <th>Type</th>
                       <th>Period</th>
                       <th>Amount</th>
+                      <th>Payment</th>
                       <th>Status</th>
-                      <th>Action</th>
+                      <th style={{ textAlign: 'center' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {licenseLoading ? (
-                      <tr><td colSpan={6} style={{ textAlign: 'center', padding: '1rem' }}>Loading trail...</td></tr>
+                      <tr><td colSpan={7} style={{ textAlign: 'center', padding: '1rem' }}>Loading trail...</td></tr>
                     ) : licenseHistory.length === 0 ? (
-                      <tr><td colSpan={6} style={{ textAlign: 'center', padding: '1rem', color: '#64748b' }}>No license records found.</td></tr>
+                      <tr><td colSpan={7} style={{ textAlign: 'center', padding: '1rem', color: '#64748b' }}>No license records found.</td></tr>
                     ) : (
-                      licenseHistory.map((lic) => (
-                        <tr key={lic.Id}>
-                          <td style={{ fontFamily: 'monospace' }}>{lic.Id}</td>
-                          <td style={{ fontWeight: '600' }}>{lic.LicenseType}</td>
-                          <td>
-                            {lic.StartDate ? new Date(lic.StartDate).toLocaleDateString() : '—'} to{' '}
-                            {lic.EndDate ? new Date(lic.EndDate).toLocaleDateString() : '—'}
-                          </td>
-                          <td>₹{Number(lic.Amount || 0).toLocaleString()}</td>
-                          <td>
-                            <span className={`badge ${lic.Status === 'Active' ? 'badge-success' : (lic.Status === 'Renewed' ? 'badge-info' : 'badge-danger')}`}>
-                              {lic.Status}
-                            </span>
-                          </td>
-                          <td>
-                            {lic.Status === 'Active' ? (
-                              <button
-                                type="button"
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => handleToggleLicenseStatus(lic, 'Cancelled')}
-                                style={{ fontSize: '0.65rem', padding: '2px 6px', color: '#ef4444' }}
-                              >
-                                Cancel
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => handleToggleLicenseStatus(lic, 'Active')}
-                                style={{ fontSize: '0.65rem', padding: '2px 6px', color: '#16a34a' }}
-                              >
-                                Re-activate
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))
+                      licenseHistory.map((lic) => {
+                        const statusUpper = String(lic.Status || '').toUpperCase();
+                        const isCurrentlyActive = Boolean(lic.IsActive) || statusUpper === 'ACTIVE';
+                        const isNewQueued = statusUpper === 'NEW' || (!isCurrentlyActive && statusUpper !== 'EXPIRED' && statusUpper !== 'CANCELLED');
+                        const isExpiredOrCancelled = statusUpper === 'EXPIRED' || statusUpper === 'CANCELLED';
+
+                        return (
+                          <tr key={lic.Id} style={isCurrentlyActive ? { backgroundColor: '#f0fdf4' } : {}}>
+                            <td style={{ fontFamily: 'monospace', fontWeight: '600' }}>{lic.Id}</td>
+                            <td style={{ fontWeight: '600' }}>{lic.LicenseType}</td>
+                            <td>
+                              {lic.StartDate ? new Date(lic.StartDate).toLocaleDateString() : '—'} to{' '}
+                              {lic.EndDate ? new Date(lic.EndDate).toLocaleDateString() : '—'}
+                            </td>
+                            <td style={{ fontWeight: '600' }}>₹{Number(lic.Amount || 0).toLocaleString()}</td>
+                            <td>
+                              <span style={{ fontSize: '0.7rem', color: '#475569' }}>
+                                {lic.PaymentMode || '—'} {lic.PaymentAccount ? `(${lic.PaymentAccount})` : ''}
+                              </span>
+                            </td>
+                            <td>
+                              <span className={`badge ${
+                                isCurrentlyActive ? 'badge-success' : 
+                                (statusUpper === 'NEW' ? 'badge-info' : 
+                                (statusUpper === 'EXPIRED' ? 'badge-neutral' : 'badge-danger'))
+                              }`} style={statusUpper === 'NEW' ? { backgroundColor: '#e0e7ff', color: '#4338ca', fontWeight: '700' } : {}}>
+                                {isCurrentlyActive ? 'ACTIVE' : (statusUpper === 'NEW' ? 'NEW' : lic.Status)}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              {isCurrentlyActive ? (
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={() => handleToggleLicenseStatus(lic, 'Cancelled')}
+                                  style={{ fontSize: '0.65rem', padding: '2px 7px', color: '#ef4444' }}
+                                  title="Cancel Active License"
+                                >
+                                  Cancel
+                                </button>
+                              ) : isNewQueued ? (
+                                <button
+                                  type="button"
+                                  className="btn btn-sm"
+                                  onClick={() => handleActivateLicense(lic)}
+                                  style={{ 
+                                    backgroundColor: '#10b981', 
+                                    color: '#ffffff', 
+                                    fontSize: '0.675rem', 
+                                    padding: '3px 8px', 
+                                    borderRadius: '5px', 
+                                    fontWeight: '700',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    border: 'none',
+                                    cursor: 'pointer'
+                                  }}
+                                  title="Click to manually activate this license immediately"
+                                >
+                                  <Zap size={11} />
+                                  <span>Activate</span>
+                                </button>
+                              ) : isExpiredOrCancelled ? (
+                                <span style={{ color: '#94a3b8', fontSize: '0.675rem', fontWeight: '500', display: 'inline-flex', alignItems: 'center', gap: '3px', userSelect: 'none' }} title="Historical license is expired and locked (non-editable / non-deletable)">
+                                  <Lock size={10} />
+                                  <span>Expired</span>
+                                </span>
+                              ) : null}
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>

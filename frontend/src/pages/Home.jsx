@@ -45,7 +45,7 @@ export default function Home({ onNavigate, onOpenBackup }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <Header 
-        title="Investment Overview & Dashboard" 
+        title="Dashboard" 
         subtitle={`${companyName} — Mutual Fund Portfolio & Operations Summary`}
         onRefresh={loadDashboard}
         refreshing={loading}

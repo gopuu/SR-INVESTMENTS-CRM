@@ -114,6 +114,7 @@ const STORAGE_KEYS = {
   TENANT_LICENSES: 'sr_crm_saas_tenant_licenses',
   USER_DOCUMENTS: 'sr_crm_saas_user_documents',
   SUBSCRIPTION_PLANS: 'sr_crm_subscription_plans',
+  PAYMENT_ACCOUNTS: 'sr_crm_payment_accounts',
   ACTIVE_TENANT: 'sr_crm_active_tenant',
   GOOGLE_CLIENT_ID: 'sr_crm_google_client_id'
 };
@@ -454,13 +455,31 @@ const SEED_DATA = {
   userMaster: [
     {
       UserId: 'USER1',
-      Email: 'admin@srinvestments.com',
-      AlternateEmailsList: 'kgopal8306@gmail.com, admin@srinvestments.com',
-      GoogleEmails: 'kgopal8306@gmail.com, admin@srinvestments.com',
+      Email: 'anonymousofjain@gmail.com',
+      AlternateEmailsList: 'admin@srinvestments.com',
+      GoogleEmails: 'admin@srinvestments.com',
       Password: 'admin123',
       FullName: 'Gopal Kushwaha (Founder)',
       Mobile: '8306588313',
       IsSuperAdmin: true,
+      Status: 'Active',
+      IsDeleted: false,
+      Created_By: 'system',
+      Created_At: '2026-01-01T00:00:00Z',
+      Updated_By: 'system',
+      Updated_At: '2026-01-01T00:00:00Z',
+      Deleted_By: '',
+      Deleted_At: ''
+    },
+    {
+      UserId: 'USER2',
+      Email: 'kgopal8306@gmail.com',
+      AlternateEmailsList: '',
+      GoogleEmails: 'kgopal8306@gmail.com',
+      Password: 'password123',
+      FullName: 'Gopal8306',
+      Mobile: '8306588314',
+      IsSuperAdmin: false,
       Status: 'Active',
       IsDeleted: false,
       Created_By: 'system',
@@ -665,12 +684,18 @@ function initDemoStore() {
     if (rawUsers) {
       let users = JSON.parse(rawUsers);
       let updated = false;
-      const user1 = users.find(u => u.UserId === 'USER1' || u.Email === 'admin@srinvestments.com' || (u.GoogleEmails && u.GoogleEmails.includes('kgopal8306@gmail.com')));
+      const user1 = users.find(u => u.UserId === 'USER1' || u.Email === 'anonymousofjain@gmail.com' || u.Email === 'admin@srinvestments.com');
       if (user1 && !user1.IsSuperAdmin) {
         user1.IsSuperAdmin = true;
         updated = true;
       } else if (!user1) {
         users.unshift(SEED_DATA.userMaster[0]);
+        updated = true;
+      }
+      // Ensure kgopal8306@gmail.com (USER2) has IsSuperAdmin: false
+      const user2 = users.find(u => u.Email === 'kgopal8306@gmail.com' || u.UserId === 'USER2');
+      if (user2 && user2.IsSuperAdmin) {
+        user2.IsSuperAdmin = false;
         updated = true;
       }
       if (updated) {
@@ -1134,6 +1159,10 @@ export const crmApi = {
     return this.call('deleteSubscriptionPlan', { PlanId: planId });
   },
 
+  async activateTenantLicense(licenseId, tenantId) {
+    return this.call('activateTenantLicense', { licenseId, tenantId });
+  },
+
   async testConnection(targetUrl) {
     const url = (targetUrl || this.getBackendUrl() || '').trim();
     if (!url) {
@@ -1217,6 +1246,8 @@ export const crmApi = {
     let currentUserEmail = 'admin@srinvestments.com';
     let currentUserName = 'Administrator';
     let currentTenantId = 'TEN001';
+    let currentUserId = 'USER1';
+    let currentUserIsSuperAdmin = false;
     try {
       const stored = localStorage.getItem('sr_crm_auth_user');
       if (stored) {
@@ -1224,6 +1255,13 @@ export const crmApi = {
         if (u.email) currentUserEmail = u.email;
         if (u.name) currentUserName = u.name;
         if (u.activeTenantId) currentTenantId = u.activeTenantId;
+        if (u.userId || u.UserId) currentUserId = u.userId || u.UserId;
+        currentUserIsSuperAdmin = Boolean(
+          u.isSuperAdmin === true ||
+          String(u.isSuperAdmin).toLowerCase() === 'true' ||
+          u.IsSuperAdmin === true ||
+          String(u.IsSuperAdmin).toLowerCase() === 'true'
+        );
       }
       const activeTenant = this.getActiveTenant();
       if (activeTenant && activeTenant.tenantId) {
@@ -1235,7 +1273,9 @@ export const crmApi = {
       ...payload,
       tenantId: payload.tenantId || currentTenantId,
       userEmail: payload.userEmail || currentUserEmail,
-      userName: payload.userName || currentUserName
+      userName: payload.userName || currentUserName,
+      userId: payload.userId || currentUserId,
+      isSuperAdmin: payload.isSuperAdmin !== undefined ? payload.isSuperAdmin : currentUserIsSuperAdmin
     };
 
     if (this.isDemoMode()) {
@@ -1322,6 +1362,73 @@ export const crmApi = {
     initDemoStore();
     await new Promise((r) => setTimeout(r, 150));
 
+    const assertSuperAdminDemo = (p) => {
+      const userMaster = JSON.parse(localStorage.getItem(STORAGE_KEYS.USER_MASTER) || '[]');
+      const reqEmail = String(p.userEmail || '').trim().toLowerCase();
+      const reqId = String(p.userId || '').trim().toLowerCase();
+
+      if (!reqEmail && !reqId) {
+        throw new Error('Access Denied: Requester identity missing. Super Admin privilege (IsSuperAdmin=TRUE) is required.');
+      }
+
+      const matched = userMaster.find(u => {
+        if (u.IsDeleted) return false;
+        const matchEmail = u.Email && u.Email.toLowerCase() === reqEmail;
+        const matchId = u.UserId && u.UserId.toLowerCase() === reqId;
+        const altEmails = u.AlternateEmailsList || u.GoogleEmails || '';
+        const altList = altEmails ? altEmails.toLowerCase().split(',').map(s => s.trim()) : [];
+        return matchEmail || matchId || (reqEmail && altList.includes(reqEmail));
+      });
+
+      if (!matched) {
+        throw new Error(`Access Denied: User (${reqEmail || reqId}) not found in User Master. Super Admin privilege required.`);
+      }
+
+      const isSuper = Boolean(matched.IsSuperAdmin) || String(matched.IsSuperAdmin).toLowerCase() === 'true';
+      if (!isSuper) {
+        throw new Error(`Access Denied: Super Admin privilege required. IsSuperAdmin is FALSE in database for user (${matched.Email || reqEmail}). Operation rejected.`);
+      }
+      return matched;
+    };
+
+    const checkDemoTenantLicenseActive = (tenantId, isSuperAdmin) => {
+      if (isSuperAdmin) return { valid: true };
+      if (!tenantId) return { valid: true };
+      let licenses = JSON.parse(localStorage.getItem(STORAGE_KEYS.TENANT_LICENSES) || '[]');
+      const tenantLicenses = licenses.filter(l => String(l.TenantId).toUpperCase() === String(tenantId).toUpperCase() && !l.IsDeleted);
+      if (tenantLicenses.length === 0) return { valid: true };
+      
+      const now = new Date();
+      const today = now.toISOString().slice(0, 10);
+      let activeLic = tenantLicenses.find(l => Boolean(l.IsActive) || String(l.Status).toLowerCase() === 'active');
+      
+      if (activeLic && activeLic.EndDate && today > activeLic.EndDate) {
+        activeLic.IsActive = false;
+        activeLic.Status = 'Expired';
+        activeLic = null;
+      }
+
+      if (!activeLic) {
+        // Auto-promote queued NEW license if StartDate <= today <= EndDate
+        const queued = tenantLicenses.filter(l => 
+          (String(l.Status).toLowerCase() === 'new' || String(l.Status).toLowerCase() === 'upcoming') &&
+          l.StartDate && today >= l.StartDate && (!l.EndDate || today <= l.EndDate)
+        );
+        if (queued.length > 0) {
+          queued.sort((a, b) => new Date(a.StartDate).getTime() - new Date(b.StartDate).getTime());
+          queued[0].IsActive = true;
+          queued[0].Status = 'Active';
+          activeLic = queued[0];
+          localStorage.setItem(STORAGE_KEYS.TENANT_LICENSES, JSON.stringify(licenses));
+        }
+      }
+
+      if (!activeLic) {
+        return { valid: false, error: `Subscription Expired: No active subscription found for your organization (${tenantId}). Please contact your CRM Administrator or Super Admin to renew.` };
+      }
+      return { valid: true };
+    };
+
     switch (action) {
       case 'health':
         return { ok: true, mode: 'Demo / Local Storage', timestamp: new Date().toISOString() };
@@ -1393,11 +1500,16 @@ export const crmApi = {
           }
 
           // Single workspace direct login
+          const defaultTenant = tenants.find(t => !t.IsDeleted);
           const primaryTenant = userWorkspaces[0] || {
-            tenantId: 'TEN001',
-            companyName: 'ABC Investments',
+            tenantId: defaultTenant?.TenantId || 'TEN001',
+            companyName: defaultTenant?.CompanyName || 'SR Investments',
+            CompanyName: defaultTenant?.CompanyName || 'SR Investments',
             role: matchedUser.IsSuperAdmin ? 'Admin' : 'Staff'
           };
+
+          const licChk = checkDemoTenantLicenseActive(primaryTenant.tenantId, Boolean(matchedUser.IsSuperAdmin));
+          if (!licChk.valid) throw new Error(licChk.error);
 
           const sessionUser = {
             userId: matchedUser.UserId,
@@ -1585,11 +1697,16 @@ export const crmApi = {
           };
         }
 
-        const primaryTenant = userWorkspaces[0] || tenants[0] || {
-          tenantId: 'TEN001',
-          companyName: 'ABC Investments',
+        const defaultTenant = tenants.find(t => !t.IsDeleted);
+        const primaryTenant = userWorkspaces[0] || {
+          tenantId: defaultTenant?.TenantId || 'TEN001',
+          companyName: defaultTenant?.CompanyName || 'SR Investments',
+          CompanyName: defaultTenant?.CompanyName || 'SR Investments',
           role: isSuperAdmin ? 'Admin' : 'Staff'
         };
+
+        const licChk = checkDemoTenantLicenseActive(primaryTenant.tenantId, isSuperAdmin);
+        if (!licChk.valid) throw new Error(licChk.error);
 
         const sessionUser = {
           userId,
@@ -1622,6 +1739,9 @@ export const crmApi = {
 
         const t = tenants.find(x => x.TenantId === tenantId && !x.IsDeleted);
         if (!t) throw new Error('Workspace not found or inactive.');
+
+        const licChk = checkDemoTenantLicenseActive(tenantId, Boolean(isSuperAdmin));
+        if (!licChk.valid) throw new Error(licChk.error);
 
         const userWorkspaces = mappings
           .filter(m => !m.IsDeleted && String(m.Status).toLowerCase() === 'active' && (m.UserId === userId || m.UserId === userEmail))
@@ -1797,6 +1917,7 @@ export const crmApi = {
       // SUPERADMIN CLIENT & LICENSING SAAS ACTIONS
       // ==========================================
       case 'getTenants': {
+        assertSuperAdminDemo(payload);
         const tenants = JSON.parse(localStorage.getItem(STORAGE_KEYS.TENANTS) || '[]');
         const licenses = JSON.parse(localStorage.getItem(STORAGE_KEYS.TENANT_LICENSES) || '[]');
         const showDeleted = Boolean(payload.showDeleted);
@@ -1823,10 +1944,30 @@ export const crmApi = {
       }
 
       case 'saveTenant': {
+        assertSuperAdminDemo(payload);
         const tenants = JSON.parse(localStorage.getItem(STORAGE_KEYS.TENANTS) || '[]');
         const now = new Date().toISOString();
-        const isNew = !payload.TenantId;
-        const tenantId = payload.TenantId || ('TEN' + String(tenants.length + 1).padStart(3, '0'));
+        const existingIds = new Set(tenants.map(t => String(t.TenantId || '').toUpperCase()));
+        
+        let tenantId = (payload.TenantId || '').trim();
+        const isNew = !tenantId || (!payload.isEdit && !existingIds.has(tenantId.toUpperCase()));
+        if (isNew) {
+          let maxNum = 0;
+          tenants.forEach(t => {
+            const m = String(t.TenantId || '').match(/^TEN(\d+)$/i);
+            if (m) {
+              const num = parseInt(m[1], 10);
+              if (num > maxNum) maxNum = num;
+            }
+          });
+          let nextNum = maxNum + 1;
+          let candidate = 'TEN' + String(nextNum).padStart(3, '0');
+          while (existingIds.has(candidate)) {
+            nextNum++;
+            candidate = 'TEN' + String(nextNum).padStart(3, '0');
+          }
+          tenantId = candidate;
+        }
 
         const record = {
           TenantId: tenantId,
@@ -1868,10 +2009,14 @@ export const crmApi = {
             LicenseType: payload.initialLicense.licenseType || 'Professional',
             StartDate: payload.initialLicense.startDate || now.slice(0, 10),
             EndDate: payload.initialLicense.endDate || '',
-            Amount: payload.initialLicense.amount || 0,
+            Amount: Number(payload.initialLicense.amount !== undefined ? payload.initialLicense.amount : 0) || 0,
+            PaymentMode: payload.initialLicense.paymentMode || 'Cash',
+            TxnDate: payload.initialLicense.txnDate || now.slice(0, 10),
+            PaymentAccount: payload.initialLicense.paymentAccount || 'Cash',
+            ReferenceNo: payload.initialLicense.referenceNo || '',
             IsActive: true,
             Status: 'Active',
-            Notes: 'Initial subscription license',
+            Notes: payload.initialLicense.notes || 'Initial subscription license setup on onboarding',
             IsDeleted: false,
             Created_By: payload.userEmail || 'superadmin@srinvestments.com',
             Created_At: now,
@@ -1888,6 +2033,7 @@ export const crmApi = {
       }
 
       case 'deleteTenant': {
+        assertSuperAdminDemo(payload);
         const tenantId = payload.tenantId || payload.TenantId;
         const tenants = JSON.parse(localStorage.getItem(STORAGE_KEYS.TENANTS) || '[]');
         const idx = tenants.findIndex(t => t.TenantId === tenantId);
@@ -1902,7 +2048,22 @@ export const crmApi = {
         return { success: true, message: 'Client organization soft deleted.' };
       }
 
+      case 'getPaymentAccounts': {
+        const defaultAccounts = [
+          { AccountId: 'ACC001', AccountName: 'Cash in Hand', AccountType: 'Cash', AccountNumber: '-', Status: 'Active' },
+          { AccountId: 'ACC002', AccountName: 'Bank1 (Primary Current)', AccountType: 'Bank', AccountNumber: '50200012345678', Status: 'Active' },
+          { AccountId: 'ACC003', AccountName: 'Bank2 (Operating)', AccountType: 'Bank', AccountNumber: '001105009876', Status: 'Active' }
+        ];
+        const raw = localStorage.getItem(STORAGE_KEYS.PAYMENT_ACCOUNTS);
+        if (!raw) {
+          localStorage.setItem(STORAGE_KEYS.PAYMENT_ACCOUNTS, JSON.stringify(defaultAccounts));
+          return defaultAccounts;
+        }
+        return JSON.parse(raw);
+      }
+
       case 'getTenantLicenses': {
+        assertSuperAdminDemo(payload);
         const tenantId = payload.tenantId || payload.TenantId;
         let licenses = JSON.parse(localStorage.getItem(STORAGE_KEYS.TENANT_LICENSES) || '[]');
         if (tenantId) {
@@ -1915,6 +2076,7 @@ export const crmApi = {
       }
 
       case 'saveTenantLicense': {
+        assertSuperAdminDemo(payload);
         const tenantId = payload.tenantId || payload.TenantId;
         if (!tenantId) throw new Error('Tenant ID required for licensing.');
 
@@ -1928,7 +2090,7 @@ export const crmApi = {
           licenses.forEach(l => {
             if (l.TenantId === tenantId && l.Id !== id && l.IsActive) {
               l.IsActive = false;
-              l.Status = 'Renewed';
+              l.Status = 'Expired';
               l.Updated_At = now;
             }
           });
@@ -1940,7 +2102,11 @@ export const crmApi = {
           LicenseType: payload.LicenseType || payload.licenseType || 'Professional',
           StartDate: payload.StartDate || payload.startDate || now.slice(0, 10),
           EndDate: payload.EndDate || payload.endDate || '',
-          Amount: payload.Amount !== undefined ? payload.Amount : 0,
+          Amount: Number(payload.Amount !== undefined ? payload.Amount : (payload.amount !== undefined ? payload.amount : 0)) || 0,
+          PaymentMode: payload.PaymentMode || payload.paymentMode || 'Cash',
+          TxnDate: payload.TxnDate || payload.txnDate || now.slice(0, 10),
+          PaymentAccount: payload.PaymentAccount || payload.paymentAccount || payload.account || 'Cash',
+          ReferenceNo: payload.ReferenceNo || payload.referenceNo || '',
           IsActive: status === 'Active',
           Status: status,
           Notes: payload.Notes || payload.notes || '',
@@ -1969,8 +2135,33 @@ export const crmApi = {
         return { success: true, licenseId: id, message: 'Subscription license updated successfully.' };
       }
 
+      case 'activateTenantLicense': {
+        assertSuperAdminDemo(payload);
+        const tenantId = payload.tenantId || payload.TenantId;
+        const licenseId = payload.licenseId || payload.id || payload.Id;
+        const licenses = JSON.parse(localStorage.getItem(STORAGE_KEYS.TENANT_LICENSES) || '[]');
+        const now = new Date().toISOString();
+        licenses.forEach(l => {
+          if (String(l.TenantId).toUpperCase() === String(tenantId).toUpperCase()) {
+            if (l.Id === licenseId) {
+              l.IsActive = true;
+              l.Status = 'Active';
+              l.Updated_At = now;
+            } else if (Boolean(l.IsActive) || String(l.Status).toLowerCase() === 'active') {
+              l.IsActive = false;
+              l.Status = 'Expired';
+              l.Updated_At = now;
+            }
+          }
+        });
+        localStorage.setItem(STORAGE_KEYS.TENANT_LICENSES, JSON.stringify(licenses));
+        broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Licenses' });
+        return { success: true, message: 'License activated successfully.' };
+      }
+
       // SUBSCRIPTION PLANS MASTER (SaaS Tiers & Quotas)
       case 'getSubscriptionPlans': {
+        assertSuperAdminDemo(payload);
         const plans = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBSCRIPTION_PLANS) || '[]');
         if (!payload.showDeleted) {
           return plans.filter(p => !p.IsDeleted);
@@ -1979,6 +2170,7 @@ export const crmApi = {
       }
 
       case 'saveSubscriptionPlan': {
+        assertSuperAdminDemo(payload);
         const plans = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBSCRIPTION_PLANS) || '[]');
         const now = new Date().toISOString();
         const isNew = !payload.PlanId;
@@ -2024,6 +2216,7 @@ export const crmApi = {
       }
 
       case 'deleteSubscriptionPlan': {
+        assertSuperAdminDemo(payload);
         const planId = payload.PlanId || payload.id;
         const plans = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBSCRIPTION_PLANS) || '[]');
         const idx = plans.findIndex(p => p.PlanId === planId);

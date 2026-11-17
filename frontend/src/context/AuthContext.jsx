@@ -49,32 +49,9 @@ export function AuthProvider({ children }) {
     String(user?.IsSuperAdmin).toLowerCase() === 'true' ||
     user?.role === 'SuperAdmin' ||
     user?.Role === 'SuperAdmin' ||
-    (String(user?.role || '').toLowerCase() === 'admin' && String(user?.email || '').toLowerCase().includes('admin')) ||
-    String(user?.email || '').toLowerCase() === 'admin@srinvestments.com' ||
-    String(user?.email || '').toLowerCase() === 'kgopal8306@gmail.com' ||
-    String(user?.userId || '').toLowerCase() === 'user1' ||
-    String(user?.UserId || '').toLowerCase() === 'user1'
+    user?.role === 'SUPER_ADMIN' ||
+    user?.Role === 'SUPER_ADMIN'
   );
-
-  // Synchronize company name with template/tenant CompanySettings tab after login
-  useEffect(() => {
-    if (!user) return;
-    crmApi.call('getCompanySettings', {}, { silent: true }).then(settings => {
-      const liveName = settings?.CompanyName || settings?.COMPANY_NAME;
-      if (liveName) {
-        setTenant(prev => {
-          if (!prev) return { tenantId: user.activeTenantId || 'TEN001', companyName: liveName, CompanyName: liveName };
-          if (prev.companyName !== liveName || prev.CompanyName !== liveName) {
-            const updated = { ...prev, companyName: liveName, CompanyName: liveName };
-            crmApi.setActiveTenant(updated);
-            localStorage.setItem('sr_crm_auth_tenant', JSON.stringify(updated));
-            return updated;
-          }
-          return prev;
-        });
-      }
-    }).catch(() => {});
-  }, [user?.userId, user?.activeTenantId]);
 
   const applyAuthSession = (res) => {
     setUser(res.user);

@@ -39,12 +39,18 @@ const CRM_CONFIG = {
     USER_DOCUMENTS: "User_Documents",
     SUBSCRIPTION_PLANS: "Subscription_Plans_Master",
     DEFAULT_CONFIG: "Default-Config",
-    DAILY_DISPATCH_TRACKER: "Daily_Dispatch_Tracker"
+    DAILY_DISPATCH_TRACKER: "Daily_Dispatch_Tracker",
+    PAYMENT_ACCOUNTS: "Payment_Accounts"
   }
 };
 
 // Database Schema Definitions
 const CRM_SCHEMAS = {
+  // Payment Receiving Accounts Master (Central SaaS DB)
+  PAYMENT_ACCOUNTS: [
+    "AccountId", "AccountName", "AccountType", "AccountNumber", "Status",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
+  ],
   // Daily Email & SMS Dispatch Tracker (Central SaaS DB)
   DAILY_DISPATCH_TRACKER: [
     "Date", "EmailCount", "SmsCount", "Updated_At"
@@ -77,6 +83,7 @@ const CRM_SCHEMAS = {
   ],
   TENANT_LICENSES: [
     "Id", "TenantId", "LicenseType", "StartDate", "EndDate", "Amount",
+    "PaymentMode", "TxnDate", "PaymentAccount", "ReferenceNo",
     "IsActive", "Status", "Notes",
     "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
   ],
@@ -144,7 +151,8 @@ const CENTRAL_MASTER_SHEETS = [
   "Subscription_Plans_Master",
   "Default-Config",
   "Default_Config",
-  "Daily_Dispatch_Tracker"
+  "Daily_Dispatch_Tracker",
+  "Payment_Accounts"
 ];
 
 // Operational CRM Tables (Live EXCLUSIVELY in _CRM_DATABASE_TEMPLATE and Tenant databases)
@@ -309,6 +317,14 @@ function ensureSheetAndColumns_(ss, sheetName, schema) {
         existingHeaders[gIdx] = "AlternateEmailsList";
         existingLower[gIdx] = "alternateemailslist";
         Logger.log("[COLUMN_RENAME] User_Master: Successfully renamed column 'GoogleEmails' to 'AlternateEmailsList' at column " + (gIdx + 1));
+      }
+    }
+
+    // Automatic column migration for Tenant_Licenses / Tenant_Licensing to insert Payment fields
+    if (sheetName === "Tenant_Licenses" || sheetName === "Tenant_Licensing" || sheetName === CRM_CONFIG.SHEETS.TENANT_LICENSES) {
+      const hasPaymentMode = existingLower.indexOf("paymentmode") !== -1;
+      if (!hasPaymentMode) {
+        return modifyTenantLicensingColumns_(sheet);
       }
     }
 
@@ -682,7 +698,9 @@ function setupCentralDatabase() {
     [CRM_CONFIG.SHEETS.TENANT_USER_MAPPING]: CRM_SCHEMAS.TENANT_USER_MAPPING,
     [CRM_CONFIG.SHEETS.TENANT_LICENSES]: CRM_SCHEMAS.TENANT_LICENSES,
     [CRM_CONFIG.SHEETS.SUBSCRIPTION_PLANS]: CRM_SCHEMAS.SUBSCRIPTION_PLANS,
-    [CRM_CONFIG.SHEETS.DEFAULT_CONFIG]: CRM_SCHEMAS.DEFAULT_CONFIG
+    [CRM_CONFIG.SHEETS.DEFAULT_CONFIG]: CRM_SCHEMAS.DEFAULT_CONFIG,
+    [CRM_CONFIG.SHEETS.DAILY_DISPATCH_TRACKER]: CRM_SCHEMAS.DAILY_DISPATCH_TRACKER,
+    [CRM_CONFIG.SHEETS.PAYMENT_ACCOUNTS]: CRM_SCHEMAS.PAYMENT_ACCOUNTS
   };
 
   Object.keys(centralSchemas).forEach(sheetName => {
@@ -845,6 +863,9 @@ function seedCentralSaaSRegistries_() {
     ];
     licSheet.getRange(2, 1, 1, CRM_SCHEMAS.TENANT_LICENSES.length).setValues([defaultLic]);
   }
+
+  // 5. Payment_Accounts seed (Ensure tab exists in Central DB)
+  ensurePaymentAccountsSheet_();
 }
 
 /**
@@ -1206,10 +1227,74 @@ function sendNotification_(payload) {
  */
 
 /**
+ * Validates boolean or string truthiness for IsSuperAdmin field
+ */
+function isSuperAdminValue_(val) {
+  if (val === true || val === 1) return true;
+  if (typeof val === "string") {
+    const s = val.trim().toLowerCase();
+    return s === "true" || s === "1" || s === "yes";
+  }
+  return false;
+}
+
+/**
+ * Strict Super Admin privilege verification for SaaS Tenant & Subscription operations.
+ * Directly queries the live Central User_Master sheet.
+ * Verifies that the requesting user exists, is Active, and has IsSuperAdmin = TRUE.
+ * Cannot be bypassed by client-side spoofing.
+ */
+function verifyIsSuperAdmin_(payload) {
+  payload = payload || {};
+  const email = String(payload.userEmail || payload.email || payload.requesterEmail || "").trim().toLowerCase();
+  const userId = String(payload.userId || payload.UserId || payload.requesterId || "").trim().toLowerCase();
+
+  if (!email && !userId) {
+    throw new Error("Access Denied: Requester identity missing. Super Admin privilege (IsSuperAdmin=TRUE) is required.");
+  }
+
+  const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USER_MASTER, CRM_SCHEMAS.USER_MASTER);
+  const users = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.USER_MASTER);
+
+  const matched = users.find(function(u) {
+    const isDel = u.IsDeleted === true || String(u.IsDeleted).toLowerCase() === "true";
+    if (isDel) return false;
+
+    const matchEmail = u.Email && String(u.Email).toLowerCase().trim() === email;
+    const matchId = u.UserId && String(u.UserId).toLowerCase().trim() === userId;
+
+    const altEmails = u.AlternateEmailsList || u.GoogleEmails || "";
+    const altList = altEmails ? String(altEmails).toLowerCase().split(",").map(function(s) { return s.trim(); }) : [];
+    const matchAlt = email && altList.indexOf(email) !== -1;
+
+    return matchEmail || matchId || matchAlt;
+  });
+
+  if (!matched) {
+    throw new Error("Access Denied: User account (" + (email || userId) + ") not found in Central User Master. Super Admin privilege required.");
+  }
+
+  if (matched.Status && String(matched.Status).toLowerCase() !== "active") {
+    throw new Error("Access Denied: User account (" + (matched.Email || email) + ") is inactive. Super Admin privilege required.");
+  }
+
+  const isSuper = isSuperAdminValue_(matched.IsSuperAdmin);
+  if (!isSuper) {
+    throw new Error("Access Denied: Super Admin privilege required. IsSuperAdmin is FALSE in database for user (" + (matched.Email || email) + "). Operation rejected.");
+  }
+
+  return matched;
+}
+
+/**
  * Fetch all client organizations (tenants) with joined active license details
  */
 function getTenants_(payload) {
   payload = payload || {};
+  verifyIsSuperAdmin_(payload);
+  // Ensure Payment_Accounts tab exists in Central DB whenever SuperAdmin views tenants
+  ensurePaymentAccountsSheet_();
+
   const showDeleted = Boolean(payload.showDeleted);
   const tenantSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
   let tenants = getSheetRowsAsObjects_(tenantSheet, CRM_SCHEMAS.TENANT_MASTER);
@@ -1218,18 +1303,17 @@ function getTenants_(payload) {
     tenants = tenants.filter(t => !t.IsDeleted && String(t.IsDeleted).toLowerCase() !== "true");
   }
 
-  // Read licenses to merge latest subscription info
+  // Read licenses to merge latest subscription info (with auto-expiry & auto-chaining)
   const licenseSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_LICENSES, CRM_SCHEMAS.TENANT_LICENSES);
-  const licenses = getSheetRowsAsObjects_(licenseSheet, CRM_SCHEMAS.TENANT_LICENSES);
+  const licenses = evaluateAndSyncTenantLicenses_(licenseSheet);
 
   return tenants.map(t => {
     const tenantLicenses = licenses.filter(l => 
       String(l.TenantId).trim().toUpperCase() === String(t.TenantId).trim().toUpperCase() &&
       !l.IsDeleted
     );
-    // Find active license or latest
+    // Find genuinely active license
     const activeLicense = tenantLicenses.find(l => Boolean(l.IsActive) || String(l.Status).toLowerCase() === "active") 
-      || tenantLicenses[tenantLicenses.length - 1] 
       || null;
 
     return {
@@ -1248,21 +1332,88 @@ function getTenants_(payload) {
 }
 
 /**
+ * Auto-generate next non-colliding unique TenantId (e.g. TEN001, TEN002...)
+ * Guarantees Tenant IDs never duplicate.
+ */
+function generateUniqueTenantId_(tenants) {
+  let maxNum = 0;
+  (tenants || []).forEach(t => {
+    const m = String(t.TenantId || "").match(/^TEN(\d+)$/i);
+    if (m) {
+      const num = parseInt(m[1], 10);
+      if (num > maxNum) maxNum = num;
+    }
+  });
+  let nextNum = maxNum + 1;
+  let candidate = "TEN" + String(nextNum).padStart(3, "0");
+  const existingSet = new Set((tenants || []).map(t => String(t.TenantId || "").trim().toUpperCase()));
+  while (existingSet.has(candidate)) {
+    nextNum++;
+    candidate = "TEN" + String(nextNum).padStart(3, "0");
+  }
+  return candidate;
+}
+
+/**
+ * Ensures 'Payment_Accounts' tab exists in Central_SaaS_Master_DB with complete headers and default accounts.
+ * Automatically adds the tab if it does not exist.
+ */
+function ensurePaymentAccountsSheet_() {
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.PAYMENT_ACCOUNTS, CRM_SCHEMAS.PAYMENT_ACCOUNTS);
+  if (sheet.getLastRow() <= 1) {
+    const now = new Date().toISOString();
+    const defaults = [
+      ["ACC001", "Cash in Hand", "Cash", "-", "Active", false, "superadmin@srinvestments.com", now, "", "", "", ""],
+      ["ACC002", "Bank1 (Primary Current)", "Bank", "50200012345678", "Active", false, "superadmin@srinvestments.com", now, "", "", "", ""],
+      ["ACC003", "Bank2 (Operating)", "Bank", "001105009876", "Active", false, "superadmin@srinvestments.com", now, "", "", "", ""]
+    ];
+    sheet.getRange(2, 1, defaults.length, CRM_SCHEMAS.PAYMENT_ACCOUNTS.length).setValues(defaults);
+    Logger.log("[CENTRAL_DB] Created 'Payment_Accounts' tab with default accounts in Central DB.");
+  }
+  return sheet;
+}
+
+/**
+ * Fetch Payment Accounts from Central DB (guarantees tab exists)
+ */
+function getPaymentAccounts_(payload) {
+  const sheet = ensurePaymentAccountsSheet_();
+  const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.PAYMENT_ACCOUNTS);
+  return rows.filter(r => !r.IsDeleted && String(r.IsDeleted).toLowerCase() !== "true");
+}
+
+/**
  * Create or Update a Client Organization (Tenant)
  */
 function saveTenant_(payload) {
   payload = payload || {};
+  verifyIsSuperAdmin_(payload);
   const tenantSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
   const tenants = getSheetRowsAsObjects_(tenantSheet, CRM_SCHEMAS.TENANT_MASTER);
   const now = new Date().toISOString();
   const userEmail = payload.userEmail || "superadmin@srinvestments.com";
 
   let tenantId = (payload.TenantId || "").trim();
-  const isNew = !tenantId;
+  const existingIds = new Set(tenants.map(t => String(t.TenantId || "").trim().toUpperCase()));
 
+  // Locate existing row if editing
+  let targetRowIndex = -1;
+  if (tenantId) {
+    const rawIds = tenantSheet.getRange(2, 1, Math.max(tenantSheet.getLastRow() - 1, 1), 1).getValues();
+    for (let i = 0; i < rawIds.length; i++) {
+      if (String(rawIds[i][0]).trim().toUpperCase() === tenantId.toUpperCase()) {
+        targetRowIndex = i + 2;
+        break;
+      }
+    }
+  }
+
+  const isNew = targetRowIndex === -1;
   if (isNew) {
-    const count = tenants.length + 1;
-    tenantId = "TEN" + String(count).padStart(3, "0");
+    // If tenantId already exists or is empty, auto-generate next unique ID to guarantee no duplicate
+    if (!tenantId || existingIds.has(tenantId.toUpperCase())) {
+      tenantId = generateUniqueTenantId_(tenants);
+    }
   }
 
   const tenantRecord = {
@@ -1287,31 +1438,25 @@ function saveTenant_(payload) {
     tenantRecord.Deleted_At = "";
   }
 
-  // Locate existing row
-  let targetRowIndex = -1;
-  if (!isNew) {
-    const rawIds = tenantSheet.getRange(2, 1, Math.max(tenantSheet.getLastRow() - 1, 1), 1).getValues();
-    for (let i = 0; i < rawIds.length; i++) {
-      if (String(rawIds[i][0]).trim().toUpperCase() === tenantId.toUpperCase()) {
-        targetRowIndex = i + 2;
-        break;
-      }
-    }
-  }
-
   writeRowByHeaders_(tenantSheet, targetRowIndex, tenantRecord, CRM_SCHEMAS.TENANT_MASTER);
 
   // If initial license configuration is passed with new tenant, create license record
   if (payload.initialLicense) {
     saveTenantLicense_({
+      tenantId: tenantId,
       TenantId: tenantId,
       LicenseType: payload.initialLicense.licenseType || "Enterprise",
       StartDate: payload.initialLicense.startDate || now.slice(0, 10),
       EndDate: payload.initialLicense.endDate || "",
-      Amount: payload.initialLicense.amount || 0,
+      Amount: payload.initialLicense.amount !== undefined ? payload.initialLicense.amount : 0,
+      PaymentMode: payload.initialLicense.paymentMode || "Cash",
+      TxnDate: payload.initialLicense.txnDate || now.slice(0, 10),
+      PaymentAccount: payload.initialLicense.paymentAccount || "Cash",
+      ReferenceNo: payload.initialLicense.referenceNo || "",
       Status: "Active",
-      Notes: "Initial license subscription setup",
-      userEmail: userEmail
+      Notes: payload.initialLicense.notes || "Initial subscription license setup on onboarding",
+      userEmail: userEmail,
+      isSuperAdmin: true
     });
   }
 
@@ -1323,6 +1468,7 @@ function saveTenant_(payload) {
  */
 function deleteTenant_(payload) {
   payload = payload || {};
+  verifyIsSuperAdmin_(payload);
   const tenantId = (payload.tenantId || payload.TenantId || "").trim();
   if (!tenantId) throw new Error("Tenant ID is required.");
 
@@ -1352,13 +1498,187 @@ function deleteTenant_(payload) {
 }
 
 /**
- * Get License History for a Tenant
+ * Modifies Tenant Licensing sheet to insert the 4 payment columns right after Amount,
+ * and rearranges columns in standard schema order, preserving any existing rows.
+ */
+function modifyTenantLicensingColumns_(sheet) {
+  if (!sheet) {
+    const ss = getSpreadsheet_();
+    sheet = ss.getSheetByName("Tenant_Licensing") || ss.getSheetByName("Tenant_Licenses");
+    if (!sheet) {
+      sheet = ss.insertSheet("Tenant_Licenses");
+    }
+  }
+
+  const schema = CRM_SCHEMAS.TENANT_LICENSES;
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+
+  let existingData = [];
+  if (lastRow > 1 && lastCol > 0) {
+    const rawHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h || "").trim());
+    const rawValues = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+    existingData = rawValues.map(row => {
+      const obj = {};
+      rawHeaders.forEach((h, i) => {
+        if (h) obj[h.toLowerCase()] = row[i];
+      });
+      return obj;
+    });
+  }
+
+  // Clear existing content and format
+  sheet.clear();
+
+  // Write new schema headers to Row 1
+  sheet.getRange(1, 1, 1, schema.length).setValues([schema]);
+  sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, schema.length)
+    .setFontWeight("bold")
+    .setBackground("#1e40af") // Royal Blue
+    .setFontColor("#ffffff");
+
+  // Restore data rows mapped into the new columns
+  if (existingData.length > 0) {
+    const newValues = existingData.map(obj => {
+      return schema.map(col => {
+        const val = obj[col.toLowerCase()];
+        return val !== undefined ? val : "";
+      });
+    });
+    sheet.getRange(2, 1, newValues.length, schema.length).setValues(newValues);
+  } else {
+    // Seed default record if table is empty
+    const now = new Date().toISOString();
+    const defaultLic = [
+      "LIC_101", "TEN001", "Enterprise", now.slice(0, 10), "2027-12-31", 120000,
+      "UPI", now.slice(0, 10), "Cash in Hand", "TXN_INIT_001",
+      true, "Active", "Founder Enterprise SaaS License",
+      false, "system", now, "system", now, "", ""
+    ];
+    sheet.getRange(2, 1, 1, schema.length).setValues([defaultLic]);
+  }
+
+  sheet.autoResizeColumns(1, schema.length);
+  Logger.log("[SCHEMA_MIGRATION] Tenant Licensing sheet columns updated to: " + schema.join(", "));
+  return {
+    success: true,
+    sheetName: sheet.getName(),
+    columns: schema,
+    rowCount: sheet.getLastRow(),
+    message: "Tenant Licensing sheet columns successfully modified with payment fields."
+  };
+}
+
+/**
+ * Auto-transition rules:
+ * - Mark as EXPIRED if today > EndDate (and was Active).
+ * - If no active license, find queued 'NEW' licenses:
+ *   if today >= StartDate && today <= EndDate, automatically transition to ACTIVE!
+ * - If multiple queued, picks the one whose StartDate is nearest to previous EndDate.
+ */
+function evaluateAndSyncTenantLicenses_(sheet, tenantId) {
+  if (!sheet) {
+    sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_LICENSES, CRM_SCHEMAS.TENANT_LICENSES);
+  }
+  const allLicenses = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.TENANT_LICENSES);
+  const now = new Date().toISOString();
+  const today = now.slice(0, 10);
+  
+  const tenantRows = [];
+  allLicenses.forEach((lic, idx) => {
+    if (!lic.IsDeleted || String(lic.IsDeleted).toLowerCase() !== "true") {
+      if (!tenantId || String(lic.TenantId || "").trim().toUpperCase() === String(tenantId).trim().toUpperCase()) {
+        tenantRows.push({ rowNumber: idx + 2, lic: lic });
+      }
+    }
+  });
+
+  if (tenantRows.length === 0) return allLicenses;
+
+  // Group by tenant
+  const byTenant = {};
+  tenantRows.forEach(item => {
+    const tId = String(item.lic.TenantId || "").trim().toUpperCase();
+    if (!byTenant[tId]) byTenant[tId] = [];
+    byTenant[tId].push(item);
+  });
+
+  let modified = false;
+
+  Object.keys(byTenant).forEach(tId => {
+    const group = byTenant[tId];
+    let hasActive = false;
+    let expiredEndDate = "";
+
+    // 1. Expire past licenses (EndDate < today)
+    group.forEach(item => {
+      const lic = item.lic;
+      const statusLower = String(lic.Status || "").toLowerCase();
+      const isActive = Boolean(lic.IsActive) || statusLower === "active";
+      const endDate = lic.EndDate ? String(lic.EndDate).slice(0, 10) : "";
+
+      if (isActive && endDate && today > endDate) {
+        const updated = Object.assign({}, lic, {
+          IsActive: false,
+          Status: "Expired",
+          Updated_By: "system-auto",
+          Updated_At: now
+        });
+        writeRowByHeaders_(sheet, item.rowNumber, updated, CRM_SCHEMAS.TENANT_LICENSES);
+        item.lic = updated;
+        expiredEndDate = endDate;
+        modified = true;
+      } else if (isActive && (!endDate || today <= endDate)) {
+        hasActive = true;
+      }
+    });
+
+    // 2. If NO active license, check for queued NEW licenses whose StartDate <= today <= EndDate
+    if (!hasActive) {
+      const candidates = group.filter(item => {
+        const sLower = String(item.lic.Status || "").toLowerCase();
+        const sDate = item.lic.StartDate ? String(item.lic.StartDate).slice(0, 10) : "";
+        const eDate = item.lic.EndDate ? String(item.lic.EndDate).slice(0, 10) : "";
+        return (sLower === "new" || sLower === "pending" || sLower === "upcoming") &&
+               sDate && today >= sDate && (!eDate || today <= eDate);
+      });
+
+      if (candidates.length > 0) {
+        // Pick the candidate whose StartDate is nearest to today / expiredEndDate
+        candidates.sort((a, b) => {
+          const tA = new Date(a.lic.StartDate).getTime();
+          const tB = new Date(b.lic.StartDate).getTime();
+          const refTime = expiredEndDate ? new Date(expiredEndDate).getTime() : new Date().getTime();
+          return Math.abs(tA - refTime) - Math.abs(tB - refTime);
+        });
+
+        const chosen = candidates[0];
+        const activated = Object.assign({}, chosen.lic, {
+          IsActive: true,
+          Status: "Active",
+          Updated_By: "system-auto-chain",
+          Updated_At: now
+        });
+        writeRowByHeaders_(sheet, chosen.rowNumber, activated, CRM_SCHEMAS.TENANT_LICENSES);
+        chosen.lic = activated;
+        modified = true;
+      }
+    }
+  });
+
+  return modified ? getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.TENANT_LICENSES) : allLicenses;
+}
+
+/**
+ * Get License History for a Tenant (auto-evaluated)
  */
 function getTenantLicenses_(payload) {
   payload = payload || {};
+  verifyIsSuperAdmin_(payload);
   const tenantId = (payload.tenantId || payload.TenantId || "").trim();
   const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_LICENSES, CRM_SCHEMAS.TENANT_LICENSES);
-  let rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.TENANT_LICENSES);
+  let rows = evaluateAndSyncTenantLicenses_(sheet, tenantId);
 
   if (tenantId) {
     rows = rows.filter(r => String(r.TenantId).trim().toUpperCase() === tenantId.toUpperCase());
@@ -1372,16 +1692,72 @@ function getTenantLicenses_(payload) {
 }
 
 /**
- * Save / Renew a Tenant License
+ * Manually activate a license for a tenant:
+ * - Sets target license to Active (IsActive: true, Status: "Active")
+ * - Sets any previously active license for this tenant to Expired (IsActive: false, Status: "Expired")
+ */
+function activateTenantLicense_(payload) {
+  payload = payload || {};
+  verifyIsSuperAdmin_(payload);
+  const licenseId = (payload.licenseId || payload.id || payload.Id || "").trim();
+  const tenantId = (payload.tenantId || payload.TenantId || "").trim();
+  if (!licenseId || !tenantId) throw new Error("License ID and Tenant ID are required for activation.");
+
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_LICENSES, CRM_SCHEMAS.TENANT_LICENSES);
+  const licenses = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.TENANT_LICENSES);
+  const now = new Date().toISOString();
+  const userEmail = payload.userEmail || "superadmin@srinvestments.com";
+
+  let targetIndex = -1;
+  licenses.forEach((lic, idx) => {
+    if (String(lic.TenantId).trim().toUpperCase() === tenantId.toUpperCase()) {
+      if (lic.Id === licenseId) {
+        targetIndex = idx;
+      } else if (Boolean(lic.IsActive) || String(lic.Status).toLowerCase() === "active") {
+        // Mark previous active as Expired
+        const expiredLic = Object.assign({}, lic, {
+          IsActive: false,
+          Status: "Expired",
+          Updated_By: userEmail,
+          Updated_At: now
+        });
+        writeRowByHeaders_(sheet, idx + 2, expiredLic, CRM_SCHEMAS.TENANT_LICENSES);
+      }
+    }
+  });
+
+  if (targetIndex === -1) {
+    throw new Error("License " + licenseId + " not found.");
+  }
+
+  const targetLic = Object.assign({}, licenses[targetIndex], {
+    IsActive: true,
+    Status: "Active",
+    Updated_By: userEmail,
+    Updated_At: now
+  });
+  writeRowByHeaders_(sheet, targetIndex + 2, targetLic, CRM_SCHEMAS.TENANT_LICENSES);
+
+  return {
+    success: true,
+    licenseId: licenseId,
+    message: "License " + licenseId + " activated successfully! Previous license marked as Expired."
+  };
+}
+
+/**
+ * Save / Renew a Tenant License (supports saving as NEW or Active)
  */
 function saveTenantLicense_(payload) {
   payload = payload || {};
+  verifyIsSuperAdmin_(payload);
   const tenantId = (payload.tenantId || payload.TenantId || "").trim();
   if (!tenantId) throw new Error("Tenant ID is required for licensing.");
 
   const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_LICENSES, CRM_SCHEMAS.TENANT_LICENSES);
   const licenses = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.TENANT_LICENSES);
   const now = new Date().toISOString();
+  const today = now.slice(0, 10);
   const userEmail = payload.userEmail || "superadmin@srinvestments.com";
 
   let id = (payload.id || payload.Id || "").trim();
@@ -1390,18 +1766,23 @@ function saveTenantLicense_(payload) {
     id = "LIC_" + Date.now();
   }
 
-  // If this license is being set to Active, mark earlier licenses for this tenant as Renewed/Inactive
-  const newStatus = payload.Status || "Active";
-  if (newStatus === "Active") {
-    // update previous active licenses
+  const requestedStatus = payload.Status || payload.status || "NEW";
+  const startDate = payload.StartDate || payload.startDate || today;
+  const endDate = payload.EndDate || payload.endDate || "";
+
+  // If status is Active, mark earlier active licenses for this tenant as Expired
+  if (requestedStatus === "Active") {
     licenses.forEach((lic, idx) => {
-      if (String(lic.TenantId).trim().toUpperCase() === tenantId.toUpperCase() && lic.Id !== id && lic.IsActive) {
-        writeRowByHeaders_(sheet, idx + 2, {
+      if (String(lic.TenantId).trim().toUpperCase() === tenantId.toUpperCase() && 
+          lic.Id !== id && 
+          (Boolean(lic.IsActive) || String(lic.Status).toLowerCase() === "active")) {
+        const updatedLic = Object.assign({}, lic, {
           IsActive: false,
-          Status: "Renewed",
+          Status: "Expired",
           Updated_By: userEmail,
           Updated_At: now
-        }, CRM_SCHEMAS.TENANT_LICENSES);
+        });
+        writeRowByHeaders_(sheet, idx + 2, updatedLic, CRM_SCHEMAS.TENANT_LICENSES);
       }
     });
   }
@@ -1410,11 +1791,15 @@ function saveTenantLicense_(payload) {
     Id: id,
     TenantId: tenantId,
     LicenseType: payload.LicenseType || payload.licenseType || "Professional",
-    StartDate: payload.StartDate || payload.startDate || now.slice(0, 10),
-    EndDate: payload.EndDate || payload.endDate || "",
-    Amount: payload.Amount !== undefined ? payload.Amount : 0,
-    IsActive: newStatus === "Active",
-    Status: newStatus,
+    StartDate: startDate,
+    EndDate: endDate,
+    Amount: Number(payload.Amount !== undefined ? payload.Amount : (payload.amount !== undefined ? payload.amount : 0)) || 0,
+    PaymentMode: payload.PaymentMode || payload.paymentMode || "Cash",
+    TxnDate: payload.TxnDate || payload.txnDate || today,
+    PaymentAccount: payload.PaymentAccount || payload.paymentAccount || payload.account || "Cash in Hand",
+    ReferenceNo: payload.ReferenceNo || payload.referenceNo || "",
+    IsActive: requestedStatus === "Active",
+    Status: requestedStatus,
     Notes: payload.Notes || payload.notes || "",
     IsDeleted: false,
     Updated_By: userEmail,
@@ -1437,10 +1822,18 @@ function saveTenantLicense_(payload) {
         break;
       }
     }
+    if (targetRowIndex > 0 && licenses[targetRowIndex - 2]) {
+      Object.assign(record, licenses[targetRowIndex - 2], record);
+    }
   }
 
   writeRowByHeaders_(sheet, targetRowIndex, record, CRM_SCHEMAS.TENANT_LICENSES);
-  return { success: true, licenseId: id, message: "Subscription license updated successfully." };
+  return { 
+    success: true, 
+    licenseId: id, 
+    status: requestedStatus,
+    message: requestedStatus === "Active" ? "Subscription license saved and activated." : "Subscription license saved as NEW (Queued)."
+  };
 }
 
 /**
@@ -1528,6 +1921,7 @@ function uploadUserDocument_(payload) {
 
 function getSubscriptionPlans_(payload) {
   payload = payload || {};
+  verifyIsSuperAdmin_(payload);
   const showDeleted = Boolean(payload.showDeleted);
   const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.SUBSCRIPTION_PLANS, CRM_SCHEMAS.SUBSCRIPTION_PLANS);
   let plans = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.SUBSCRIPTION_PLANS);
@@ -1638,6 +2032,7 @@ function seedSubscriptionPlans_(sheet) {
 
 function saveSubscriptionPlan_(payload) {
   payload = payload || {};
+  verifyIsSuperAdmin_(payload);
   const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.SUBSCRIPTION_PLANS, CRM_SCHEMAS.SUBSCRIPTION_PLANS);
   const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.SUBSCRIPTION_PLANS);
   const now = new Date().toISOString();
@@ -1693,6 +2088,7 @@ function saveSubscriptionPlan_(payload) {
 
 function deleteSubscriptionPlan_(payload) {
   payload = payload || {};
+  verifyIsSuperAdmin_(payload);
   const planId = (payload.PlanId || payload.id || "").trim();
   if (!planId) throw new Error("PlanId is required to delete subscription plan");
 

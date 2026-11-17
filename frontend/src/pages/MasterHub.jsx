@@ -210,8 +210,8 @@ export default function MasterHub({ onOpenBackup }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <Header 
-        title="Master HUB" 
-        subtitle="Centralized management for Organization Departments, Designations & CRM System Roles"
+        title="Master Hub" 
+        subtitle="Manage departments, designations & system roles"
         onRefresh={loadAllMasters}
         refreshing={loading}
         onOpenBackup={onOpenBackup}

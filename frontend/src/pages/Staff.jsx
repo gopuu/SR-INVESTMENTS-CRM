@@ -20,6 +20,7 @@ import { crmApi, getNextEmployeeCode, subscribeCrmEvents } from '../services/api
 import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
 import Modal from '../components/Modal';
+import { showSuccess, showError, showWarning, showConfirm } from '../utils/swal';
 
 export default function Staff({ onOpenBackup }) {
   const { hasPermission } = useAuth();
@@ -170,12 +171,12 @@ export default function Staff({ onOpenBackup }) {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Please select an image file (JPG, PNG, WebP).');
+      showWarning('Please select an image file (JPG, PNG, WebP).');
       return;
     }
 
     if (file.size > 2 * 1024 * 1024) {
-      alert('Image size must be less than 2MB.');
+      showWarning('Image size must be less than 2MB.');
       return;
     }
 
@@ -194,15 +195,15 @@ export default function Staff({ onOpenBackup }) {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!formData.FullName || !formData.FullName.trim()) {
-      alert('Staff Member Name is required.');
+      showWarning('Staff Member Name is required.');
       return;
     }
     if (!formData.Email || !formData.Email.trim()) {
-      alert('Primary Email is compulsory (required for inner join & authentication).');
+      showWarning('Primary Email is compulsory (required for inner join & authentication).');
       return;
     }
     if (!formData.Mobile || !formData.Mobile.trim()) {
-      alert('Primary Mobile Number is compulsory.');
+      showWarning('Primary Mobile Number is compulsory.');
       return;
     }
 
@@ -215,38 +216,49 @@ export default function Staff({ onOpenBackup }) {
       await crmApi.call('saveEmployee', payload);
       setIsModalOpen(false);
       await loadStaff();
+      showSuccess(`Staff member "${formData.FullName}" saved successfully!`);
     } catch (err) {
-      alert(err.message || 'Failed to save staff member');
+      showError(err.message || 'Failed to save staff member');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id, name) => {
-    if (!window.confirm(`Are you sure you want to soft-delete staff member "${name}"?\n\nPer SEBI compliance, records are soft-deleted and preserved in the audit trail.`)) return;
+    const confirmed = await showConfirm(
+      'Soft-Delete Staff Member?',
+      `Are you sure you want to soft-delete staff member "${name}"? Per SEBI compliance, records are preserved in the audit trail.`
+    );
+    if (!confirmed) return;
     try {
       await crmApi.call('deleteEmployee', { employeeId: id });
       await loadStaff();
+      showSuccess(`Staff member "${name}" deleted.`);
     } catch (err) {
-      alert(err.message || 'Failed to delete staff member');
+      showError(err.message || 'Failed to delete staff member');
     }
   };
 
   const handleRestore = async (id, name) => {
-    if (!window.confirm(`Restore soft-deleted staff member "${name}" to active status?`)) return;
+    const confirmed = await showConfirm(
+      'Restore Staff Member?',
+      `Restore soft-deleted staff member "${name}" to active status?`
+    );
+    if (!confirmed) return;
     try {
       await crmApi.call('restoreEmployee', { employeeId: id });
       await loadStaff();
+      showSuccess(`Staff member "${name}" restored.`);
     } catch (err) {
-      alert(err.message || 'Failed to restore staff member');
+      showError(err.message || 'Failed to restore staff member');
     }
   };
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <Header 
-        title="Staff & Advisory Team Master" 
-        subtitle="Manage mutual fund distributors, relationship managers & backoffice staff"
+        title="Staff" 
+        subtitle="Manage advisors, relationship managers & backoffice staff"
         onRefresh={loadStaff}
         refreshing={loading}
         onOpenBackup={onOpenBackup}
@@ -564,9 +576,10 @@ export default function Staff({ onOpenBackup }) {
                 <input
                   type="tel"
                   className="form-input"
-                  placeholder="+91 98201 11223"
+                  placeholder="10-digit mobile number"
+                  maxLength={10}
                   value={formData.Mobile}
-                  onChange={(e) => setFormData({ ...formData, Mobile: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, Mobile: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                   required
                 />
               </div>

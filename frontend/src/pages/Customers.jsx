@@ -20,6 +20,7 @@ import { crmApi, subscribeCrmEvents } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
 import Modal from '../components/Modal';
+import { showSuccess, showError, showWarning, showConfirm } from '../utils/swal';
 
 export default function Customers({ onOpenBackup }) {
   const { hasPermission } = useAuth();
@@ -138,35 +139,46 @@ export default function Customers({ onOpenBackup }) {
       await crmApi.call('saveCustomer', formData);
       setIsModalOpen(false);
       await loadCustomers();
+      showSuccess(`Customer "${formData.FullName}" saved successfully!`);
     } catch (err) {
-      alert(err.message || 'Failed to save customer');
+      showError(err.message || 'Failed to save customer');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id, name) => {
-    if (!window.confirm(`Are you sure you want to soft-delete investor "${name}"?\n\nPer SEBI compliance, records are soft-deleted and preserved in the audit trail.`)) return;
+    const confirmed = await showConfirm(
+      'Soft-Delete Investor?',
+      `Are you sure you want to soft-delete investor "${name}"? Per SEBI compliance, records are preserved in the audit trail.`
+    );
+    if (!confirmed) return;
     try {
       await crmApi.call('deleteCustomer', { customerId: id });
       await loadCustomers();
+      showSuccess(`Investor "${name}" soft-deleted.`);
     } catch (err) {
-      alert(err.message || 'Failed to delete customer');
+      showError(err.message || 'Failed to delete customer');
     }
   };
 
   const handleRestore = async (id, name) => {
-    if (!window.confirm(`Restore soft-deleted investor "${name}" to active status?`)) return;
+    const confirmed = await showConfirm(
+      'Restore Investor?',
+      `Restore soft-deleted investor "${name}" to active status?`
+    );
+    if (!confirmed) return;
     try {
       await crmApi.call('restoreCustomer', { customerId: id });
       await loadCustomers();
+      showSuccess(`Investor "${name}" restored.`);
     } catch (err) {
-      alert(err.message || 'Failed to restore customer');
+      showError(err.message || 'Failed to restore customer');
     }
   };
 
   const exportCSV = () => {
-    if (!customers.length) return alert('No data to export');
+    if (!customers.length) return showWarning('No data to export');
     const headers = ['CustomerCode', 'FullName', 'Email', 'Mobile', 'PAN', 'AadhaarLast4', 'KYC', 'Category', 'Bank', 'AccountNo', 'IFSC', 'City', 'RiskProfile'];
     const rows = customers.map(c => [
       c.CustomerCode,
@@ -196,8 +208,8 @@ export default function Customers({ onOpenBackup }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <Header 
-        title="Mutual Fund Customer Master" 
-        subtitle="Manage client folios, KYC compliance, risk profiling & bank mandates"
+        title="Customers" 
+        subtitle="Manage client folios, KYC compliance & bank mandates"
         onRefresh={loadCustomers}
         refreshing={loading}
         onOpenBackup={onOpenBackup}
@@ -524,9 +536,10 @@ export default function Customers({ onOpenBackup }) {
                 <input
                   type="tel"
                   className="form-input"
-                  placeholder="+91 98765 43210"
+                  placeholder="10-digit mobile (e.g. 9876543210)"
+                  maxLength={10}
                   value={formData.Mobile}
-                  onChange={(e) => setFormData({ ...formData, Mobile: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, Mobile: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                   required
                 />
               </div>

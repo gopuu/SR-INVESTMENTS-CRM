@@ -73,8 +73,8 @@ export default function SipCalculator({ onOpenBackup }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <Header 
-        title="Mutual Fund SIP & Wealth Calculator" 
-        subtitle="Simulate Systematic Investment Plans (SIP), compound growth & Step-up projections for investors"
+        title="SIP Calculator" 
+        subtitle="Simulate SIP returns, compound growth & step-up projections"
         onOpenBackup={onOpenBackup}
       />
 

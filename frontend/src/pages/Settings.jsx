@@ -175,8 +175,8 @@ export default function Settings({ onOpenBackup }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <Header 
-        title="CRM Settings & Configurations" 
-        subtitle="Manage company profile, role-based user rights & Google Sheets backend"
+        title="Settings" 
+        subtitle="Manage company profile, user permissions & backend settings"
         onRefresh={loadSettings}
         refreshing={loading}
         onOpenBackup={onOpenBackup}
