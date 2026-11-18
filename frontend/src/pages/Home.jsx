@@ -10,7 +10,7 @@ import {
   PlusCircle,
   DollarSign
 } from 'lucide-react';
-import { crmApi } from '../services/api';
+import { crmApi, subscribeCrmEvents } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
 
@@ -36,6 +36,23 @@ export default function Home({ onNavigate, onOpenBackup }) {
 
   useEffect(() => {
     loadDashboard();
+
+    // Auto-refresh metrics instantly when ANY CRUD change occurs in this tenant
+    const unsubscribe = subscribeCrmEvents((ev) => {
+      if (
+        ev.type === 'DATA_CHANGED' || 
+        ev.module === 'Customers' || 
+        ev.module === 'Staff' || 
+        ev.module === 'Dashboard' ||
+        ev.module === 'MasterHub'
+      ) {
+        loadDashboard();
+      }
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
   }, []);
 
   const totalCust = data?.totalCustomers || 0;

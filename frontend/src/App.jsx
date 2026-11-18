@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
+import { startRealtimeSyncPoller, stopRealtimeSyncPoller } from './services/api';
 import Sidebar from './components/Sidebar';
 import BackupModal from './components/BackupModal';
 import Login from './pages/Login';
@@ -44,6 +45,18 @@ export default function App() {
     window.addEventListener('crm_navigate', handleCrmNavigate);
     return () => window.removeEventListener('crm_navigate', handleCrmNavigate);
   }, []);
+
+  // Multi-User Cross-Device Real-Time Sync Poller for active tenant
+  useEffect(() => {
+    if (user) {
+      startRealtimeSyncPoller();
+    } else {
+      stopRealtimeSyncPoller();
+    }
+    return () => {
+      stopRealtimeSyncPoller();
+    };
+  }, [user]);
 
   // Guard SuperAdmin portals
   useEffect(() => {

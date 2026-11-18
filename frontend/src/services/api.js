@@ -780,12 +780,40 @@ export const SEED_NOTIFICATIONS = [
 // ==========================================
 const realtimeChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('sr_crm_realtime_channel') : null;
 
+// Multi-User Cross-Device Poller State
+let syncPollerTimer = null;
+let lastSyncVersion = 0;
+let lastActiveTenantId = null;
+let isPollingActive = false;
+let isFetchInProgress = false;
+
 export function broadcastCrmEvent(event) {
   try {
     if (realtimeChannel) {
       realtimeChannel.postMessage(event);
     }
     window.dispatchEvent(new CustomEvent('sr_crm_local_event', { detail: event }));
+
+    // In demo mode or cross-tab local storage fallback:
+    if (typeof localStorage !== 'undefined' && event && event.module) {
+      try {
+        const stored = localStorage.getItem('sr_crm_auth_user');
+        const u = stored ? JSON.parse(stored) : {};
+        const tId = String(event.tenantId || u.activeTenantId || 'TEN001').toUpperCase();
+        const key = 'sr_crm_tenant_sync_' + tId;
+        let list = JSON.parse(localStorage.getItem(key) || '[]');
+        list.unshift({
+          tenantId: tId,
+          version: Date.now(),
+          module: event.module,
+          action: event.action || 'update',
+          by: event.actorEmail || u.email || 'user',
+          timestamp: new Date().toISOString()
+        });
+        if (list.length > 20) list = list.slice(0, 20);
+        localStorage.setItem(key, JSON.stringify(list));
+      } catch (err) {}
+    }
   } catch (e) {
     console.warn('Realtime broadcast failed:', e);
   }
@@ -806,6 +834,115 @@ export function subscribeCrmEvents(handler) {
     }
     window.removeEventListener('sr_crm_local_event', domHandler);
   };
+}
+
+/**
+ * Periodically polls Google Apps Script or Demo store to detect any CRUD changes
+ * performed by OTHER users/systems of the SAME tenant, and reflects them instantly.
+ */
+export async function pollTenantSync() {
+  if (isFetchInProgress) return;
+  try {
+    isFetchInProgress = true;
+    let tenantId = 'TEN001';
+    let userEmail = '';
+    
+    try {
+      const stored = localStorage.getItem('sr_crm_auth_user');
+      if (stored) {
+        const u = JSON.parse(stored);
+        tenantId = u.activeTenantId || tenantId;
+        userEmail = u.email || '';
+      }
+      const activeTenant = crmApi.getActiveTenant();
+      if (activeTenant && (activeTenant.tenantId || activeTenant.TenantId)) {
+        tenantId = activeTenant.tenantId || activeTenant.TenantId;
+      }
+    } catch (e) {}
+
+    if (!tenantId) return;
+
+    // Reset baseline when switching tenant
+    if (lastActiveTenantId !== tenantId) {
+      lastActiveTenantId = tenantId;
+      lastSyncVersion = 0;
+    }
+
+    const res = await crmApi.call('checkTenantSync', {
+      tenantId,
+      lastVersion: lastSyncVersion,
+      userEmail
+    });
+
+    if (res && res.latestVersion) {
+      const isInitialHandshake = lastSyncVersion === 0;
+      lastSyncVersion = Math.max(lastSyncVersion, Number(res.latestVersion));
+
+      if (!isInitialHandshake && res.changed && Array.isArray(res.events) && res.events.length > 0) {
+        const cleanUserEmail = String(userEmail || '').trim().toLowerCase();
+        
+        res.events.forEach(ev => {
+          const isActorCurrent = cleanUserEmail && String(ev.by || '').trim().toLowerCase() === cleanUserEmail;
+          const isVeryRecent = (Date.now() - Number(ev.version || 0)) < 3000;
+
+          // If performed on another machine / user, trigger real-time module refresh
+          if (!isActorCurrent || !isVeryRecent) {
+            broadcastCrmEvent({
+              type: 'DATA_CHANGED',
+              module: ev.module,
+              action: ev.action,
+              subType: ev.action,
+              actorEmail: ev.by,
+              timestamp: ev.timestamp,
+              remote: true,
+              tenantId: ev.tenantId
+            });
+          }
+        });
+      }
+    }
+  } catch (err) {
+    // Gracefully ignore intermittent network blips
+  } finally {
+    isFetchInProgress = false;
+  }
+}
+
+/**
+ * Starts the cross-system realtime sync poller.
+ * Polls at high frequency (2.5s) when window is active, 7s when minimized.
+ */
+export function startRealtimeSyncPoller() {
+  if (isPollingActive) return;
+  isPollingActive = true;
+  lastSyncVersion = 0;
+
+  const scheduleNext = () => {
+    if (!isPollingActive) return;
+    const isHidden = typeof document !== 'undefined' && document.hidden;
+    const interval = isHidden ? 7000 : 2500;
+
+    syncPollerTimer = setTimeout(async () => {
+      await pollTenantSync();
+      if (isPollingActive) scheduleNext();
+    }, interval);
+  };
+
+  // Immediate initial check
+  pollTenantSync().finally(() => {
+    if (isPollingActive) scheduleNext();
+  });
+}
+
+/**
+ * Stops the realtime poller upon logout or teardown
+ */
+export function stopRealtimeSyncPoller() {
+  isPollingActive = false;
+  if (syncPollerTimer) {
+    clearTimeout(syncPollerTimer);
+    syncPollerTimer = null;
+  }
 }
 
 /**
@@ -1152,6 +1289,10 @@ export const crmApi = {
   setShowDeletedGlobally(enabled) {
     localStorage.setItem(STORAGE_KEYS.SHOW_DELETED_GLOBALLY, enabled ? 'true' : 'false');
     broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Settings', subType: 'SHOW_DELETED_CHANGED', value: enabled });
+  },
+
+  async checkTenantSync(tenantId, lastVersion = 0) {
+    return this.call('checkTenantSync', { tenantId, lastVersion });
   },
 
   async getTenants(showDeleted = false) {
@@ -2215,6 +2356,28 @@ export const crmApi = {
         localStorage.setItem(STORAGE_KEYS.TENANT_LICENSES, JSON.stringify(licenses));
         broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Licenses' });
         return { success: true, message: 'License cancelled successfully.' };
+      }
+
+      case 'checkTenantSync': {
+        const tenantId = String(payload.tenantId || 'TEN001').toUpperCase();
+        const lastVersion = Number(payload.lastVersion || 0);
+        const raw = localStorage.getItem('sr_crm_tenant_sync_' + tenantId) || '[]';
+        let history = [];
+        try { history = JSON.parse(raw); } catch (e) {}
+        if (!Array.isArray(history) || history.length === 0) {
+          return { changed: false, tenantId, latestVersion: lastVersion || Date.now(), events: [] };
+        }
+        const latestVer = Math.max(...history.map(e => Number(e.version || 0)));
+        if (lastVersion <= 0) {
+          return { changed: false, tenantId, latestVersion: latestVer, events: [] };
+        }
+        const newEvents = history.filter(ev => Number(ev.version) > lastVersion);
+        return {
+          changed: newEvents.length > 0,
+          tenantId,
+          latestVersion: latestVer,
+          events: newEvents
+        };
       }
 
       // TENANT USER MAPPING (Central SaaS)

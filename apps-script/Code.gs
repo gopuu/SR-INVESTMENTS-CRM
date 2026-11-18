@@ -157,7 +157,18 @@ function bridgeRequest(action, payload) {
 }
 
 function handleAction_(action, payload) {
+  payload = payload || {};
+  const result = executeAction_(action, payload);
+  recordActionSyncIfMutating_(action, payload);
+  return result;
+}
+
+function executeAction_(action, payload) {
   switch (action) {
+    // Realtime Multi-User Sync for Same Tenant
+    case "checkTenantSync":
+      return checkTenantSync_(payload);
+
     // Health & Verification
     case "health":
       return { ok: true, spreadsheetId: CRM_CONFIG.SPREADSHEET_ID, timestamp: new Date().toISOString() };
@@ -377,6 +388,95 @@ function handleAction_(action, payload) {
 
     default:
       throw new Error("Unknown action: " + action);
+  }
+}
+
+/**
+ * Automatically captures mutating actions to broadcast real-time sync across multi-user sessions of the same tenant
+ */
+function recordActionSyncIfMutating_(action, payload) {
+  try {
+    payload = payload || {};
+    let module = null;
+    let tenantId = String(payload.tenantId || payload.TenantId || "").trim().toUpperCase();
+
+    switch (action) {
+      // Customers
+      case "saveCustomer":
+      case "deleteCustomer":
+      case "restoreCustomer":
+        module = "Customers";
+        break;
+
+      // Staff / Employees
+      case "saveEmployee":
+      case "deleteEmployee":
+      case "restoreEmployee":
+        module = "Staff";
+        break;
+
+      // Master Hub (Departments, Designations, Roles)
+      case "saveMasterItem":
+      case "deleteMasterItem":
+      case "restoreMasterItem": {
+        const type = String(payload.type || payload.masterType || "").toLowerCase();
+        if (type.includes("dep")) module = "MasterDepartments";
+        else if (type.includes("des")) module = "MasterDesignations";
+        else if (type.includes("rol")) module = "MasterRoles";
+        else module = "MasterHub";
+        break;
+      }
+
+      // Settings & Rights
+      case "saveCompanySettings":
+        module = "Settings";
+        break;
+
+      case "saveRolesRights":
+        module = "RolesRights";
+        break;
+
+      // SaaS & Organization Mappings
+      case "saveTenantUserMappings":
+      case "deleteTenantUserMapping":
+        module = "TenantUserMapping";
+        break;
+
+      case "saveTenant":
+      case "deleteTenant":
+        module = "TenantMaster";
+        break;
+
+      case "saveTenantLicense":
+      case "activateTenantLicense":
+      case "cancelTenantLicense":
+        module = "Licenses";
+        break;
+
+      case "saveSubscriptionPlan":
+      case "deleteSubscriptionPlan":
+        module = "SubscriptionPlans";
+        break;
+
+      case "updateUserProfile":
+      case "changePassword":
+        module = "UserProfile";
+        break;
+
+      default:
+        module = null;
+        break;
+    }
+
+    if (module) {
+      if (!tenantId) {
+        tenantId = "TEN001";
+      }
+      const byUser = String(payload.userEmail || payload.email || payload.userName || "user").trim();
+      recordTenantChange_(tenantId, module, action, byUser);
+    }
+  } catch (err) {
+    Logger.log("recordActionSyncIfMutating_ error: " + err.message);
   }
 }
 

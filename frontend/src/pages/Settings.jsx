@@ -10,7 +10,7 @@ import {
   Archive,
   Download
 } from 'lucide-react';
-import { crmApi } from '../services/api';
+import { crmApi, subscribeCrmEvents } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
 import RolesRights from './RolesRights';
@@ -46,6 +46,17 @@ export default function Settings({ onOpenBackup }) {
 
   useEffect(() => {
     loadSettings();
+
+    // Auto-refresh settings & rights if updated on another system
+    const unsub = subscribeCrmEvents((ev) => {
+      if (ev.module === 'Settings' || ev.module === 'RolesRights' || ev.type === 'DATA_CHANGED') {
+        loadSettings();
+      }
+    });
+
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
   }, []);
 
   const loadSettings = async () => {

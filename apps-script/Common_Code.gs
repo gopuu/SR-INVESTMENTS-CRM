@@ -2829,3 +2829,122 @@ function getDailyDispatchStats_() {
     smsMaxLimit: Number(cfg.SmsMaxLimitPerDay || cfg.smsmaxlimitperday || 100)
   };
 }
+
+/**
+ * ==============================================================
+ * REALTIME MULTI-USER SYNC ENGINE (SAME TENANT, DIFFERENT SYSTEMS)
+ * Records and serves in-memory change events via CacheService &
+ * ScriptProperties for instant cross-device module reflection.
+ * ==============================================================
+ */
+
+/**
+ * Records an instant tenant CRUD sync change in CacheService (in-memory) & ScriptProperties (durable).
+ * Enables multi-user real-time reflection across different machines/browsers for the same tenant.
+ */
+function recordTenantChange_(tenantId, module, action, by) {
+  try {
+    const cleanTenantId = String(tenantId || "TEN001").trim().toUpperCase();
+    const now = Date.now();
+    const eventObj = {
+      tenantId: cleanTenantId,
+      version: now,
+      module: module,
+      action: action,
+      by: by || "user",
+      timestamp: new Date().toISOString()
+    };
+
+    const cacheKey = "TENANT_SYNC_" + cleanTenantId;
+    const cache = CacheService.getScriptCache();
+    let history = [];
+    
+    // Read current history from cache or properties
+    const cachedStr = cache.get(cacheKey) || PropertiesService.getScriptProperties().getProperty(cacheKey);
+    if (cachedStr) {
+      try {
+        history = JSON.parse(cachedStr);
+      } catch (e) {
+        history = [];
+      }
+    }
+
+    if (!Array.isArray(history)) history = [];
+    history.unshift(eventObj);
+    if (history.length > 25) history = history.slice(0, 25);
+
+    const historyStr = JSON.stringify(history);
+    // Cache for 6 hours (21600 seconds)
+    cache.put(cacheKey, historyStr, 21600);
+    PropertiesService.getScriptProperties().setProperty(cacheKey, historyStr);
+  } catch (err) {
+    Logger.log("recordTenantChange_ error: " + err.message);
+  }
+}
+
+/**
+ * Checks for any CRUD changes in the specified tenant newer than lastVersion.
+ * Extremely fast & lightweight (sub-100ms) without opening Google Sheets.
+ */
+function checkTenantSync_(payload) {
+  payload = payload || {};
+  const tenantId = String(payload.tenantId || payload.TenantId || "TEN001").trim().toUpperCase();
+  const lastVersion = Number(payload.lastVersion || 0);
+
+  const cacheKey = "TENANT_SYNC_" + tenantId;
+  const cache = CacheService.getScriptCache();
+  let historyStr = cache.get(cacheKey);
+  if (!historyStr) {
+    historyStr = PropertiesService.getScriptProperties().getProperty(cacheKey);
+  }
+
+  if (!historyStr) {
+    return {
+      changed: false,
+      tenantId: tenantId,
+      latestVersion: lastVersion || Date.now(),
+      events: []
+    };
+  }
+
+  let history = [];
+  try {
+    history = JSON.parse(historyStr);
+  } catch (e) {
+    return { changed: false, tenantId: tenantId, latestVersion: lastVersion, events: [] };
+  }
+
+  if (!Array.isArray(history) || history.length === 0) {
+    return { changed: false, tenantId: tenantId, latestVersion: lastVersion, events: [] };
+  }
+
+  const latestVer = Math.max(...history.map(function(e) { return Number(e.version || 0); }));
+
+  // If lastVersion is 0 (initial handshake), return current latest version without triggering full reload
+  if (lastVersion <= 0) {
+    return {
+      changed: false,
+      tenantId: tenantId,
+      latestVersion: latestVer,
+      events: []
+    };
+  }
+
+  const newEvents = history.filter(function(ev) { return Number(ev.version) > lastVersion; });
+
+  if (newEvents.length > 0) {
+    return {
+      changed: true,
+      tenantId: tenantId,
+      latestVersion: latestVer,
+      events: newEvents
+    };
+  }
+
+  return {
+    changed: false,
+    tenantId: tenantId,
+    latestVersion: latestVer,
+    events: []
+  };
+}
