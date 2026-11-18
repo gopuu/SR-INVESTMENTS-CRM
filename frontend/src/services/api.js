@@ -1154,6 +1154,26 @@ export const crmApi = {
     broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Settings', subType: 'SHOW_DELETED_CHANGED', value: enabled });
   },
 
+  async getTenants(showDeleted = false) {
+    return this.call('getTenants', { showDeleted });
+  },
+
+  async saveTenant(tenantData) {
+    return this.call('saveTenant', tenantData);
+  },
+
+  async deleteTenant(tenantId) {
+    return this.call('deleteTenant', { tenantId });
+  },
+
+  async getTenantLicenses(tenantId, showDeleted = false) {
+    return this.call('getTenantLicenses', { tenantId, showDeleted });
+  },
+
+  async saveTenantLicense(licenseData) {
+    return this.call('saveTenantLicense', licenseData);
+  },
+
   async getSubscriptionPlans(showDeleted = false) {
     return this.call('getSubscriptionPlans', { showDeleted });
   },
