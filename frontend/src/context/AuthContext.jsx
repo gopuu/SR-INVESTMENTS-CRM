@@ -158,12 +158,65 @@ export function AuthProvider({ children }) {
     localStorage.setItem('sr_crm_auth_user', JSON.stringify(updated));
   };
 
+  const syncUserTenantRole = (tenantId, newRole) => {
+    if (!user) return;
+    const cleanRole = String(newRole || 'Staff').trim();
+    const updatedUser = { 
+      ...user, 
+      role: cleanRole, 
+      Role: cleanRole 
+    };
+
+    const updatedWorkspaces = (workspaces || []).map(w => {
+      if (String(w.tenantId || '').toUpperCase() === String(tenantId).toUpperCase()) {
+        return { ...w, role: cleanRole, Role: cleanRole };
+      }
+      return w;
+    });
+
+    if (!updatedWorkspaces.some(w => String(w.tenantId || '').toUpperCase() === String(tenantId).toUpperCase())) {
+      updatedWorkspaces.push({
+        tenantId: tenantId,
+        companyName: tenant?.CompanyName || tenantId,
+        role: cleanRole
+      });
+    }
+
+    updatedUser.workspaces = updatedWorkspaces;
+    setUser(updatedUser);
+    setWorkspaces(updatedWorkspaces);
+    localStorage.setItem('sr_crm_auth_user', JSON.stringify(updatedUser));
+    localStorage.setItem('sr_crm_auth_workspaces', JSON.stringify(updatedWorkspaces));
+  };
+
   const hasPermission = (moduleName, action = 'CanView') => {
     if (!user) return false;
-    // 1. If role is Admin in any Tenant, give all rights always
-    if (user.role === 'Admin') return true;
 
-    // 2. If non-Admin (or pure SuperAdmin when inside a tenant workspace where they are not Admin),
+    // 1. If role is Admin in active Tenant (case-insensitive), give all rights always
+    const currentRole = String(user.role || user.Role || '').trim().toLowerCase();
+    if (currentRole === 'admin') return true;
+
+    // Also check active tenant membership in user.workspaces
+    const activeTenantId = tenant?.TenantId || user.activeTenantId;
+    if (activeTenantId && Array.isArray(workspaces)) {
+      const activeWs = workspaces.find(w => 
+        String(w.tenantId || w.TenantId || '').toUpperCase() === String(activeTenantId).toUpperCase()
+      );
+      if (activeWs && String(activeWs.role || activeWs.Role || '').trim().toLowerCase() === 'admin') {
+        return true;
+      }
+    }
+
+    // If SuperAdmin is Admin in ANY tenant workspace
+    if (isSuperAdmin && Array.isArray(workspaces)) {
+      const isAdminInActive = workspaces.some(w => 
+        (!activeTenantId || String(w.tenantId).toUpperCase() === String(activeTenantId).toUpperCase()) &&
+        String(w.role || w.Role || '').trim().toLowerCase() === 'admin'
+      );
+      if (isAdminInActive) return true;
+    }
+
+    // 2. If non-Admin (or pure SuperAdmin without Admin role in this tenant),
     // rights must be assigned from the active tenant's RolesRights matrix
     if (!moduleName) return true;
     const permission = rights.find(
@@ -187,6 +240,7 @@ export function AuthProvider({ children }) {
       switchWorkspace,
       logout, 
       updateProfile, 
+      syncUserTenantRole,
       hasPermission 
     }}>
       {children}

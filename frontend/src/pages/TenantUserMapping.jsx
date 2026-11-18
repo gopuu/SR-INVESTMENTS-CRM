@@ -33,7 +33,7 @@ const ROLE_OPTIONS = [
 ];
 
 export default function TenantUserMapping({ onOpenBackup }) {
-  const { isSuperAdmin } = useAuth();
+  const { user, isSuperAdmin, syncUserTenantRole, tenant } = useAuth();
   
   // Data states
   const [tenants, setTenants] = useState([]);
@@ -89,9 +89,29 @@ export default function TenantUserMapping({ onOpenBackup }) {
 
       // Auto-select first active tenant if none selected
       setSelectedTenantId(prev => {
-        if (prev && tList.some(t => t.TenantId === prev)) return prev;
-        const firstActive = tList.find(t => (t.Status || 'Active').toLowerCase() === 'active') || tList[0];
-        return firstActive ? firstActive.TenantId : '';
+        const nextId = (prev && tList.some(t => t.TenantId === prev)) 
+          ? prev 
+          : (tList.find(t => (t.Status || 'Active').toLowerCase() === 'active') || tList[0])?.TenantId || '';
+
+        // Auto-sync current user session if already mapped in this tenant
+        if (nextId && user && syncUserTenantRole) {
+          const cleanUid = String(user?.userId || '').trim().toLowerCase();
+          const cleanEmail = String(user?.email || '').trim().toLowerCase();
+          const myActiveMapping = mList.find(m => 
+            String(m.TenantId || '').toUpperCase() === String(nextId).toUpperCase() &&
+            !m.IsDeleted && String(m.Status || 'Active').toLowerCase() === 'active' &&
+            (String(m.UserId || '').trim().toLowerCase() === cleanUid ||
+             String(m.UserId || '').trim().toLowerCase() === cleanEmail)
+          );
+
+          if (myActiveMapping && myActiveMapping.Role) {
+            if (String(user.role || '').toLowerCase() !== String(myActiveMapping.Role).toLowerCase()) {
+              syncUserTenantRole(nextId, myActiveMapping.Role);
+            }
+          }
+        }
+
+        return nextId;
       });
 
     } catch (err) {
@@ -239,6 +259,19 @@ export default function TenantUserMapping({ onOpenBackup }) {
         }));
 
       await crmApi.saveTenantUserMappings(selectedTenantId, mappingsToSave, true);
+
+      // Instantly sync logged-in user session if current user was assigned in these mappings
+      const cleanUid = String(user?.userId || '').trim().toLowerCase();
+      const cleanEmail = String(user?.email || '').trim().toLowerCase();
+
+      const myMapping = mappingsToSave.find(m => {
+        const uid = String(m.userId || '').trim().toLowerCase();
+        return uid === cleanUid || uid === cleanEmail;
+      });
+
+      if (myMapping && syncUserTenantRole) {
+        syncUserTenantRole(selectedTenantId, myMapping.role || 'Staff');
+      }
 
       showSuccess(
         'Mappings Saved Successfully!',
