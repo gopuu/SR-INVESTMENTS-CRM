@@ -12,6 +12,7 @@ import SipCalculator from './pages/SipCalculator';
 import MasterHub from './pages/MasterHub';
 import SuperAdminPortal from './pages/SuperAdminPortal';
 import SubscriptionPlans from './pages/SubscriptionPlans';
+import TenantUserMapping from './pages/TenantUserMapping';
 
 export default function App() {
   const { user, isSuperAdmin } = useAuth();
@@ -30,7 +31,7 @@ export default function App() {
 
   // Guard SuperAdmin portals
   useEffect(() => {
-    if ((currentPage === 'superadmin' || currentPage === 'subscription-plans') && !isSuperAdmin) {
+    if ((currentPage === 'superadmin' || currentPage === 'subscription-plans' || currentPage === 'tenant-user-mapping') && !isSuperAdmin) {
       setCurrentPage('home');
     }
   }, [currentPage, isSuperAdmin]);
@@ -59,6 +60,7 @@ export default function App() {
         {currentPage === 'settings' && <Settings onOpenBackup={openBackup} />}
         {currentPage === 'profile' && <UserProfile onOpenBackup={openBackup} />}
         {currentPage === 'superadmin' && isSuperAdmin && <SuperAdminPortal onOpenBackup={openBackup} />}
+        {currentPage === 'tenant-user-mapping' && isSuperAdmin && <TenantUserMapping onOpenBackup={openBackup} />}
         {currentPage === 'subscription-plans' && isSuperAdmin && <SubscriptionPlans onOpenBackup={openBackup} />}
       </main>
 

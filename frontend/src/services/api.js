@@ -1194,6 +1194,22 @@ export const crmApi = {
     return this.call('cancelTenantLicense', { licenseId, tenantId });
   },
 
+  async getCentralUsers(showDeleted = false) {
+    return this.call('getCentralUsers', { showDeleted });
+  },
+
+  async getTenantUserMappings(tenantId = null, showDeleted = false) {
+    return this.call('getTenantUserMappings', { tenantId, showDeleted });
+  },
+
+  async saveTenantUserMappings(tenantId, mappings, replaceMode = true) {
+    return this.call('saveTenantUserMappings', { tenantId, mappings, replaceMode });
+  },
+
+  async deleteTenantUserMapping(mappingId, tenantId = null, userId = null) {
+    return this.call('deleteTenantUserMapping', { mappingId, tenantId, userId });
+  },
+
   async testConnection(targetUrl) {
     const gasUrl = (targetUrl || this.getBackendUrl() || '').trim();
     if (!gasUrl) {
@@ -2194,6 +2210,86 @@ export const crmApi = {
         localStorage.setItem(STORAGE_KEYS.TENANT_LICENSES, JSON.stringify(licenses));
         broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Licenses' });
         return { success: true, message: 'License cancelled successfully.' };
+      }
+
+      // TENANT USER MAPPING (Central SaaS)
+      case 'getCentralUsers': {
+        assertSuperAdminDemo(payload);
+        return [
+          { UserId: 'USER1', FullName: 'Gopal Kushwaha', Email: 'anonymousofjain@gmail.com', Mobile: '8306588313', IsSuperAdmin: true, Status: 'Active' },
+          { UserId: 'USER2', FullName: 'Gopal8306', Email: 'kgopal8306@gmail.com', Mobile: '8306588314', IsSuperAdmin: false, Status: 'Active' }
+        ];
+      }
+
+      case 'getTenantUserMappings': {
+        assertSuperAdminDemo(payload);
+        const raw = localStorage.getItem('sr_crm_tenant_user_mappings') || '[]';
+        let mappings = JSON.parse(raw);
+        if (payload.tenantId) {
+          mappings = mappings.filter(m => m.TenantId === payload.tenantId);
+        }
+        if (!payload.showDeleted) {
+          mappings = mappings.filter(m => !m.IsDeleted);
+        }
+        return mappings;
+      }
+
+      case 'saveTenantUserMappings': {
+        assertSuperAdminDemo(payload);
+        const tenantId = payload.tenantId;
+        const incoming = payload.mappings || [];
+        const raw = localStorage.getItem('sr_crm_tenant_user_mappings') || '[]';
+        let mappings = JSON.parse(raw);
+        const now = new Date().toISOString();
+
+        incoming.forEach(item => {
+          const idx = mappings.findIndex(m => m.TenantId === tenantId && m.UserId === item.userId);
+          if (idx >= 0) {
+            mappings[idx].Role = item.role || 'Staff';
+            mappings[idx].Status = item.status || 'Active';
+            mappings[idx].IsDeleted = false;
+            mappings[idx].Updated_At = now;
+          } else {
+            mappings.push({
+              MappingId: 'MAP_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+              TenantId: tenantId,
+              UserId: item.userId,
+              Role: item.role || 'Staff',
+              Status: item.status || 'Active',
+              IsDeleted: false,
+              Created_At: now,
+              Updated_At: now
+            });
+          }
+        });
+
+        if (payload.replaceMode !== false) {
+          const selected = new Set(incoming.map(i => i.userId));
+          mappings.forEach(m => {
+            if (m.TenantId === tenantId && !selected.has(m.UserId)) {
+              m.IsDeleted = true;
+              m.Status = 'Inactive';
+            }
+          });
+        }
+
+        localStorage.setItem('sr_crm_tenant_user_mappings', JSON.stringify(mappings));
+        broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'TenantUserMapping' });
+        return { success: true, count: incoming.length, message: 'Mappings saved successfully' };
+      }
+
+      case 'deleteTenantUserMapping': {
+        assertSuperAdminDemo(payload);
+        const raw = localStorage.getItem('sr_crm_tenant_user_mappings') || '[]';
+        let mappings = JSON.parse(raw);
+        const idx = mappings.findIndex(m => m.MappingId === payload.mappingId);
+        if (idx >= 0) {
+          mappings[idx].IsDeleted = true;
+          mappings[idx].Status = 'Inactive';
+          localStorage.setItem('sr_crm_tenant_user_mappings', JSON.stringify(mappings));
+        }
+        broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'TenantUserMapping' });
+        return { success: true, message: 'Mapping removed' };
       }
 
       // SUBSCRIPTION PLANS MASTER (SaaS Tiers & Quotas)

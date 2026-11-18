@@ -214,6 +214,23 @@ function handleAction_(action, payload) {
       verifyIsSuperAdmin_(payload);
       return cancelTenantLicense_(payload);
 
+    // Tenant-User Mapping (Central SaaS Access Matrix)
+    case "getCentralUsers":
+      verifyIsSuperAdmin_(payload);
+      return getCentralUsers_(payload);
+
+    case "getTenantUserMappings":
+      verifyIsSuperAdmin_(payload);
+      return getTenantUserMappings_(payload);
+
+    case "saveTenantUserMappings":
+      verifyIsSuperAdmin_(payload);
+      return saveTenantUserMappings_(payload);
+
+    case "deleteTenantUserMapping":
+      verifyIsSuperAdmin_(payload);
+      return deleteTenantUserMapping_(payload);
+
     // Payment Receiving Accounts Master (Central DB)
     case "getPaymentAccounts":
       return getPaymentAccounts_(payload);

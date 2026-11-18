@@ -1503,6 +1503,252 @@ function deleteTenant_(payload) {
 }
 
 /**
+ * Fetch all registered users from Central User_Master (SuperAdmin only)
+ * Omits Password hashes for security
+ */
+function getCentralUsers_(payload) {
+  payload = payload || {};
+  verifyIsSuperAdmin_(payload);
+  const userSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USER_MASTER, CRM_SCHEMAS.USER_MASTER);
+  const users = getSheetRowsAsObjects_(userSheet, CRM_SCHEMAS.USER_MASTER);
+  const showDeleted = Boolean(payload.showDeleted);
+
+  return users
+    .filter(u => showDeleted || (!u.IsDeleted && String(u.IsDeleted).toLowerCase() !== "true"))
+    .map(u => ({
+      UserId: u.UserId || "",
+      FullName: u.FullName || u.Name || "",
+      Email: u.Email || "",
+      AlternateEmailsList: u.AlternateEmailsList || u.GoogleEmails || "",
+      Mobile: u.Mobile || "",
+      AlternateMobile: u.AlternateMobile || "",
+      IsSuperAdmin: isSuperAdminValue_(u.IsSuperAdmin),
+      Status: u.Status || "Active",
+      Created_At: u.Created_At || "",
+      Updated_At: u.Updated_At || ""
+    }));
+}
+
+/**
+ * Fetch all Tenant User Mappings joined with Tenant details and User details (SuperAdmin only)
+ */
+function getTenantUserMappings_(payload) {
+  payload = payload || {};
+  verifyIsSuperAdmin_(payload);
+  const tenantId = (payload.tenantId || payload.TenantId || "").trim();
+  const showDeleted = Boolean(payload.showDeleted);
+
+  const mapSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_USER_MAPPING, CRM_SCHEMAS.TENANT_USER_MAPPING);
+  let mappings = getSheetRowsAsObjects_(mapSheet, CRM_SCHEMAS.TENANT_USER_MAPPING);
+
+  const tenantSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+  const tenants = getSheetRowsAsObjects_(tenantSheet, CRM_SCHEMAS.TENANT_MASTER);
+
+  const userSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USER_MASTER, CRM_SCHEMAS.USER_MASTER);
+  const users = getSheetRowsAsObjects_(userSheet, CRM_SCHEMAS.USER_MASTER);
+
+  if (tenantId) {
+    mappings = mappings.filter(m => String(m.TenantId || "").trim().toUpperCase() === tenantId.toUpperCase());
+  }
+
+  if (!showDeleted) {
+    mappings = mappings.filter(m => !m.IsDeleted && String(m.IsDeleted).toLowerCase() !== "true");
+  }
+
+  return mappings.map(m => {
+    const t = tenants.find(x => String(x.TenantId || "").trim().toUpperCase() === String(m.TenantId || "").trim().toUpperCase());
+    const u = users.find(x => 
+      String(x.UserId || "").trim().toLowerCase() === String(m.UserId || "").trim().toLowerCase() ||
+      String(x.Email || "").trim().toLowerCase() === String(m.UserId || "").trim().toLowerCase()
+    );
+
+    return {
+      MappingId: m.MappingId || "",
+      TenantId: m.TenantId || "",
+      TenantName: (t && t.CompanyName) || m.TenantId || "",
+      UserId: m.UserId || "",
+      UserName: (u && (u.FullName || u.Name)) || m.UserId || "",
+      UserEmail: (u && u.Email) || "",
+      UserMobile: (u && u.Mobile) || "",
+      Role: m.Role || "Staff",
+      Status: m.Status || "Active",
+      IsDeleted: Boolean(m.IsDeleted),
+      Created_By: m.Created_By || "",
+      Created_At: m.Created_At || "",
+      Updated_By: m.Updated_By || "",
+      Updated_At: m.Updated_At || ""
+    };
+  });
+}
+
+/**
+ * Assign and update Tenant-User Mappings in Tenant_User_Mapping sheet (SuperAdmin only)
+ * Supports multiple user selection for a tenant
+ */
+function saveTenantUserMappings_(payload) {
+  payload = payload || {};
+  verifyIsSuperAdmin_(payload);
+  const tenantId = (payload.tenantId || payload.TenantId || "").trim();
+  if (!tenantId) throw new Error("Tenant ID is required for mapping users.");
+
+  const userEmail = payload.userEmail || "superadmin@srinvestments.com";
+  const now = new Date().toISOString();
+
+  // payload.mappings can be an array of:
+  // - { userId: 'USR_001', role: 'Admin', status: 'Active' }
+  // OR payload.userIds can be array of strings ['USR_001', 'USR_002']
+  let rawMappings = payload.mappings || [];
+  if (!Array.isArray(rawMappings) && Array.isArray(payload.userIds)) {
+    rawMappings = payload.userIds.map(uid => ({
+      userId: uid,
+      role: payload.role || "Staff",
+      status: "Active"
+    }));
+  }
+
+  const mapSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_USER_MAPPING, CRM_SCHEMAS.TENANT_USER_MAPPING);
+  const existingMappings = getSheetRowsAsObjects_(mapSheet, CRM_SCHEMAS.TENANT_USER_MAPPING);
+
+  // Map of existing records for this tenant: key = userId.toLowerCase() -> { rowNumber, record }
+  const existingByUserId = {};
+  existingMappings.forEach((m, idx) => {
+    if (String(m.TenantId || "").trim().toUpperCase() === tenantId.toUpperCase()) {
+      const uKey = String(m.UserId || "").trim().toLowerCase();
+      if (uKey) {
+        existingByUserId[uKey] = {
+          rowNumber: idx + 2,
+          record: m
+        };
+      }
+    }
+  });
+
+  const selectedUserIdsSet = new Set();
+  let savedCount = 0;
+
+  // 1. Upsert selected user mappings
+  rawMappings.forEach(item => {
+    const uid = String(item.userId || item.UserId || "").trim();
+    if (!uid) return;
+    const uKey = uid.toLowerCase();
+    selectedUserIdsSet.add(uKey);
+
+    const role = (item.role || item.Role || "Staff").trim();
+    const status = (item.status || item.Status || "Active").trim();
+
+    if (existingByUserId[uKey]) {
+      // Update existing mapping row
+      const existing = existingByUserId[uKey];
+      const updated = Object.assign({}, existing.record, {
+        Role: role,
+        Status: status,
+        IsDeleted: false,
+        Updated_By: userEmail,
+        Updated_At: now,
+        Deleted_By: "",
+        Deleted_At: ""
+      });
+      writeRowByHeaders_(mapSheet, existing.rowNumber, updated, CRM_SCHEMAS.TENANT_USER_MAPPING);
+    } else {
+      // Create new mapping row
+      const newMapping = {
+        MappingId: "MAP_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+        UserId: uid,
+        TenantId: tenantId,
+        Role: role,
+        Status: status,
+        IsDeleted: false,
+        Created_By: userEmail,
+        Created_At: now,
+        Updated_By: userEmail,
+        Updated_At: now,
+        Deleted_By: "",
+        Deleted_At: ""
+      };
+      writeRowByHeaders_(mapSheet, -1, newMapping, CRM_SCHEMAS.TENANT_USER_MAPPING);
+    }
+    savedCount++;
+  });
+
+  // 2. If replaceMode is true (default), unselected existing mappings for this tenant are deactivated / soft-deleted
+  const replaceMode = payload.replaceMode !== false;
+  let unmappedCount = 0;
+  if (replaceMode) {
+    Object.keys(existingByUserId).forEach(uKey => {
+      if (!selectedUserIdsSet.has(uKey)) {
+        const item = existingByUserId[uKey];
+        if (!item.record.IsDeleted || String(item.record.IsDeleted).toLowerCase() !== "true") {
+          const softDeleted = Object.assign({}, item.record, {
+            Status: "Inactive",
+            IsDeleted: true,
+            Updated_By: userEmail,
+            Updated_At: now,
+            Deleted_By: userEmail,
+            Deleted_At: now
+          });
+          writeRowByHeaders_(mapSheet, item.rowNumber, softDeleted, CRM_SCHEMAS.TENANT_USER_MAPPING);
+          unmappedCount++;
+        }
+      }
+    });
+  }
+
+  return {
+    success: true,
+    tenantId: tenantId,
+    savedCount: savedCount,
+    unmappedCount: unmappedCount,
+    message: "Successfully assigned " + savedCount + " user(s) to tenant " + tenantId + "."
+  };
+}
+
+/**
+ * Remove/soft-delete a single Tenant-User Mapping (SuperAdmin only)
+ */
+function deleteTenantUserMapping_(payload) {
+  payload = payload || {};
+  verifyIsSuperAdmin_(payload);
+  const mappingId = (payload.mappingId || payload.MappingId || "").trim();
+  const tenantId = (payload.tenantId || payload.TenantId || "").trim();
+  const userId = (payload.userId || payload.UserId || "").trim();
+  const userEmail = payload.userEmail || "superadmin@srinvestments.com";
+  const now = new Date().toISOString();
+
+  const mapSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_USER_MAPPING, CRM_SCHEMAS.TENANT_USER_MAPPING);
+  const mappings = getSheetRowsAsObjects_(mapSheet, CRM_SCHEMAS.TENANT_USER_MAPPING);
+
+  let targetIndex = -1;
+  mappings.forEach((m, idx) => {
+    if (mappingId && String(m.MappingId || "").trim() === mappingId) {
+      targetIndex = idx;
+    } else if (tenantId && userId &&
+               String(m.TenantId || "").trim().toUpperCase() === tenantId.toUpperCase() &&
+               String(m.UserId || "").trim().toLowerCase() === userId.toLowerCase()) {
+      targetIndex = idx;
+    }
+  });
+
+  if (targetIndex === -1) {
+    throw new Error("Tenant-User Mapping not found.");
+  }
+
+  const softDeleted = Object.assign({}, mappings[targetIndex], {
+    Status: "Inactive",
+    IsDeleted: true,
+    Updated_By: userEmail,
+    Updated_At: now,
+    Deleted_By: userEmail,
+    Deleted_At: now
+  });
+  writeRowByHeaders_(mapSheet, targetIndex + 2, softDeleted, CRM_SCHEMAS.TENANT_USER_MAPPING);
+
+  return {
+    success: true,
+    message: "Tenant user mapping removed successfully."
+  };
+}
+
+/**
  * Modifies Tenant Licensing sheet to insert the 4 payment columns right after Amount,
  * and rearranges columns in standard schema order, preserving any existing rows.
  */

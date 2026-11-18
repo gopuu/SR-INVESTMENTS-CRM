@@ -37,6 +37,7 @@ export default function Sidebar({ currentPage, onNavigate }) {
 
   const superAdminNavItems = [
     { id: 'superadmin', label: 'Tenant Master', icon: Building2, module: null },
+    { id: 'tenant-user-mapping', label: 'Tenant-User Mapping', icon: UserCheck, module: null },
     { id: 'subscription-plans', label: 'Subscription Plans', icon: CreditCard, module: null }
   ];
 
