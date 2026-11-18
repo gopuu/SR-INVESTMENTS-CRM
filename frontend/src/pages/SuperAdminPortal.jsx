@@ -378,17 +378,28 @@ export default function SuperAdminPortal({ onOpenBackup }) {
     setIsLicenseModalOpen(true);
     setLicenseLoading(true);
     try {
-      const history = await crmApi.call('getTenantLicenses', { tenantId: t.TenantId });
+      const history = await crmApi.call('getTenantLicenses', { 
+        tenantId: t.TenantId,
+        userEmail: user?.email,
+        userId: user?.userId,
+        isSuperAdmin: true
+      });
       const histList = Array.isArray(history) ? history : [];
       setLicenseHistory(histList);
 
       const today = new Date().toISOString().slice(0, 10);
       
-      // Determine if there is currently an unexpired active license
-      const currentActive = histList.find(l => 
-        (Boolean(l.IsActive) || String(l.Status).toLowerCase() === 'active') &&
-        l.EndDate && l.EndDate >= today
-      );
+      // Determine if there is currently an unexpired active license (strictly non-cancelled and valid for today)
+      const currentActive = histList.find(l => {
+        const sLower = String(l.Status || '').toLowerCase();
+        return (
+          sLower !== 'cancelled' &&
+          sLower !== 'expired' &&
+          (Boolean(l.IsActive) || sLower === 'active') &&
+          (!l.StartDate || String(l.StartDate).slice(0, 10) <= today) &&
+          (!l.EndDate || String(l.EndDate).slice(0, 10) >= today)
+        );
+      });
 
       let startDate = today;
       if (currentActive && currentActive.EndDate) {
@@ -524,11 +535,26 @@ export default function SuperAdminPortal({ onOpenBackup }) {
     if (!confirmed) return;
 
     try {
+      // Optimistically update license trail immediately so the badge changes to CANCELLED in real-time
+      setLicenseHistory(prev => (prev || []).map(l => 
+        String(l.Id).trim() === String(lic.Id).trim()
+          ? { ...l, Status: 'CANCELLED', IsActive: false }
+          : l
+      ));
+
       await crmApi.call('cancelTenantLicense', {
         licenseId: lic.Id,
-        tenantId: selectedTenantForLicense.TenantId
+        tenantId: selectedTenantForLicense.TenantId,
+        userEmail: user?.email,
+        userId: user?.userId,
+        isSuperAdmin: true
       });
-      const history = await crmApi.call('getTenantLicenses', { tenantId: selectedTenantForLicense.TenantId });
+      const history = await crmApi.call('getTenantLicenses', { 
+        tenantId: selectedTenantForLicense.TenantId,
+        userEmail: user?.email,
+        userId: user?.userId,
+        isSuperAdmin: true
+      });
       setLicenseHistory(Array.isArray(history) ? history : []);
       const refreshedTenants = await crmApi.getTenants(false);
       setTenants(Array.isArray(refreshedTenants) ? refreshedTenants : []);

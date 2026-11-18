@@ -2119,7 +2119,10 @@ export const crmApi = {
         const now = new Date().toISOString();
         const id = payload.id || payload.Id || ('LIC_' + Date.now());
         const isNew = !payload.id && !payload.Id;
-        const status = payload.Status || 'Active';
+        const rawStatus = payload.Status || 'Active';
+        const startDate = payload.StartDate || payload.startDate || now.slice(0, 10);
+        const isFuture = startDate > now.slice(0, 10);
+        const status = isFuture && rawStatus === 'Active' ? 'NEW' : rawStatus;
 
         if (status === 'Active') {
           licenses.forEach(l => {
@@ -2135,7 +2138,7 @@ export const crmApi = {
           Id: id,
           TenantId: tenantId,
           LicenseType: payload.LicenseType || payload.licenseType || 'Professional',
-          StartDate: payload.StartDate || payload.startDate || now.slice(0, 10),
+          StartDate: startDate,
           EndDate: payload.EndDate || payload.endDate || '',
           Amount: Number(payload.Amount !== undefined ? payload.Amount : (payload.amount !== undefined ? payload.amount : 0)) || 0,
           PaymentMode: payload.PaymentMode || payload.paymentMode || 'Cash',
@@ -2197,11 +2200,13 @@ export const crmApi = {
       case 'cancelTenantLicense': {
         assertSuperAdminDemo(payload);
         const tenantId = payload.tenantId || payload.TenantId;
-        const licenseId = payload.licenseId || payload.id || payload.Id;
+        const licenseId = String(payload.licenseId || payload.id || payload.Id || '').trim();
         const licenses = JSON.parse(localStorage.getItem(STORAGE_KEYS.TENANT_LICENSES) || '[]');
         const now = new Date().toISOString();
         licenses.forEach(l => {
-          if (String(l.TenantId).toUpperCase() === String(tenantId).toUpperCase() && l.Id === licenseId) {
+          const matchId = String(l.Id || '').trim() === licenseId;
+          const matchTenant = !tenantId || String(l.TenantId || '').trim().toUpperCase() === String(tenantId).trim().toUpperCase();
+          if (matchId && matchTenant) {
             l.IsActive = false;
             l.Status = 'CANCELLED';
             l.Updated_At = now;
@@ -3169,3 +3174,5 @@ export const crmApi = {
     }
   }
 };
+
+export default crmApi;

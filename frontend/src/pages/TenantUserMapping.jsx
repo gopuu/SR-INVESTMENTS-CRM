@@ -95,19 +95,31 @@ export default function TenantUserMapping({ onOpenBackup }) {
 
         // Auto-sync current user session if already mapped in this tenant
         if (nextId && user && syncUserTenantRole) {
-          const cleanUid = String(user?.userId || '').trim().toLowerCase();
-          const cleanEmail = String(user?.email || '').trim().toLowerCase();
+          const curEmail = String(user?.email || '').trim().toLowerCase();
+          const curUid = String(user?.userId || '').trim().toLowerCase();
+
+          // Resolve matching central user record for logged in user
+          const myCu = uList.find(cu => {
+            const e = String(cu.Email || '').trim().toLowerCase();
+            const id = String(cu.UserId || '').trim().toLowerCase();
+            const altEmails = String(cu.AlternateEmailsList || cu.GoogleEmails || '').toLowerCase().split(',').map(s => s.trim());
+            return (e && e === curEmail) || (id && id === curUid) || altEmails.includes(curEmail) || (isSuperAdmin && Boolean(cu.IsSuperAdmin));
+          });
+          const targetId = myCu ? myCu.UserId : (user?.userId || user?.email);
+
           const myActiveMapping = mList.find(m => 
             String(m.TenantId || '').toUpperCase() === String(nextId).toUpperCase() &&
             !m.IsDeleted && String(m.Status || 'Active').toLowerCase() === 'active' &&
-            (String(m.UserId || '').trim().toLowerCase() === cleanUid ||
-             String(m.UserId || '').trim().toLowerCase() === cleanEmail)
+            (String(m.UserId || '').trim().toLowerCase() === String(targetId).trim().toLowerCase() ||
+             String(m.UserId || '').trim().toLowerCase() === curEmail ||
+             String(m.UserId || '').trim().toLowerCase() === curUid)
           );
 
           if (myActiveMapping && myActiveMapping.Role) {
-            if (String(user.role || '').toLowerCase() !== String(myActiveMapping.Role).toLowerCase()) {
-              syncUserTenantRole(nextId, myActiveMapping.Role);
-            }
+            syncUserTenantRole(nextId, myActiveMapping.Role);
+          } else if (isSuperAdmin && (!myActiveMapping || String(user.role || '').toLowerCase() !== 'admin')) {
+            // SuperAdmin not in tenant -> unlock with master Admin role
+            syncUserTenantRole(nextId, 'Admin');
           }
         }
 
@@ -261,17 +273,33 @@ export default function TenantUserMapping({ onOpenBackup }) {
       await crmApi.saveTenantUserMappings(selectedTenantId, mappingsToSave, true);
 
       // Instantly sync logged-in user session if current user was assigned in these mappings
-      const cleanUid = String(user?.userId || '').trim().toLowerCase();
-      const cleanEmail = String(user?.email || '').trim().toLowerCase();
+      const curEmail = String(user?.email || '').trim().toLowerCase();
+      const curUid = String(user?.userId || '').trim().toLowerCase();
+
+      // Accurately resolve current user's central user ID from User_Master registry
+      const myCentralUser = centralUsers.find(cu => {
+        const e = String(cu.Email || '').trim().toLowerCase();
+        const id = String(cu.UserId || '').trim().toLowerCase();
+        const altEmails = String(cu.AlternateEmailsList || cu.GoogleEmails || '').toLowerCase().split(',').map(s => s.trim());
+        return (e && e === curEmail) || (id && id === curUid) || altEmails.includes(curEmail) || (isSuperAdmin && Boolean(cu.IsSuperAdmin));
+      });
+
+      const targetUserId = myCentralUser ? myCentralUser.UserId : (user?.userId || user?.email);
 
       const myMapping = mappingsToSave.find(m => {
         const uid = String(m.userId || '').trim().toLowerCase();
-        return uid === cleanUid || uid === cleanEmail;
+        return uid === String(targetUserId).trim().toLowerCase() || uid === curEmail || uid === curUid;
       });
 
-      if (myMapping && syncUserTenantRole) {
-        syncUserTenantRole(selectedTenantId, myMapping.role || 'Staff');
+      const assignedRole = myMapping ? (myMapping.role || 'Admin') : (isSuperAdmin ? 'Admin' : 'Staff');
+
+      if (syncUserTenantRole) {
+        syncUserTenantRole(selectedTenantId, assignedRole);
       }
+
+      // Force instant reactive broadcast across the application
+      window.dispatchEvent(new CustomEvent('CRM_NAVBAR_REFRESH', { detail: { role: assignedRole, tenantId: selectedTenantId } }));
+      crmApi.publishEvent({ type: 'DATA_CHANGED', module: 'Auth', action: 'roleChanged', role: assignedRole, tenantId: selectedTenantId });
 
       showSuccess(
         'Mappings Saved Successfully!',

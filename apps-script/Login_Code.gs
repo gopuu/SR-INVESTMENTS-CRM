@@ -212,13 +212,15 @@ function loginUser_(username, password) {
       throw new Error(licCheck.error);
     }
 
+    const activeRole = primaryTenant.role || (isSuperAdmin ? "Admin" : "Staff");
+
     return {
       user: {
         userId: userMasterMatched.UserId,
         employeeCode: "EMP_" + primaryTenant.tenantId,
         name: userMasterMatched.FullName || "User",
         email: userMasterMatched.Email,
-        role: primaryTenant.role || "Staff",
+        role: activeRole,
         isSuperAdmin: isSuperAdmin,
         activeTenantId: primaryTenant.tenantId,
         companyName: primaryTenant.companyName,
@@ -227,7 +229,7 @@ function loginUser_(username, password) {
         lastLogin: new Date().toISOString()
       },
       tenant: primaryTenant,
-      rights: getRolePermissions_(primaryTenant.role || "Staff"),
+      rights: getRolePermissions_(activeRole),
       token: "SR_" + Utilities.getUuid()
     };
   }
@@ -491,7 +493,7 @@ function googleLogin_(googleEmail, googleName) {
       tenantId: defaultId,
       companyName: defaultName,
       CompanyName: defaultName,
-      role: userRole || (isSuperAdmin ? "Admin" : "Staff")
+      role: isSuperAdmin ? "Admin" : (userRole || "Staff")
     };
   }
 
@@ -499,6 +501,8 @@ function googleLogin_(googleEmail, googleName) {
   if (!licCheck.valid) {
     throw new Error(licCheck.error);
   }
+
+  const activeGoogleRole = primaryTenant.role || (isSuperAdmin ? "Admin" : (userRole || "Staff"));
 
   logAudit_(cleanEmail, "GOOGLE_LOGIN_SUCCESS", "Auth", "Google Sign-In successful for user " + userId + " (" + cleanEmail + ")");
 
@@ -508,7 +512,7 @@ function googleLogin_(googleEmail, googleName) {
       employeeCode: "GOOGLE_" + primaryTenant.tenantId,
       name: userName,
       email: cleanEmail,
-      role: primaryTenant.role || userRole || (isSuperAdmin ? "Admin" : "Staff"),
+      role: activeGoogleRole,
       isSuperAdmin: isSuperAdmin,
       activeTenantId: primaryTenant.tenantId,
       companyName: primaryTenant.companyName,
@@ -517,7 +521,7 @@ function googleLogin_(googleEmail, googleName) {
       lastLogin: new Date().toISOString()
     },
     tenant: primaryTenant,
-    rights: getRolePermissions_(primaryTenant.role || userRole || (isSuperAdmin ? "Admin" : "Staff")),
+    rights: getRolePermissions_(activeGoogleRole),
     token: "GOOGLE_" + Utilities.getUuid()
   };
 }
@@ -539,10 +543,9 @@ function selectTenant_(payload) {
 
   const allWorkspaces = resolveTenantMemberships_(userId, userEmail);
   const targetWorkspace = allWorkspaces.find(w => String(w.tenantId).toUpperCase() === tenantId.toUpperCase());
-  const role = targetWorkspace ? targetWorkspace.role : (payload.role || "Staff");
-  const resolvedCompName = (tenant && String(tenant.CompanyName || "").trim()) || (targetWorkspace && targetWorkspace.companyName) || "SR Investments";
-
   const isSuperAdmin = Boolean(payload.isSuperAdmin);
+  const role = targetWorkspace ? targetWorkspace.role : (isSuperAdmin ? "Admin" : (payload.role || "Staff"));
+  const resolvedCompName = (tenant && String(tenant.CompanyName || "").trim()) || (targetWorkspace && targetWorkspace.companyName) || "SR Investments";
   const licCheck = checkTenantLicenseActive_(tenantId, isSuperAdmin);
   if (!licCheck.valid) {
     throw new Error(licCheck.error);

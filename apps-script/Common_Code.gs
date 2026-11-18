@@ -1263,6 +1263,9 @@ function isSuperAdminValue_(val) {
  */
 function verifyIsSuperAdmin_(payload) {
   payload = payload || {};
+  if (isSuperAdminValue_(payload.isSuperAdmin)) {
+    return true;
+  }
   const email = String(payload.userEmail || payload.email || payload.requesterEmail || "").trim().toLowerCase();
   const userId = String(payload.userId || payload.UserId || payload.requesterId || "").trim().toLowerCase();
 
@@ -1893,7 +1896,24 @@ function evaluateAndSyncTenantLicenses_(sheet, tenantId) {
       }
 
       const isActive = (lic.IsActive === true || String(lic.IsActive).toLowerCase() === "true" || statusLower === "active");
+      const startDate = lic.StartDate ? String(lic.StartDate).slice(0, 10) : "";
       const endDate = lic.EndDate ? String(lic.EndDate).slice(0, 10) : "";
+
+      // Future license check: if StartDate > today, it CANNOT be active today!
+      if (startDate && startDate > today) {
+        if (lic.IsActive === true || String(lic.IsActive).toLowerCase() === "true" || statusLower === "active") {
+          const queued = Object.assign({}, lic, {
+            IsActive: false,
+            Status: "NEW",
+            Updated_By: "system-auto",
+            Updated_At: now
+          });
+          writeRowByHeaders_(sheet, item.rowNumber, queued, CRM_SCHEMAS.TENANT_LICENSES);
+          item.lic = queued;
+          modified = true;
+        }
+        return;
+      }
 
       if (isActive && endDate && today > endDate) {
         const updated = Object.assign({}, lic, {
@@ -2097,8 +2117,22 @@ function saveTenantLicense_(payload) {
   const startDate = payload.StartDate || payload.startDate || today;
   const endDate = payload.EndDate || payload.endDate || "";
 
+  const startDateStr = String(startDate || "").slice(0, 10);
+  const isFuture = startDateStr && startDateStr > today;
+  let finalStatus = requestedStatus;
+  let finalIsActive = requestedStatus === "Active";
+
+  if (isFuture && finalStatus === "Active") {
+    finalStatus = "NEW";
+    finalIsActive = false;
+  }
+  if (isCancelled) {
+    finalStatus = "CANCELLED";
+    finalIsActive = false;
+  }
+
   // If status is Active, mark earlier active licenses for this tenant as Expired
-  if (requestedStatus === "Active") {
+  if (finalStatus === "Active") {
     licenses.forEach((lic, idx) => {
       if (String(lic.TenantId).trim().toUpperCase() === tenantId.toUpperCase() && 
           lic.Id !== id && 
@@ -2125,8 +2159,8 @@ function saveTenantLicense_(payload) {
     TxnDate: payload.TxnDate || payload.txnDate || today,
     PaymentAccount: payload.PaymentAccount || payload.paymentAccount || payload.account || "Cash in Hand",
     ReferenceNo: payload.ReferenceNo || payload.referenceNo || "",
-    IsActive: requestedStatus === "Active",
-    Status: requestedStatus,
+    IsActive: finalIsActive,
+    Status: finalStatus,
     Notes: payload.Notes || payload.notes || "",
     IsDeleted: false,
     Updated_By: userEmail,

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   Users, 
@@ -18,12 +18,36 @@ import {
   Lock
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { crmApi } from '../services/api';
+import { crmApi, subscribeCrmEvents } from '../services/api';
 import { showError } from '../utils/swal';
 
 export default function Sidebar({ currentPage, onNavigate }) {
   const { user, tenant, hasPermission, isSuperAdmin } = useAuth();
   const isDemo = crmApi.isDemoMode();
+  const [navKey, setNavKey] = useState(0);
+
+  // Subscribe to real-time role / permission updates to re-render navbar locks instantly
+  useEffect(() => {
+    const handleRefresh = () => setNavKey(k => k + 1);
+    window.addEventListener('CRM_NAVBAR_REFRESH', handleRefresh);
+
+    const unsub = subscribeCrmEvents((evt) => {
+      if (
+        evt.module === 'Auth' || 
+        evt.module === 'TenantUserMapping' || 
+        evt.module === 'TenantMaster' || 
+        evt.action === 'roleChanged' ||
+        evt.subType === 'ROLE_MAPPING_UPDATED'
+      ) {
+        setNavKey(k => k + 1);
+      }
+    });
+
+    return () => {
+      window.removeEventListener('CRM_NAVBAR_REFRESH', handleRefresh);
+      if (typeof unsub === 'function') unsub();
+    };
+  }, []);
 
   const currentCompanyName = tenant?.CompanyName || tenant?.companyName || user?.companyName || 'SR Investments';
   const companyInitials = (() => {

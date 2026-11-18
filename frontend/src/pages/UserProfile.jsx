@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   User, 
   Lock, 
@@ -11,14 +11,29 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { crmApi } from '../services/api';
+import { crmApi, subscribeCrmEvents } from '../services/api';
 import Header from '../components/Header';
 
 export default function UserProfile({ onOpenBackup }) {
-  const { user, rights, updateProfile } = useAuth();
+  const { user, rights, updateProfile, hasPermission, isSuperAdmin } = useAuth();
   const [name, setName] = useState(user?.name || '');
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMsg, setProfileMsg] = useState({ text: '', type: '' });
+  const [profileRefresh, setProfileRefresh] = useState(0);
+
+  useEffect(() => {
+    const handleRefresh = () => setProfileRefresh(k => k + 1);
+    window.addEventListener('CRM_NAVBAR_REFRESH', handleRefresh);
+    const unsub = subscribeCrmEvents(evt => {
+      if (evt.module === 'Auth' || evt.module === 'TenantUserMapping') {
+        setProfileRefresh(k => k + 1);
+      }
+    });
+    return () => {
+      window.removeEventListener('CRM_NAVBAR_REFRESH', handleRefresh);
+      if (typeof unsub === 'function') unsub();
+    };
+  }, []);
 
   // Password Change State
   const [oldPassword, setOldPassword] = useState('');
@@ -159,7 +174,7 @@ export default function UserProfile({ onOpenBackup }) {
                   type="text"
                   className="form-input"
                   style={{ backgroundColor: '#f8fafc', color: '#64748b' }}
-                  value={user?.role || 'Admin'}
+                  value={user?.role || (isSuperAdmin ? 'Admin' : 'Staff')}
                   disabled
                 />
               </div>
@@ -261,7 +276,7 @@ export default function UserProfile({ onOpenBackup }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
             <ShieldCheck size={20} color="#2563eb" />
             <h4 style={{ fontSize: '1rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
-              Your Active Permissions ({user?.role || 'Admin'})
+              Your Active Permissions ({user?.role || (isSuperAdmin ? 'Admin' : 'Staff')})
             </h4>
           </div>
 
@@ -290,11 +305,10 @@ export default function UserProfile({ onOpenBackup }) {
                   { key: 'DriveBackup', label: 'DriveBackup' }
                 ].map((mod) => {
                   const perm = rights.find(r => r.Module && r.Module.toLowerCase() === mod.key.toLowerCase());
-                  const isAdmin = user?.role === 'Admin';
-                  const canView = isAdmin || Boolean(perm?.CanView);
-                  const canCreate = isAdmin || Boolean(perm?.CanCreate);
-                  const canEdit = isAdmin || Boolean(perm?.CanEdit);
-                  const canDelete = isAdmin || Boolean(perm?.CanDelete);
+                  const canView = hasPermission ? hasPermission(mod.key, 'CanView') : (user?.role === 'Admin' || Boolean(perm?.CanView));
+                  const canCreate = hasPermission ? hasPermission(mod.key, 'CanCreate') : (user?.role === 'Admin' || Boolean(perm?.CanCreate));
+                  const canEdit = hasPermission ? hasPermission(mod.key, 'CanEdit') : (user?.role === 'Admin' || Boolean(perm?.CanEdit));
+                  const canDelete = hasPermission ? hasPermission(mod.key, 'CanDelete') : (user?.role === 'Admin' || Boolean(perm?.CanDelete));
 
                   return (
                     <tr key={mod.key}>
