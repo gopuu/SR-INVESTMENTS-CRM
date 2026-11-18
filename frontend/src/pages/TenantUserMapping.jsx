@@ -16,9 +16,9 @@ import {
   Check, 
   UserPlus, 
   Briefcase, 
-  ArrowRight,
-  Sparkles,
-  Info
+  Info,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { crmApi, subscribeCrmEvents } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -26,10 +26,10 @@ import Header from '../components/Header';
 import { showSuccess, showError, showWarning, showConfirm } from '../utils/swal';
 
 const ROLE_OPTIONS = [
-  { value: 'Admin', label: 'Admin', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border-purple-300 dark:border-purple-700' },
-  { value: 'Manager', label: 'Manager', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border-blue-300 dark:border-blue-700' },
-  { value: 'Staff', label: 'Staff', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700' },
-  { value: 'Viewer', label: 'Viewer', color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-700' }
+  { value: 'Admin', label: 'Admin', badgeClass: 'badge-primary' },
+  { value: 'Manager', label: 'Manager', badgeClass: 'badge-info' },
+  { value: 'Staff', label: 'Staff', badgeClass: 'badge-success' },
+  { value: 'Viewer', label: 'Viewer', badgeClass: 'badge-neutral' }
 ];
 
 export default function TenantUserMapping({ onOpenBackup }) {
@@ -220,21 +220,6 @@ export default function TenantUserMapping({ onOpenBackup }) {
     });
   };
 
-  const handleSetAllRole = (filteredUserList, role) => {
-    setUserAssignments(prev => {
-      const next = { ...prev };
-      filteredUserList.forEach(u => {
-        if (next[u.UserId]?.selected) {
-          next[u.UserId] = {
-            ...next[u.UserId],
-            role: role
-          };
-        }
-      });
-      return next;
-    });
-  };
-
   // Save Mappings
   const handleSaveMappings = async () => {
     if (!selectedTenantId) {
@@ -253,7 +238,7 @@ export default function TenantUserMapping({ onOpenBackup }) {
           status: 'Active'
         }));
 
-      const res = await crmApi.saveTenantUserMappings(selectedTenantId, mappingsToSave, true);
+      await crmApi.saveTenantUserMappings(selectedTenantId, mappingsToSave, true);
 
       showSuccess(
         'Mappings Saved Successfully!',
@@ -359,11 +344,11 @@ export default function TenantUserMapping({ onOpenBackup }) {
 
   if (!isSuperAdmin) {
     return (
-      <div className="flex-1 flex items-center justify-center min-h-[60vh] p-6">
-        <div className="bg-white dark:bg-slate-800 p-8 rounded-2xl shadow-lg border border-red-200 dark:border-red-900/50 max-w-md text-center">
-          <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Access Denied</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+      <div className="main-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', padding: '2rem' }}>
+        <div className="crm-card" style={{ padding: '2.5rem', maxWidth: '420px', textAlign: 'center', border: '1px solid #fee2e2' }}>
+          <XCircle size={48} color="#ef4444" style={{ margin: '0 auto 1rem' }} />
+          <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#0f172a', marginBottom: '0.5rem' }}>Access Denied</h2>
+          <p style={{ fontSize: '0.875rem', color: '#64748b' }}>
             Tenant-User Mapping is restricted to SuperAdmin accounts only.
           </p>
         </div>
@@ -372,7 +357,7 @@ export default function TenantUserMapping({ onOpenBackup }) {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors">
+    <div className="main-content">
       <Header
         title="Tenant-User Mapping"
         subtitle="Manage and assign registered users to client tenant organizations"
@@ -381,219 +366,301 @@ export default function TenantUserMapping({ onOpenBackup }) {
         onOpenBackup={onOpenBackup}
       />
 
-      <div className="flex-1 p-4 md:p-6 space-y-6 max-w-7xl mx-auto w-full">
-        {/* KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200/80 dark:border-slate-700/80 flex items-center gap-3.5">
-            <div className="p-3 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-lg">
-              <UserCheck className="w-5 h-5" />
+      <div className="page-wrapper">
+        {/* KPI Top 4 Metric Cards */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '1rem',
+          marginBottom: '1.5rem'
+        }}>
+          {/* Card 1: Active Mappings */}
+          <div className="crm-card" style={{ padding: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>Total Active Mappings</span>
+              <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb' }}>
+                <UserCheck size={18} />
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Active Mappings</p>
-              <h3 className="text-xl font-bold text-slate-800 dark:text-white">{stats.totalMappings}</h3>
+            <div style={{ fontSize: '1.85rem', fontWeight: '800', color: '#0f172a', marginTop: '0.5rem' }}>
+              {stats.totalMappings}
             </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200/80 dark:border-slate-700/80 flex items-center gap-3.5">
-            <div className="p-3 bg-purple-50 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 rounded-lg">
-              <Building2 className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Configured Tenants</p>
-              <h3 className="text-xl font-bold text-slate-800 dark:text-white">{stats.configuredTenants} / {tenants.length}</h3>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200/80 dark:border-slate-700/80 flex items-center gap-3.5">
-            <div className="p-3 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-lg">
-              <Users className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Central Registered Users</p>
-              <h3 className="text-xl font-bold text-slate-800 dark:text-white">{stats.totalUsers}</h3>
+            <div style={{ fontSize: '0.725rem', color: '#16a34a', marginTop: '0.25rem', fontWeight: '600' }}>
+              Across all tenant workspaces
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200/80 dark:border-slate-700/80 flex items-center gap-3.5">
-            <div className="p-3 bg-amber-50 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 rounded-lg">
-              <UserX className="w-5 h-5" />
+          {/* Card 2: Configured Tenants */}
+          <div className="crm-card" style={{ padding: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>Configured Tenants</span>
+              <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#f3e8ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9333ea' }}>
+                <Building2 size={18} />
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Unassigned Users</p>
-              <h3 className="text-xl font-bold text-slate-800 dark:text-white">{stats.unmappedUsers}</h3>
+            <div style={{ fontSize: '1.85rem', fontWeight: '800', color: '#0f172a', marginTop: '0.5rem' }}>
+              {stats.configuredTenants} <span style={{ fontSize: '1rem', fontWeight: '500', color: '#64748b' }}>/ {tenants.length}</span>
+            </div>
+            <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '0.25rem' }}>
+              Tenants with assigned users
+            </div>
+          </div>
+
+          {/* Card 3: Central Registered Users */}
+          <div className="crm-card" style={{ padding: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>Central Registered Users</span>
+              <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a' }}>
+                <Users size={18} />
+              </div>
+            </div>
+            <div style={{ fontSize: '1.85rem', fontWeight: '800', color: '#0f172a', marginTop: '0.5rem' }}>
+              {stats.totalUsers}
+            </div>
+            <div style={{ fontSize: '0.725rem', color: '#16a34a', marginTop: '0.25rem', fontWeight: '600' }}>
+              Available in User_Master
+            </div>
+          </div>
+
+          {/* Card 4: Unassigned Users */}
+          <div className="crm-card" style={{ padding: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>Unassigned Users</span>
+              <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706' }}>
+                <UserX size={18} />
+              </div>
+            </div>
+            <div style={{ fontSize: '1.85rem', fontWeight: '800', color: stats.unmappedUsers > 0 ? '#d97706' : '#0f172a', marginTop: '0.5rem' }}>
+              {stats.unmappedUsers}
+            </div>
+            <div style={{ fontSize: '0.725rem', color: stats.unmappedUsers > 0 ? '#b45309' : '#64748b', marginTop: '0.25rem', fontWeight: stats.unmappedUsers > 0 ? '700' : '500' }}>
+              {stats.unmappedUsers > 0 ? 'Pending tenant assignment' : 'All users assigned'}
             </div>
           </div>
         </div>
 
-        {/* PRIMARY ASSIGNMENT SECTION */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-          {/* Card Header & Tenant Selector */}
-          <div className="p-5 md:p-6 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-blue-50/50 via-indigo-50/20 to-transparent dark:from-slate-800/80 dark:to-slate-800">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="p-1.5 bg-blue-600 text-white rounded-lg shadow-sm">
-                    <UserPlus className="w-4 h-4" />
-                  </span>
-                  <h2 className="text-lg font-bold text-slate-800 dark:text-white">
-                    Assign Users to Tenant
-                  </h2>
+        {/* PRIMARY ASSIGNMENT CARD */}
+        <div className="crm-card" style={{ padding: 0, marginBottom: '1.5rem', overflow: 'hidden' }}>
+          {/* Card Top Banner: Select Tenant */}
+          <div style={{
+            padding: '1.25rem 1.5rem',
+            backgroundColor: '#f8fafc',
+            borderBottom: '1px solid #e2e8f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '1rem'
+          }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
+                  <UserPlus size={16} />
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Select a tenant organization from the dropdown, then select multiple users and specify their roles.
-                </p>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
+                  Assign Users to Tenant
+                </h3>
               </div>
-
-              {/* Tenant Dropdown */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 whitespace-nowrap">
-                  <Building2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  Select Tenant:
-                </label>
-                <div className="relative min-w-[280px]">
-                  <select
-                    value={selectedTenantId}
-                    onChange={(e) => setSelectedTenantId(e.target.value)}
-                    className="w-full pl-3 pr-8 py-2.5 bg-white dark:bg-slate-900 border-2 border-blue-500/40 hover:border-blue-500 focus:border-blue-600 rounded-xl text-sm font-semibold text-slate-800 dark:text-white shadow-sm transition-all outline-none cursor-pointer"
-                  >
-                    <option value="" disabled>-- Choose Client Tenant --</option>
-                    {tenants.map(t => (
-                      <option key={t.TenantId} value={t.TenantId}>
-                        {t.TenantId} - {t.CompanyName || 'Unnamed Organization'} ({t.Status || 'Active'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>
+                Select a tenant organization from the dropdown, then select multiple users and specify their roles.
+              </p>
             </div>
 
-            {/* Selected Tenant Quick Info Banner */}
-            {selectedTenant && (
-              <div className="mt-4 pt-4 border-t border-slate-200/60 dark:border-slate-700/60 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-1 bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-bold rounded-md">
-                    {selectedTenant.TenantId}
-                  </span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">
-                    {selectedTenant.CompanyName}
-                  </span>
-                  {selectedTenant.ContactEmail && (
-                    <span className="text-slate-400 dark:text-slate-500">
-                      • {selectedTenant.ContactEmail}
-                    </span>
-                  )}
-                  <span className={`px-2 py-0.5 rounded-full font-medium ${
-                    (selectedTenant.Status || 'Active').toLowerCase() === 'active'
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'
-                      : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400'
-                  }`}>
-                    {selectedTenant.Status || 'Active'}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-medium">
-                  <UserCheck className="w-4 h-4 text-emerald-600" />
-                  <span>
-                    Currently Assigned: <strong className="text-blue-600 dark:text-blue-400 font-bold">{selectedCountForTenant}</strong> / {centralUsers.length} users
-                  </span>
-                </div>
-              </div>
-            )}
+            {/* Tenant Dropdown */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <label style={{ fontSize: '0.825rem', fontWeight: '700', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}>
+                <Building2 size={16} color="#2563eb" />
+                Select Tenant:
+              </label>
+              <select
+                className="form-select"
+                value={selectedTenantId}
+                onChange={(e) => setSelectedTenantId(e.target.value)}
+                style={{
+                  minWidth: '280px',
+                  fontWeight: '600',
+                  color: '#0f172a',
+                  borderColor: '#93c5fd',
+                  backgroundColor: '#ffffff'
+                }}
+              >
+                <option value="" disabled>-- Choose Client Tenant --</option>
+                {tenants.map(t => (
+                  <option key={t.TenantId} value={t.TenantId}>
+                    {t.TenantId} - {t.CompanyName || 'Unnamed Organization'} ({t.Status || 'Active'})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          {/* User Selection Controls & Filter Toolbar */}
-          <div className="p-4 md:p-5 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-850 flex flex-col md:flex-row md:items-center justify-between gap-3">
-            {/* Search Input */}
-            <div className="relative flex-1 max-w-md">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          {/* Selected Tenant Info Strip */}
+          {selectedTenant && (
+            <div style={{
+              padding: '0.75rem 1.5rem',
+              backgroundColor: '#eff6ff',
+              borderBottom: '1px solid #bfdbfe',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '0.75rem',
+              fontSize: '0.8125rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <span className="badge badge-primary">{selectedTenant.TenantId}</span>
+                <strong style={{ color: '#1e40af', fontSize: '0.875rem' }}>{selectedTenant.CompanyName}</strong>
+                {selectedTenant.ContactEmail && (
+                  <span style={{ color: '#64748b' }}>• {selectedTenant.ContactEmail}</span>
+                )}
+                <span className={`badge ${String(selectedTenant.Status).toLowerCase() === 'active' ? 'badge-success' : 'badge-danger'}`}>
+                  {selectedTenant.Status || 'Active'}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#1e40af', fontWeight: '600' }}>
+                <UserCheck size={16} color="#16a34a" />
+                <span>
+                  Currently Assigned: <strong style={{ color: '#2563eb', fontSize: '0.95rem' }}>{selectedCountForTenant}</strong> / {centralUsers.length} users
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Filter & Search Toolbar */}
+          <div style={{
+            padding: '1rem 1.5rem',
+            borderBottom: '1px solid #e2e8f0',
+            backgroundColor: '#ffffff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '1rem'
+          }}>
+            {/* Search Box */}
+            <div style={{ position: 'relative', flex: 1, minWidth: '240px', maxWidth: '400px' }}>
+              <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} />
               <input
                 type="text"
-                placeholder="Search users by name, email, ID or mobile..."
+                className="form-input"
+                placeholder="Search users by name, email, ID, mobile..."
                 value={userSearchQuery}
                 onChange={(e) => setUserSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs md:text-sm text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                style={{ paddingLeft: '2.3rem' }}
               />
               {userSearchQuery && (
                 <button
+                  type="button"
                   onClick={() => setUserSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs"
+                  style={{
+                    position: 'absolute',
+                    right: '0.65rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: '#94a3b8',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem'
+                  }}
                 >
                   ✕
                 </button>
               )}
             </div>
 
-            {/* Filter Tabs & Quick Action Buttons */}
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex rounded-lg p-1 bg-slate-200/70 dark:bg-slate-800 border border-slate-300/50 dark:border-slate-700 text-xs">
+            {/* Filter Tabs & Bulk Selection */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+              <div style={{
+                display: 'inline-flex',
+                borderRadius: '8px',
+                padding: '3px',
+                backgroundColor: '#f1f5f9',
+                border: '1px solid #e2e8f0'
+              }}>
                 <button
                   type="button"
                   onClick={() => setAssignmentFilterTab('all')}
-                  className={`px-3 py-1 rounded-md font-medium transition-all ${
-                    assignmentFilterTab === 'all'
-                      ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm font-semibold'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
+                  className={`btn btn-sm ${assignmentFilterTab === 'all' ? 'btn-primary' : ''}`}
+                  style={{
+                    backgroundColor: assignmentFilterTab === 'all' ? '#2563eb' : 'transparent',
+                    color: assignmentFilterTab === 'all' ? '#ffffff' : '#475569',
+                    border: 'none',
+                    padding: '0.25rem 0.65rem',
+                    fontSize: '0.75rem'
+                  }}
                 >
                   All ({centralUsers.length})
                 </button>
                 <button
                   type="button"
                   onClick={() => setAssignmentFilterTab('assigned')}
-                  className={`px-3 py-1 rounded-md font-medium transition-all ${
-                    assignmentFilterTab === 'assigned'
-                      ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm font-semibold'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
+                  className={`btn btn-sm ${assignmentFilterTab === 'assigned' ? 'btn-primary' : ''}`}
+                  style={{
+                    backgroundColor: assignmentFilterTab === 'assigned' ? '#2563eb' : 'transparent',
+                    color: assignmentFilterTab === 'assigned' ? '#ffffff' : '#475569',
+                    border: 'none',
+                    padding: '0.25rem 0.65rem',
+                    fontSize: '0.75rem'
+                  }}
                 >
                   Selected ({selectedCountForTenant})
                 </button>
                 <button
                   type="button"
                   onClick={() => setAssignmentFilterTab('unassigned')}
-                  className={`px-3 py-1 rounded-md font-medium transition-all ${
-                    assignmentFilterTab === 'unassigned'
-                      ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm font-semibold'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
+                  className={`btn btn-sm ${assignmentFilterTab === 'unassigned' ? 'btn-primary' : ''}`}
+                  style={{
+                    backgroundColor: assignmentFilterTab === 'unassigned' ? '#2563eb' : 'transparent',
+                    color: assignmentFilterTab === 'unassigned' ? '#ffffff' : '#475569',
+                    border: 'none',
+                    padding: '0.25rem 0.65rem',
+                    fontSize: '0.75rem'
+                  }}
                 >
                   Unselected ({centralUsers.length - selectedCountForTenant})
                 </button>
               </div>
 
-              {/* Bulk Toggle Buttons */}
               <button
                 type="button"
+                className="btn btn-secondary btn-sm"
                 onClick={() => handleSelectAllFiltered(filteredAssignmentUsers)}
-                className="px-2.5 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium transition-colors shadow-sm"
+                style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
               >
                 Select All
               </button>
               <button
                 type="button"
+                className="btn btn-secondary btn-sm"
                 onClick={() => handleDeselectAllFiltered(filteredAssignmentUsers)}
-                className="px-2.5 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium transition-colors shadow-sm"
+                style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
               >
                 Deselect All
               </button>
             </div>
           </div>
 
-          {/* User Selection Multi-Card Grid */}
-          <div className="p-4 md:p-6 max-h-[460px] overflow-y-auto">
+          {/* Multi-User Grid */}
+          <div style={{ padding: '1.25rem 1.5rem', maxHeight: '460px', overflowY: 'auto' }}>
             {loading ? (
-              <div className="py-16 text-center">
-                <RefreshCw className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-2" />
-                <p className="text-sm text-slate-500 dark:text-slate-400">Loading central users and mappings...</p>
+              <div style={{ padding: '3rem 1rem', textAlign: 'center', color: '#64748b' }}>
+                <RefreshCw size={28} color="#2563eb" className="spin-animation" style={{ margin: '0 auto 0.75rem' }} />
+                <p style={{ fontSize: '0.875rem' }}>Loading central users and mappings from Google Sheets...</p>
               </div>
             ) : filteredAssignmentUsers.length === 0 ? (
-              <div className="py-16 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
-                <Users className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No users found</p>
-                <p className="text-xs text-slate-400 mt-1">Try adjusting your search query or filter tab.</p>
+              <div style={{ padding: '3rem 1rem', textAlign: 'center', border: '2px dashed #e2e8f0', borderRadius: '12px' }}>
+                <Users size={36} color="#cbd5e1" style={{ margin: '0 auto 0.5rem' }} />
+                <p style={{ fontSize: '0.875rem', fontWeight: '600', color: '#475569', margin: 0 }}>No users found</p>
+                <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.25rem' }}>Try adjusting your search query or filter tab.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                gap: '0.85rem'
+              }}>
                 {filteredAssignmentUsers.map(user => {
                   const assignment = userAssignments[user.UserId] || { selected: false, role: 'Staff' };
                   const isChecked = Boolean(assignment.selected);
@@ -601,61 +668,84 @@ export default function TenantUserMapping({ onOpenBackup }) {
                   return (
                     <div
                       key={user.UserId}
-                      className={`relative rounded-xl p-3.5 border transition-all ${
-                        isChecked
-                          ? 'bg-blue-50/60 dark:bg-blue-950/20 border-blue-500 shadow-sm ring-1 ring-blue-500/50'
-                          : 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-                      }`}
+                      style={{
+                        padding: '0.85rem',
+                        borderRadius: '10px',
+                        border: isChecked ? '1.5px solid #2563eb' : '1px solid #e2e8f0',
+                        backgroundColor: isChecked ? '#eff6ff' : '#ffffff',
+                        boxShadow: isChecked ? '0 1px 3px rgba(37,99,235,0.12)' : 'none',
+                        transition: 'all 0.15s ease-in-out'
+                      }}
                     >
-                      <div className="flex items-start gap-3">
-                        {/* Custom Checkbox */}
-                        <div className="pt-0.5">
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
+                        {/* Checkbox */}
+                        <div style={{ paddingTop: '2px' }}>
                           <input
                             type="checkbox"
-                            id={`user-chk-${user.UserId}`}
                             checked={isChecked}
                             onChange={() => toggleUserSelection(user.UserId)}
-                            className="w-4 h-4 text-blue-600 bg-white border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600 cursor-pointer"
+                            style={{
+                              width: '18px',
+                              height: '18px',
+                              cursor: 'pointer',
+                              accentColor: '#2563eb'
+                            }}
                           />
                         </div>
 
                         {/* User Details */}
-                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleUserSelection(user.UserId)}>
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                        <div
+                          style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
+                          onClick={() => toggleUserSelection(user.UserId)}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <strong style={{ fontSize: '0.875rem', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {user.FullName || 'Unnamed User'}
-                            </span>
+                            </strong>
                             {user.IsSuperAdmin && (
-                              <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 text-[10px] font-bold rounded">
-                                SA
+                              <span className="badge badge-warning" style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem' }}>
+                                SuperAdmin
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                          <div style={{ fontSize: '0.75rem', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>
                             {user.Email || user.UserId}
-                          </p>
+                          </div>
                           {user.Mobile && (
-                            <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
+                            <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '2px' }}>
                               📞 {user.Mobile}
-                            </p>
+                            </div>
                           )}
                         </div>
                       </div>
 
-                      {/* Role Selector (visible always, active styling when checked) */}
-                      <div className="mt-3 pt-2.5 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                      {/* Role Selector */}
+                      <div style={{
+                        marginTop: '0.65rem',
+                        paddingTop: '0.5rem',
+                        borderTop: '1px solid #f1f5f9',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.5rem'
+                      }}>
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '500' }}>
                           Tenant Role:
                         </span>
                         <select
+                          className="form-select"
                           value={assignment.role || 'Staff'}
                           disabled={!isChecked}
                           onChange={(e) => handleRoleChange(user.UserId, e.target.value)}
-                          className={`text-xs font-semibold py-1 px-2 rounded-lg border transition-all ${
-                            isChecked
-                              ? 'bg-white dark:bg-slate-900 border-blue-400 dark:border-blue-600 text-slate-800 dark:text-white cursor-pointer shadow-sm'
-                              : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 cursor-not-allowed'
-                          }`}
+                          style={{
+                            width: 'auto',
+                            padding: '0.25rem 0.55rem',
+                            fontSize: '0.75rem',
+                            fontWeight: '600',
+                            backgroundColor: isChecked ? '#ffffff' : '#f8fafc',
+                            borderColor: isChecked ? '#93c5fd' : '#e2e8f0',
+                            color: isChecked ? '#0f172a' : '#94a3b8'
+                          }}
                         >
                           {ROLE_OPTIONS.map(r => (
                             <option key={r.value} value={r.value}>{r.label}</option>
@@ -670,29 +760,44 @@ export default function TenantUserMapping({ onOpenBackup }) {
           </div>
 
           {/* Action Footer with Primary SAVE Button */}
-          <div className="p-4 md:p-5 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-              <Info className="w-4 h-4 text-blue-500 flex-shrink-0" />
+          <div style={{
+            padding: '1rem 1.5rem',
+            backgroundColor: '#f8fafc',
+            borderTop: '1px solid #e2e8f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '1rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.775rem', color: '#64748b' }}>
+              <Info size={16} color="#2563eb" />
               <span>
-                Saving updates the <code className="px-1 py-0.5 bg-slate-200 dark:bg-slate-700 rounded text-slate-800 dark:text-slate-200 font-mono">Tenant_User_Mapping</code> sheet in real-time.
+                Saving commits assigned records to the <code style={{ backgroundColor: '#e2e8f0', padding: '2px 5px', borderRadius: '4px', color: '#0f172a', fontWeight: '600' }}>Tenant_User_Mapping</code> tab in real-time.
               </span>
             </div>
 
-            <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div>
               <button
                 type="button"
+                className="btn btn-primary"
                 onClick={handleSaveMappings}
                 disabled={saving || !selectedTenantId}
-                className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer text-sm"
+                style={{
+                  padding: '0.65rem 1.5rem',
+                  fontSize: '0.875rem',
+                  fontWeight: '700',
+                  boxShadow: '0 2px 4px rgba(37, 99, 235, 0.25)'
+                }}
               >
                 {saving ? (
                   <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <RefreshCw size={16} className="spin-animation" />
                     <span>Saving Mappings...</span>
                   </>
                 ) : (
                   <>
-                    <Save className="w-4 h-4" />
+                    <Save size={16} />
                     <span>SAVE Tenant-User Mappings ({selectedCountForTenant})</span>
                   </>
                 )}
@@ -702,29 +807,38 @@ export default function TenantUserMapping({ onOpenBackup }) {
         </div>
 
         {/* ACTIVE MAPPINGS DIRECTORY (MASTER TABLE) */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-          <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="crm-card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{
+            padding: '1.25rem 1.5rem',
+            borderBottom: '1px solid #e2e8f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '1rem'
+          }}>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 bg-emerald-600 text-white rounded-lg shadow-sm">
-                  <Briefcase className="w-4 h-4" />
-                </span>
-                <h3 className="text-base font-bold text-slate-800 dark:text-white">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
+                  <Briefcase size={16} />
+                </div>
+                <h3 style={{ fontSize: '1rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
                   Active Tenant-User Mappings Directory
                 </h3>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '0.25rem 0 0' }}>
                 Full live record of all tenant-user associations stored in Google Sheets.
               </p>
             </div>
 
             {/* Table Filters */}
-            <div className="flex flex-wrap items-center gap-2.5">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
               {/* Tenant Filter */}
               <select
+                className="form-select"
                 value={tableTenantFilter}
                 onChange={(e) => setTableTenantFilter(e.target.value)}
-                className="text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                style={{ width: 'auto', fontSize: '0.8rem', padding: '0.4rem 0.65rem' }}
               >
                 <option value="all">All Tenants ({tenants.length})</option>
                 {tenants.map(t => (
@@ -736,9 +850,10 @@ export default function TenantUserMapping({ onOpenBackup }) {
 
               {/* Role Filter */}
               <select
+                className="form-select"
                 value={tableRoleFilter}
                 onChange={(e) => setTableRoleFilter(e.target.value)}
-                className="text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                style={{ width: 'auto', fontSize: '0.8rem', padding: '0.4rem 0.65rem' }}
               >
                 <option value="all">All Roles</option>
                 {ROLE_OPTIONS.map(r => (
@@ -746,38 +861,39 @@ export default function TenantUserMapping({ onOpenBackup }) {
                 ))}
               </select>
 
-              {/* Table Search */}
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              {/* Search Table */}
+              <div style={{ position: 'relative', width: '200px' }}>
+                <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)' }} />
                 <input
                   type="text"
+                  className="form-input"
                   placeholder="Filter directory..."
                   value={tableSearchQuery}
                   onChange={(e) => setTableSearchQuery(e.target.value)}
-                  className="pl-8 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 w-44"
+                  style={{ paddingLeft: '2rem', fontSize: '0.8rem', padding: '0.4rem 0.65rem 0.4rem 2rem' }}
                 />
               </div>
             </div>
           </div>
 
-          {/* Table Container */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          {/* Table */}
+          <div className="table-responsive">
+            <table className="crm-table">
               <thead>
-                <tr className="bg-slate-50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  <th className="py-3 px-4">Mapping ID</th>
-                  <th className="py-3 px-4">Tenant Organization</th>
-                  <th className="py-3 px-4">Assigned User</th>
-                  <th className="py-3 px-4">Tenant Role</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Created / Updated</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                <tr>
+                  <th>Mapping ID</th>
+                  <th>Tenant Organization</th>
+                  <th>Assigned User</th>
+                  <th>Tenant Role</th>
+                  <th>Status</th>
+                  <th>Created / Updated</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
+              <tbody>
                 {filteredTableMappings.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="py-12 text-center text-slate-400">
+                    <td colSpan="7" style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
                       No tenant user mappings found matching the filters.
                     </td>
                   </tr>
@@ -786,55 +902,48 @@ export default function TenantUserMapping({ onOpenBackup }) {
                     const roleBadge = ROLE_OPTIONS.find(r => r.value.toLowerCase() === (mapping.Role || '').toLowerCase()) || ROLE_OPTIONS[2];
 
                     return (
-                      <tr 
-                        key={mapping.MappingId || `${mapping.TenantId}-${mapping.UserId}`}
-                        className="hover:bg-slate-50/70 dark:hover:bg-slate-750/50 transition-colors"
-                      >
+                      <tr key={mapping.MappingId || `${mapping.TenantId}-${mapping.UserId}`}>
                         {/* Mapping ID */}
-                        <td className="py-3 px-4 font-mono font-medium text-slate-600 dark:text-slate-300">
+                        <td style={{ fontFamily: 'monospace', fontWeight: '600', color: '#475569', fontSize: '0.8rem' }}>
                           {mapping.MappingId || '-'}
                         </td>
 
                         {/* Tenant */}
-                        <td className="py-3 px-4">
-                          <div className="font-semibold text-slate-900 dark:text-white">
+                        <td>
+                          <div style={{ fontWeight: '700', color: '#0f172a' }}>
                             {mapping.TenantName || mapping.TenantId}
                           </div>
-                          <div className="text-[11px] text-slate-400 font-mono">
+                          <div style={{ fontSize: '0.725rem', color: '#94a3b8', fontFamily: 'monospace' }}>
                             {mapping.TenantId}
                           </div>
                         </td>
 
                         {/* User */}
-                        <td className="py-3 px-4">
-                          <div className="font-semibold text-slate-900 dark:text-white">
+                        <td>
+                          <div style={{ fontWeight: '600', color: '#0f172a' }}>
                             {mapping.UserName || mapping.UserId}
                           </div>
-                          <div className="text-[11px] text-slate-400">
+                          <div style={{ fontSize: '0.725rem', color: '#64748b' }}>
                             {mapping.UserEmail || mapping.UserId}
                           </div>
                         </td>
 
                         {/* Role */}
-                        <td className="py-3 px-4">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${roleBadge.color}`}>
+                        <td>
+                          <span className={`badge ${roleBadge.badgeClass}`}>
                             {mapping.Role || 'Staff'}
                           </span>
                         </td>
 
                         {/* Status */}
-                        <td className="py-3 px-4">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                            String(mapping.Status || 'Active').toLowerCase() === 'active'
-                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'
-                              : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400'
-                          }`}>
+                        <td>
+                          <span className={`badge ${String(mapping.Status || 'Active').toLowerCase() === 'active' ? 'badge-success' : 'badge-danger'}`}>
                             {mapping.Status || 'Active'}
                           </span>
                         </td>
 
                         {/* Created / Updated */}
-                        <td className="py-3 px-4 text-slate-500 dark:text-slate-400 text-[11px]">
+                        <td style={{ fontSize: '0.75rem', color: '#64748b' }}>
                           {mapping.Updated_At ? (
                             new Date(mapping.Updated_At).toLocaleDateString()
                           ) : mapping.Created_At ? (
@@ -845,14 +954,15 @@ export default function TenantUserMapping({ onOpenBackup }) {
                         </td>
 
                         {/* Actions */}
-                        <td className="py-3 px-4 text-right">
+                        <td style={{ textAlign: 'right' }}>
                           <button
                             type="button"
+                            className="btn-icon"
                             onClick={() => handleDeleteMapping(mapping)}
                             title="Remove mapping"
-                            className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors cursor-pointer"
+                            style={{ color: '#ef4444' }}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 size={16} />
                           </button>
                         </td>
                       </tr>
