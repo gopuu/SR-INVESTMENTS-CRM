@@ -11,10 +11,15 @@ import {
   Boxes,
   Building2,
   Crown,
-  CreditCard
+  CreditCard,
+  Briefcase,
+  Shield,
+  Key,
+  Lock
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { crmApi } from '../services/api';
+import { showError } from '../utils/swal';
 
 export default function Sidebar({ currentPage, onNavigate }) {
   const { user, tenant, hasPermission, isSuperAdmin } = useAuth();
@@ -30,7 +35,11 @@ export default function Sidebar({ currentPage, onNavigate }) {
     { id: 'home', label: 'Home (Dashboard)', icon: LayoutDashboard, module: 'Dashboard' },
     { id: 'customers', label: 'Customers', icon: Users, module: 'Customers' },
     { id: 'staff', label: 'Staff (Employees)', icon: UserCheck, module: 'Staff' },
-    { id: 'masters', label: 'Master HUB', icon: Boxes, module: null },
+    { id: 'departments', label: 'Department Master', icon: Building2, module: 'MasterDepartments' },
+    { id: 'designations', label: 'Designation Master', icon: Briefcase, module: 'MasterDesignations' },
+    { id: 'roles', label: 'Role Master', icon: Shield, module: 'MasterRoles' },
+    { id: 'user-rights', label: 'User Rights', icon: Key, module: 'RolesRights' },
+    { id: 'masters', label: 'Master HUB', icon: Boxes, module: 'MasterHub' },
     { id: 'sip', label: 'SIP Calculator', icon: Calculator, module: null },
     { id: 'settings', label: 'Settings', icon: Settings, module: 'Settings' }
   ];
@@ -42,14 +51,25 @@ export default function Sidebar({ currentPage, onNavigate }) {
   ];
 
   const renderNavItem = (item) => {
-    if (item.module && !hasPermission(item.module, 'CanView')) return null;
+    const canAccess = !item.module || hasPermission(item.module, 'CanView');
     const isActive = currentPage === item.id;
     const Icon = item.icon;
+
+    const handleClick = () => {
+      if (item.module && !hasPermission(item.module, 'CanView')) {
+        showError(
+          'Access Denied',
+          `You do not have permission to access the "${item.label}" module. Please contact your administrator.`
+        );
+        return;
+      }
+      onNavigate(item.id);
+    };
 
     return (
       <button
         key={item.id}
-        onClick={() => onNavigate(item.id)}
+        onClick={handleClick}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -59,24 +79,25 @@ export default function Sidebar({ currentPage, onNavigate }) {
           borderRadius: '8px',
           border: 'none',
           backgroundColor: isActive ? '#2563eb' : 'transparent',
-          color: isActive ? '#ffffff' : '#94a3b8',
+          color: isActive ? '#ffffff' : canAccess ? '#94a3b8' : '#64748b',
           fontWeight: isActive ? '600' : '500',
           fontSize: '0.85rem',
           cursor: 'pointer',
           transition: 'all 0.15s ease',
-          textAlign: 'left'
+          textAlign: 'left',
+          opacity: canAccess ? 1 : 0.65
         }}
         onMouseEnter={(e) => {
           if (!isActive) e.currentTarget.style.backgroundColor = '#1e293b';
-          if (!isActive) e.currentTarget.style.color = '#ffffff';
+          if (!isActive) e.currentTarget.style.color = canAccess ? '#ffffff' : '#cbd5e1';
         }}
         onMouseLeave={(e) => {
           if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
-          if (!isActive) e.currentTarget.style.color = '#94a3b8';
+          if (!isActive) e.currentTarget.style.color = canAccess ? '#94a3b8' : '#64748b';
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <Icon size={18} color={isActive ? '#ffffff' : '#94a3b8'} />
+          <Icon size={18} color={isActive ? '#ffffff' : canAccess ? '#94a3b8' : '#64748b'} />
           <span>{item.label}</span>
           {item.badge && (
             <span style={{
@@ -92,7 +113,11 @@ export default function Sidebar({ currentPage, onNavigate }) {
             </span>
           )}
         </div>
-        {isActive && <ChevronRight size={14} color="#ffffff" />}
+        {!canAccess ? (
+          <Lock size={13} color="#f87171" title="Access Restricted" />
+        ) : isActive ? (
+          <ChevronRight size={14} color="#ffffff" />
+        ) : null}
       </button>
     );
   };

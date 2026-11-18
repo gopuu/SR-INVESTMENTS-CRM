@@ -277,30 +277,46 @@ export default function UserProfile({ onOpenBackup }) {
                 </tr>
               </thead>
               <tbody>
-                {['Dashboard', 'Customers', 'Staff', 'MasterHub', 'Settings', 'DriveBackup'].map((mod) => {
-                  const perm = rights.find(r => r.Module && r.Module.toLowerCase() === mod.toLowerCase());
+                {[
+                  { key: 'Dashboard', label: 'Dashboard' },
+                  { key: 'Customers', label: 'Customers' },
+                  { key: 'Staff', label: 'Staff' },
+                  { key: 'MasterDepartments', label: 'Department Master' },
+                  { key: 'MasterDesignations', label: 'Designation Master' },
+                  { key: 'MasterRoles', label: 'Role Master' },
+                  { key: 'RolesRights', label: 'User Rights (RolesRights)' },
+                  { key: 'MasterHub', label: 'MasterHub' },
+                  { key: 'Settings', label: 'Settings' },
+                  { key: 'DriveBackup', label: 'DriveBackup' }
+                ].map((mod) => {
+                  const perm = rights.find(r => r.Module && r.Module.toLowerCase() === mod.key.toLowerCase());
                   const isAdmin = user?.role === 'Admin';
+                  const canView = isAdmin || Boolean(perm?.CanView);
+                  const canCreate = isAdmin || Boolean(perm?.CanCreate);
+                  const canEdit = isAdmin || Boolean(perm?.CanEdit);
+                  const canDelete = isAdmin || Boolean(perm?.CanDelete);
+
                   return (
-                    <tr key={mod}>
-                      <td><strong>{mod}</strong></td>
+                    <tr key={mod.key}>
+                      <td><strong>{mod.label}</strong></td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${isAdmin || perm?.CanView ? 'badge-primary' : 'badge-danger'}`}>
-                          {isAdmin || perm?.CanView ? 'Allowed' : 'Restricted'}
+                        <span className={`badge ${canView ? 'badge-primary' : 'badge-danger'}`}>
+                          {canView ? 'Allowed' : 'Restricted'}
                         </span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${isAdmin || perm?.CanCreate ? 'badge-primary' : 'badge-danger'}`}>
-                          {isAdmin || perm?.CanCreate ? 'Allowed' : 'Restricted'}
+                        <span className={`badge ${canCreate ? 'badge-primary' : 'badge-danger'}`}>
+                          {canCreate ? 'Allowed' : 'Restricted'}
                         </span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${isAdmin || perm?.CanEdit ? 'badge-primary' : 'badge-danger'}`}>
-                          {isAdmin || perm?.CanEdit ? 'Allowed' : 'Restricted'}
+                        <span className={`badge ${canEdit ? 'badge-primary' : 'badge-danger'}`}>
+                          {canEdit ? 'Allowed' : 'Restricted'}
                         </span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${isAdmin || perm?.CanDelete ? 'badge-primary' : 'badge-danger'}`}>
-                          {isAdmin || perm?.CanDelete ? 'Allowed' : 'Restricted'}
+                        <span className={`badge ${canDelete ? 'badge-primary' : 'badge-danger'}`}>
+                          {canDelete ? 'Allowed' : 'Restricted'}
                         </span>
                       </td>
                     </tr>

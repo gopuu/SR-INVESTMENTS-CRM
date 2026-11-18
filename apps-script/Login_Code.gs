@@ -745,20 +745,30 @@ function saveRolesRights_(payload) {
   sheet.clearContents();
   sheet.getRange(1, 1, 1, CRM_SCHEMAS.RIGHTS.length).setValues([CRM_SCHEMAS.RIGHTS]);
 
+  const now = new Date().toISOString();
+  const userEmail = payload.userEmail || "admin@srinvestments.com";
+
   const rows = rightsArray.map(r => [
-    r.Role,
-    r.Module,
-    r.CanView === true || r.CanView === "true" || r.CanView === 1 ? true : false,
-    r.CanCreate === true || r.CanCreate === "true" || r.CanCreate === 1 ? true : false,
-    r.CanEdit === true || r.CanEdit === "true" || r.CanEdit === 1 ? true : false,
-    r.CanDelete === true || r.CanDelete === "true" || r.CanDelete === 1 ? true : false
+    cleanStr_(r.Role),
+    cleanStr_(r.Module),
+    Boolean(r.CanView === true || r.CanView === "true" || r.CanView === 1),
+    Boolean(r.CanCreate === true || r.CanCreate === "true" || r.CanCreate === 1),
+    Boolean(r.CanEdit === true || r.CanEdit === "true" || r.CanEdit === 1),
+    Boolean(r.CanDelete === true || r.CanDelete === "true" || r.CanDelete === 1),
+    false,
+    r.Created_By || userEmail,
+    r.Created_At || now,
+    userEmail,
+    now,
+    "",
+    ""
   ]);
 
   if (rows.length > 0) {
     sheet.getRange(2, 1, rows.length, CRM_SCHEMAS.RIGHTS.length).setValues(rows);
   }
 
-  logAudit_("SYSTEM", "UPDATE_RIGHTS", "Role permissions updated");
+  logAudit_(userEmail, "UPDATE_RIGHTS", "RolesRights", "Role permissions updated");
   return { success: true, message: "Permissions updated successfully." };
 }
 

@@ -160,11 +160,16 @@ export function AuthProvider({ children }) {
 
   const hasPermission = (moduleName, action = 'CanView') => {
     if (!user) return false;
-    if (user.role === 'Admin' || isSuperAdmin) return true;
+    // 1. If role is Admin in any Tenant, give all rights always
+    if (user.role === 'Admin') return true;
+
+    // 2. If non-Admin (or pure SuperAdmin when inside a tenant workspace where they are not Admin),
+    // rights must be assigned from the active tenant's RolesRights matrix
+    if (!moduleName) return true;
     const permission = rights.find(
       r => r.Module && r.Module.toLowerCase() === moduleName.toLowerCase()
     );
-    if (!permission) return true; // Default viewable if unlisted
+    if (!permission) return false; // Default restricted for non-Admin if not explicitly assigned
     return Boolean(permission[action]);
   };
 

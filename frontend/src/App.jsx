@@ -13,9 +13,25 @@ import MasterHub from './pages/MasterHub';
 import SuperAdminPortal from './pages/SuperAdminPortal';
 import SubscriptionPlans from './pages/SubscriptionPlans';
 import TenantUserMapping from './pages/TenantUserMapping';
+import MasterDepartments from './pages/MasterDepartments';
+import MasterDesignations from './pages/MasterDesignations';
+import MasterRoles from './pages/MasterRoles';
+import RolesRights from './pages/RolesRights';
+
+const PAGE_MODULE_MAP = {
+  'home': 'Dashboard',
+  'customers': 'Customers',
+  'staff': 'Staff',
+  'departments': 'MasterDepartments',
+  'designations': 'MasterDesignations',
+  'roles': 'MasterRoles',
+  'user-rights': 'RolesRights',
+  'masters': 'MasterHub',
+  'settings': 'Settings'
+};
 
 export default function App() {
-  const { user, isSuperAdmin } = useAuth();
+  const { user, isSuperAdmin, hasPermission } = useAuth();
   const [currentPage, setCurrentPage] = useState('home');
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
 
@@ -36,6 +52,14 @@ export default function App() {
     }
   }, [currentPage, isSuperAdmin]);
 
+  // Guard Module Permissions for non-Admins
+  useEffect(() => {
+    const requiredModule = PAGE_MODULE_MAP[currentPage];
+    if (requiredModule && !hasPermission(requiredModule, 'CanView')) {
+      setCurrentPage('home');
+    }
+  }, [currentPage, hasPermission]);
+
   if (!user) {
     return <Login />;
   }
@@ -55,6 +79,10 @@ export default function App() {
         {currentPage === 'home' && <Home onNavigate={setCurrentPage} onOpenBackup={openBackup} />}
         {currentPage === 'customers' && <Customers onOpenBackup={openBackup} />}
         {currentPage === 'staff' && <Staff onOpenBackup={openBackup} />}
+        {currentPage === 'departments' && <MasterDepartments onOpenBackup={openBackup} />}
+        {currentPage === 'designations' && <MasterDesignations onOpenBackup={openBackup} />}
+        {currentPage === 'roles' && <MasterRoles onOpenBackup={openBackup} />}
+        {currentPage === 'user-rights' && <RolesRights onOpenBackup={openBackup} />}
         {currentPage === 'masters' && <MasterHub onOpenBackup={openBackup} />}
         {currentPage === 'sip' && <SipCalculator onOpenBackup={openBackup} />}
         {currentPage === 'settings' && <Settings onOpenBackup={openBackup} />}

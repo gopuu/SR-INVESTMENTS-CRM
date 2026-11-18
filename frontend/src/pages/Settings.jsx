@@ -13,6 +13,7 @@ import {
 import { crmApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
+import RolesRights from './RolesRights';
 
 export default function Settings({ onOpenBackup }) {
   const { user, hasPermission } = useAuth();
@@ -361,88 +362,7 @@ export default function Settings({ onOpenBackup }) {
 
         {/* TAB 2: USER RIGHTS & PERMISSIONS */}
         {activeTab === 'rights' && (
-          <div className="crm-card" style={{ padding: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <div>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
-                  Role-Based Access Control (RBAC) Matrix
-                </h3>
-                <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '3px 0 0 0' }}>
-                  Manage View, Create, Edit, and Delete privileges per staff role, including Drive Backup access.
-                </p>
-              </div>
-              <button className="btn btn-primary" onClick={handleSaveRights} disabled={saving}>
-                <Save size={16} /> {saving ? 'Saving...' : 'Save Permissions'}
-              </button>
-            </div>
-
-            <div className="table-responsive">
-              <table className="crm-table">
-                <thead>
-                  <tr>
-                    <th>Role</th>
-                    <th>CRM Module</th>
-                    <th style={{ textAlign: 'center' }}>Can View</th>
-                    <th style={{ textAlign: 'center' }}>Can Create</th>
-                    <th style={{ textAlign: 'center' }}>Can Edit</th>
-                    <th style={{ textAlign: 'center' }}>Can Delete</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rights.length === 0 ? (
-                    <tr>
-                      <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
-                        No permission rules loaded.
-                      </td>
-                    </tr>
-                  ) : (
-                    rights.map((r, i) => (
-                      <tr key={`${r.Role}_${r.Module}_${i}`}>
-                        <td>
-                          <strong>{r.Role}</strong>
-                        </td>
-                        <td>
-                          <span className="badge badge-info">{r.Module}</span>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <input
-                            type="checkbox"
-                            checked={Boolean(r.CanView)}
-                            onChange={() => toggleRight(i, 'CanView')}
-                            style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563eb' }}
-                          />
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <input
-                            type="checkbox"
-                            checked={Boolean(r.CanCreate)}
-                            onChange={() => toggleRight(i, 'CanCreate')}
-                            style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563eb' }}
-                          />
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <input
-                            type="checkbox"
-                            checked={Boolean(r.CanEdit)}
-                            onChange={() => toggleRight(i, 'CanEdit')}
-                            style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563eb' }}
-                          />
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <input
-                            type="checkbox"
-                            checked={Boolean(r.CanDelete)}
-                            onChange={() => toggleRight(i, 'CanDelete')}
-                            style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563eb' }}
-                          />
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <RolesRights inline={true} />
         )}
 
         {/* TAB 4: BACKEND CONNECTION */}
