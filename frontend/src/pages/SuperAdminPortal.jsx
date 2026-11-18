@@ -515,6 +515,33 @@ export default function SuperAdminPortal({ onOpenBackup }) {
     }
   };
 
+  const handleCancelLicense = async (lic) => {
+    if (!selectedTenantForLicense) return;
+    const confirmed = await showConfirm(
+      'Cancel Subscription License?',
+      `Are you sure you want to cancel license "${lic.Id}" (${lic.LicenseType})? Its status will be changed to CANCELLED.`
+    );
+    if (!confirmed) return;
+
+    try {
+      await crmApi.call('cancelTenantLicense', {
+        licenseId: lic.Id,
+        tenantId: selectedTenantForLicense.TenantId
+      });
+      const history = await crmApi.call('getTenantLicenses', { tenantId: selectedTenantForLicense.TenantId });
+      setLicenseHistory(Array.isArray(history) ? history : []);
+      const refreshedTenants = await crmApi.getTenants(false);
+      setTenants(Array.isArray(refreshedTenants) ? refreshedTenants : []);
+      const refreshed = (refreshedTenants || []).find(x => x.TenantId === selectedTenantForLicense.TenantId);
+      if (refreshed) {
+        setSelectedTenantForLicense(refreshed);
+      }
+      showSuccess(`License "${lic.Id}" has been CANCELLED.`);
+    } catch (err) {
+      showError(err.message || 'Failed to cancel license');
+    }
+  };
+
   const handleToggleLicenseStatus = async (lic, newStatus) => {
     if (!selectedTenantForLicense) return;
     try {
@@ -1788,12 +1815,13 @@ export default function SuperAdminPortal({ onOpenBackup }) {
                     ) : (
                       licenseHistory.map((lic) => {
                         const statusUpper = String(lic.Status || '').toUpperCase();
-                        const isCurrentlyActive = Boolean(lic.IsActive) || statusUpper === 'ACTIVE';
-                        const isNewQueued = statusUpper === 'NEW' || (!isCurrentlyActive && statusUpper !== 'EXPIRED' && statusUpper !== 'CANCELLED');
-                        const isExpiredOrCancelled = statusUpper === 'EXPIRED' || statusUpper === 'CANCELLED';
+                        const isCancelled = statusUpper === 'CANCELLED';
+                        const isExpired = statusUpper === 'EXPIRED';
+                        const isCurrentlyActive = !isCancelled && !isExpired && (lic.IsActive === true || String(lic.IsActive).toLowerCase() === 'true' || statusUpper === 'ACTIVE');
+                        const isNewQueued = !isCurrentlyActive && !isCancelled && !isExpired;
 
                         return (
-                          <tr key={lic.Id} style={isCurrentlyActive ? { backgroundColor: '#f0fdf4' } : {}}>
+                          <tr key={lic.Id} style={isCurrentlyActive ? { backgroundColor: '#f0fdf4' } : (isCancelled ? { backgroundColor: '#fff1f2', opacity: 0.85 } : {})}>
                             <td style={{ fontFamily: 'monospace', fontWeight: '600' }}>{lic.Id}</td>
                             <td style={{ fontWeight: '600' }}>{lic.LicenseType}</td>
                             <td>
@@ -1809,10 +1837,14 @@ export default function SuperAdminPortal({ onOpenBackup }) {
                             <td>
                               <span className={`badge ${
                                 isCurrentlyActive ? 'badge-success' : 
+                                (isCancelled ? 'badge-danger' : 
                                 (statusUpper === 'NEW' ? 'badge-info' : 
-                                (statusUpper === 'EXPIRED' ? 'badge-neutral' : 'badge-danger'))
-                              }`} style={statusUpper === 'NEW' ? { backgroundColor: '#e0e7ff', color: '#4338ca', fontWeight: '700' } : {}}>
-                                {isCurrentlyActive ? 'ACTIVE' : (statusUpper === 'NEW' ? 'NEW' : lic.Status)}
+                                (isExpired ? 'badge-neutral' : 'badge-secondary')))
+                              }`} style={
+                                statusUpper === 'NEW' ? { backgroundColor: '#e0e7ff', color: '#4338ca', fontWeight: '700' } : 
+                                (isCancelled ? { backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: '700' } : {})
+                              }>
+                                {isCurrentlyActive ? 'ACTIVE' : (isCancelled ? 'CANCELLED' : (statusUpper === 'NEW' ? 'NEW' : lic.Status))}
                               </span>
                             </td>
                             <td style={{ textAlign: 'center' }}>
@@ -1820,36 +1852,52 @@ export default function SuperAdminPortal({ onOpenBackup }) {
                                 <button
                                   type="button"
                                   className="btn btn-secondary btn-sm"
-                                  onClick={() => handleToggleLicenseStatus(lic, 'Cancelled')}
-                                  style={{ fontSize: '0.65rem', padding: '2px 7px', color: '#ef4444' }}
+                                  onClick={() => handleCancelLicense(lic)}
+                                  style={{ fontSize: '0.65rem', padding: '2px 7px', color: '#ef4444', borderColor: '#fca5a5', cursor: 'pointer' }}
                                   title="Cancel Active License"
                                 >
                                   Cancel
                                 </button>
                               ) : isNewQueued ? (
-                                <button
-                                  type="button"
-                                  className="btn btn-sm"
-                                  onClick={() => handleActivateLicense(lic)}
-                                  style={{ 
-                                    backgroundColor: '#10b981', 
-                                    color: '#ffffff', 
-                                    fontSize: '0.675rem', 
-                                    padding: '3px 8px', 
-                                    borderRadius: '5px', 
-                                    fontWeight: '700',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '3px',
-                                    border: 'none',
-                                    cursor: 'pointer'
-                                  }}
-                                  title="Click to manually activate this license immediately"
-                                >
-                                  <Zap size={11} />
-                                  <span>Activate</span>
-                                </button>
-                              ) : isExpiredOrCancelled ? (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm"
+                                    onClick={() => handleActivateLicense(lic)}
+                                    style={{ 
+                                      backgroundColor: '#10b981', 
+                                      color: '#ffffff', 
+                                      fontSize: '0.675rem', 
+                                      padding: '3px 8px', 
+                                      borderRadius: '5px', 
+                                      fontWeight: '700',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '3px',
+                                      border: 'none',
+                                      cursor: 'pointer'
+                                    }}
+                                    title="Click to manually activate this license immediately"
+                                  >
+                                    <Zap size={11} />
+                                    <span>Activate</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => handleCancelLicense(lic)}
+                                    style={{ fontSize: '0.65rem', padding: '2px 7px', color: '#ef4444', cursor: 'pointer' }}
+                                    title="Cancel Queued License"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : isCancelled ? (
+                                <span style={{ color: '#ef4444', fontSize: '0.675rem', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '3px', userSelect: 'none' }} title="License is cancelled">
+                                  <Lock size={10} />
+                                  <span>Cancelled</span>
+                                </span>
+                              ) : isExpired ? (
                                 <span style={{ color: '#94a3b8', fontSize: '0.675rem', fontWeight: '500', display: 'inline-flex', alignItems: 'center', gap: '3px', userSelect: 'none' }} title="Historical license is expired and locked (non-editable / non-deletable)">
                                   <Lock size={10} />
                                   <span>Expired</span>

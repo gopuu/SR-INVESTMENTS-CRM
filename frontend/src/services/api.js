@@ -1190,6 +1190,10 @@ export const crmApi = {
     return this.call('activateTenantLicense', { licenseId, tenantId });
   },
 
+  async cancelTenantLicense(licenseId, tenantId) {
+    return this.call('cancelTenantLicense', { licenseId, tenantId });
+  },
+
   async testConnection(targetUrl) {
     const gasUrl = (targetUrl || this.getBackendUrl() || '').trim();
     if (!gasUrl) {
@@ -2172,6 +2176,24 @@ export const crmApi = {
         localStorage.setItem(STORAGE_KEYS.TENANT_LICENSES, JSON.stringify(licenses));
         broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Licenses' });
         return { success: true, message: 'License activated successfully.' };
+      }
+
+      case 'cancelTenantLicense': {
+        assertSuperAdminDemo(payload);
+        const tenantId = payload.tenantId || payload.TenantId;
+        const licenseId = payload.licenseId || payload.id || payload.Id;
+        const licenses = JSON.parse(localStorage.getItem(STORAGE_KEYS.TENANT_LICENSES) || '[]');
+        const now = new Date().toISOString();
+        licenses.forEach(l => {
+          if (String(l.TenantId).toUpperCase() === String(tenantId).toUpperCase() && l.Id === licenseId) {
+            l.IsActive = false;
+            l.Status = 'CANCELLED';
+            l.Updated_At = now;
+          }
+        });
+        localStorage.setItem(STORAGE_KEYS.TENANT_LICENSES, JSON.stringify(licenses));
+        broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Licenses' });
+        return { success: true, message: 'License cancelled successfully.' };
       }
 
       // SUBSCRIPTION PLANS MASTER (SaaS Tiers & Quotas)

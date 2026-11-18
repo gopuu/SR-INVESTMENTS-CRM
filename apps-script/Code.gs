@@ -210,6 +210,10 @@ function handleAction_(action, payload) {
       verifyIsSuperAdmin_(payload);
       return activateTenantLicense_(payload);
 
+    case "cancelTenantLicense":
+      verifyIsSuperAdmin_(payload);
+      return cancelTenantLicense_(payload);
+
     // Payment Receiving Accounts Master (Central DB)
     case "getPaymentAccounts":
       return getPaymentAccounts_(payload);

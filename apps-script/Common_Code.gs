@@ -451,16 +451,21 @@ function getSheetRowsAsObjects_(sheet, fallbackSchema) {
         obj.AlternateEmailsList = obj.GoogleEmails;
       }
 
-      // 4. Status sanity protection: If Status is not Active or Inactive, default safely to Active
-      if (obj.Status && obj.Status !== "Active" && obj.Status !== "Inactive") {
+      // 4. Status normalization: accurately recognize Active, Inactive, Expired, CANCELLED, and NEW
+      if (obj.Status) {
         const s = String(obj.Status).trim().toLowerCase();
-        if (s === "active" || s === "act") {
+        if (s === "cancelled") {
+          obj.Status = "CANCELLED";
+        } else if (s === "expired") {
+          obj.Status = "Expired";
+        } else if (s === "new" || s === "upcoming" || s === "pending") {
+          obj.Status = "NEW";
+        } else if (s === "active" || s === "act") {
           obj.Status = "Active";
         } else if (s === "inactive" || s === "inact") {
           obj.Status = "Inactive";
-        } else {
-          // If a city or name (e.g. "GOPAL") was in that column due to historical shift
-          obj.Status = "Active";
+        } else if (s === "suspended" || s === "locked") {
+          obj.Status = "Suspended";
         }
       }
 
@@ -1611,11 +1616,25 @@ function evaluateAndSyncTenantLicenses_(sheet, tenantId) {
     let hasActive = false;
     let expiredEndDate = "";
 
-    // 1. Expire past licenses (EndDate < today)
+    // 1. Expire past licenses (EndDate < today) & strictly exclude CANCELLED/EXPIRED
     group.forEach(item => {
       const lic = item.lic;
       const statusLower = String(lic.Status || "").toLowerCase();
-      const isActive = Boolean(lic.IsActive) || statusLower === "active";
+      const isCancelled = statusLower === "cancelled";
+      const isExpired = statusLower === "expired";
+
+      // If license is marked CANCELLED or EXPIRED, guarantee IsActive is false
+      if (isCancelled || isExpired) {
+        if (lic.IsActive === true || String(lic.IsActive).toLowerCase() === "true") {
+          const deact = Object.assign({}, lic, { IsActive: false });
+          writeRowByHeaders_(sheet, item.rowNumber, deact, CRM_SCHEMAS.TENANT_LICENSES);
+          item.lic = deact;
+          modified = true;
+        }
+        return;
+      }
+
+      const isActive = (lic.IsActive === true || String(lic.IsActive).toLowerCase() === "true" || statusLower === "active");
       const endDate = lic.EndDate ? String(lic.EndDate).slice(0, 10) : "";
 
       if (isActive && endDate && today > endDate) {
@@ -1746,7 +1765,54 @@ function activateTenantLicense_(payload) {
 }
 
 /**
- * Save / Renew a Tenant License (supports saving as NEW or Active)
+ * Cancel a license for a tenant:
+ * - Sets target license to Cancelled (IsActive: false, Status: "CANCELLED")
+ * - If this was the active license, evaluate and sync will check if any queued NEW license is ready to auto-activate
+ */
+function cancelTenantLicense_(payload) {
+  payload = payload || {};
+  verifyIsSuperAdmin_(payload);
+  const licenseId = (payload.licenseId || payload.id || payload.Id || "").trim();
+  const tenantId = (payload.tenantId || payload.TenantId || "").trim();
+  if (!licenseId) throw new Error("License ID is required for cancellation.");
+
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_LICENSES, CRM_SCHEMAS.TENANT_LICENSES);
+  const licenses = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.TENANT_LICENSES);
+  const now = new Date().toISOString();
+  const userEmail = payload.userEmail || "superadmin@srinvestments.com";
+
+  let targetIndex = -1;
+  licenses.forEach((lic, idx) => {
+    if (String(lic.Id).trim() === licenseId) {
+      targetIndex = idx;
+    }
+  });
+
+  if (targetIndex === -1) {
+    throw new Error("License " + licenseId + " not found.");
+  }
+
+  const cancelledLic = Object.assign({}, licenses[targetIndex], {
+    IsActive: false,
+    Status: "CANCELLED",
+    Updated_By: userEmail,
+    Updated_At: now
+  });
+  writeRowByHeaders_(sheet, targetIndex + 2, cancelledLic, CRM_SCHEMAS.TENANT_LICENSES);
+
+  // Re-evaluate remaining licenses for this tenant
+  evaluateAndSyncTenantLicenses_(sheet, tenantId);
+
+  return {
+    success: true,
+    licenseId: licenseId,
+    status: "CANCELLED",
+    message: "Subscription license " + licenseId + " has been cancelled."
+  };
+}
+
+/**
+ * Save / Renew a Tenant License (supports saving as NEW, Active, or CANCELLED)
  */
 function saveTenantLicense_(payload) {
   payload = payload || {};
@@ -1766,7 +1832,10 @@ function saveTenantLicense_(payload) {
     id = "LIC_" + Date.now();
   }
 
-  const requestedStatus = payload.Status || payload.status || "NEW";
+  const rawStatus = String(payload.Status || payload.status || "NEW").trim();
+  const isCancelled = rawStatus.toUpperCase() === "CANCELLED";
+  const isActive = rawStatus.toUpperCase() === "ACTIVE";
+  const requestedStatus = isCancelled ? "CANCELLED" : (isActive ? "Active" : "NEW");
   const startDate = payload.StartDate || payload.startDate || today;
   const endDate = payload.EndDate || payload.endDate || "";
 
@@ -1814,6 +1883,7 @@ function saveTenantLicense_(payload) {
   }
 
   let targetRowIndex = -1;
+  let finalRecord = record;
   if (!isNew) {
     const rawIds = sheet.getRange(2, 1, Math.max(sheet.getLastRow() - 1, 1), 1).getValues();
     for (let i = 0; i < rawIds.length; i++) {
@@ -1823,16 +1893,19 @@ function saveTenantLicense_(payload) {
       }
     }
     if (targetRowIndex > 0 && licenses[targetRowIndex - 2]) {
-      Object.assign(record, licenses[targetRowIndex - 2], record);
+      finalRecord = Object.assign({}, licenses[targetRowIndex - 2], record);
     }
   }
 
-  writeRowByHeaders_(sheet, targetRowIndex, record, CRM_SCHEMAS.TENANT_LICENSES);
+  writeRowByHeaders_(sheet, targetRowIndex, finalRecord, CRM_SCHEMAS.TENANT_LICENSES);
+  evaluateAndSyncTenantLicenses_(sheet, tenantId);
+
   return { 
     success: true, 
     licenseId: id, 
     status: requestedStatus,
-    message: requestedStatus === "Active" ? "Subscription license saved and activated." : "Subscription license saved as NEW (Queued)."
+    message: requestedStatus === "Active" ? "Subscription license saved and activated." : 
+      (requestedStatus === "CANCELLED" ? "Subscription license cancelled." : "Subscription license saved as NEW (Queued).")
   };
 }
 
