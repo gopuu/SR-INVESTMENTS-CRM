@@ -1024,13 +1024,20 @@ export const crmApi = {
       try {
         const gasUrl = this.getBackendUrl();
         if (!gasUrl || this.isDemoMode()) return {};
+        const isLocal = typeof window !== 'undefined' && 
+          (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+        const endpoint = isLocal ? '/api/gas' : gasUrl;
+        const headers = { 'Accept': 'application/json' };
+        if (isLocal) {
+          headers['x-gas-target-url'] = gasUrl;
+        }
 
         // 1. Direct GET query (fastest, CORS-safe, pre-flight free)
         try {
-          const sep = gasUrl.includes('?') ? '&' : '?';
-          const resp = await fetch(`${gasUrl}${sep}action=getDefaultConfig`, {
+          const sep = endpoint.includes('?') ? '&' : '?';
+          const resp = await fetch(`${endpoint}${sep}action=getDefaultConfig`, {
             method: 'GET',
-            headers: { 'Accept': 'application/json' }
+            headers
           });
           if (resp.ok) {
             const json = await resp.json();
@@ -1164,18 +1171,23 @@ export const crmApi = {
   },
 
   async testConnection(targetUrl) {
-    const url = (targetUrl || this.getBackendUrl() || '').trim();
-    if (!url) {
+    const gasUrl = (targetUrl || this.getBackendUrl() || '').trim();
+    if (!gasUrl) {
       throw new Error('Please enter a valid Google Apps Script Web App URL.');
     }
+    const isLocal = typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const endpoint = isLocal ? '/api/gas' : gasUrl;
+    const customHeaders = isLocal ? { 'x-gas-target-url': gasUrl } : {};
 
     // 1. Direct GET health check (fastest)
     try {
-      const pingUrl = url.includes('?') ? `${url}&action=health&ping=1` : `${url}?action=health&ping=1`;
+      const pingUrl = endpoint.includes('?') ? `${endpoint}&action=health&ping=1` : `${endpoint}?action=health&ping=1`;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 7000);
       const res = await fetch(pingUrl, {
         method: 'GET',
+        headers: customHeaders,
         redirect: 'follow',
         signal: controller.signal
       });
@@ -1185,44 +1197,20 @@ export const crmApi = {
         return { success: true, timestamp: json.timestamp || new Date().toISOString() };
       }
     } catch (e) {
-      console.warn('Direct GET test failed, trying JSONP...', e);
+      console.warn('Direct GET test failed, trying fallbacks...', e);
     }
 
-    // 2. Direct JSONP fallback
-    try {
-      const res = await callJsonp(url, 'health', {});
-      return { success: true, timestamp: res.timestamp || new Date().toISOString() };
-    } catch (e) {
-      console.warn('JSONP test failed, trying iframe bridge...', e);
-    }
-
-    // 3. Iframe Bridge test
-    try {
-      await ensureBridge(url);
-      if (!bridgeIframe || !bridgeIframe.contentWindow) {
-        throw new Error('Bridge iframe unavailable');
+    // 2. Direct JSONP fallback (if not on local)
+    if (!isLocal) {
+      try {
+        const res = await callJsonp(gasUrl, 'health', {});
+        return { success: true, timestamp: res.timestamp || new Date().toISOString() };
+      } catch (e) {
+        console.warn('JSONP test failed...', e);
       }
-
-      return await new Promise((resolve, reject) => {
-        const requestId = 'req_ping_' + Date.now();
-        bridgePending.set(requestId, { resolve, reject });
-        bridgeIframe.contentWindow.postMessage({
-          type: 'CRM_BRIDGE_REQUEST',
-          requestId,
-          action: 'health',
-          payload: {}
-        }, '*');
-
-        setTimeout(() => {
-          if (bridgePending.has(requestId)) {
-            bridgePending.delete(requestId);
-            reject(new Error('Connection timed out (15s). Please verify: 1. In Apps Script > Deploy > Manage deployments > "Who has access" is set to "Anyone" (not "Only myself"). 2. The latest Code.gs is deployed.'));
-          }
-        }, 12000);
-      });
-    } catch (bridgeErr) {
-      throw new Error(bridgeErr.message || 'Unable to communicate with Google Apps Script backend.');
     }
+
+    throw new Error('Connection test failed. Please verify the Web App deployment has "Who has access" set to "Anyone".');
   },
 
   getActiveTenant() {
@@ -1288,13 +1276,21 @@ export const crmApi = {
       return this.testConnection(gasUrl);
     }
 
-    // 1. Direct fetch (POST)
+    const isLocal = typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const endpoint = isLocal ? '/api/gas' : gasUrl;
+    const postHeaders = {
+      'Content-Type': 'text/plain;charset=utf-8'
+    };
+    if (isLocal) {
+      postHeaders['x-gas-target-url'] = gasUrl;
+    }
+
+    // 1. Direct fetch (POST) - seamlessly proxied on localhost via Vite dev proxy
     try {
-      const response = await fetch(gasUrl, {
+      const response = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8'
-        },
+        headers: postHeaders,
         body: JSON.stringify({ action, payload: enrichedPayload }),
         redirect: 'follow'
       });
@@ -1310,12 +1306,39 @@ export const crmApi = {
       if (fetchErr.isBackendError) {
         throw fetchErr;
       }
-      console.warn('Direct fetch failed, falling back...', fetchErr);
+      console.warn('Direct POST fetch failed, falling back...', fetchErr);
     }
 
-    // 2. JSONP fallback for standard payloads (no large binary base64)
+    // 2. Direct GET fetch fallback for moderate payloads
     const hasLargePayload = enrichedPayload?.image?.base64 || (JSON.stringify(enrichedPayload).length > 1800);
     if (!hasLargePayload) {
+      try {
+        const payloadStr = encodeURIComponent(JSON.stringify(enrichedPayload));
+        const sep = endpoint.includes('?') ? '&' : '?';
+        const getUrl = `${endpoint}${sep}action=${encodeURIComponent(action)}&payload=${payloadStr}`;
+        const getHeaders = isLocal ? { 'x-gas-target-url': gasUrl } : {};
+        const response = await fetch(getUrl, {
+          method: 'GET',
+          headers: getHeaders,
+          redirect: 'follow'
+        });
+        if (response.ok) {
+          const json = await response.json();
+          if (json.success) return json.data !== undefined ? json.data : json;
+          const appErr = new Error(json.message || 'Server error');
+          appErr.isBackendError = true;
+          throw appErr;
+        }
+      } catch (getErr) {
+        if (getErr.isBackendError) {
+          throw getErr;
+        }
+        console.warn('Direct GET fetch fallback failed...', getErr);
+      }
+    }
+
+    // 3. JSONP fallback (for production/remote non-localhost)
+    if (!hasLargePayload && !isLocal) {
       try {
         const jsonpData = await callJsonp(gasUrl, action, enrichedPayload);
         return jsonpData;
@@ -1323,39 +1346,11 @@ export const crmApi = {
         if (jsonpErr.isBackendError) {
           throw jsonpErr;
         }
-        console.warn('JSONP fallback failed, trying iframe bridge...', jsonpErr);
+        console.warn('JSONP fallback failed...', jsonpErr);
       }
     }
 
-    // 3. Iframe Bridge
-    try {
-      await ensureBridge(gasUrl);
-      if (!bridgeIframe || !bridgeIframe.contentWindow) {
-        throw new Error('Bridge iframe unavailable');
-      }
-
-      return new Promise((resolve, reject) => {
-        const requestId = 'req_' + Date.now() + '_' + (++bridgeSeq);
-        bridgePending.set(requestId, { resolve, reject });
-
-        bridgeIframe.contentWindow.postMessage({
-          type: 'CRM_BRIDGE_REQUEST',
-          requestId,
-          action,
-          payload: enrichedPayload
-        }, '*');
-
-        setTimeout(() => {
-          if (bridgePending.has(requestId)) {
-            bridgePending.delete(requestId);
-            reject(new Error('Connection timed out (15s). Please ensure: 1. Deploy > Manage deployments > "Who has access" is set to "Anyone". 2. Latest Code.gs is copied into Apps Script.'));
-          }
-        }, 15000);
-      });
-    } catch (bridgeErr) {
-      console.error('All live transports failed:', bridgeErr);
-      throw new Error(bridgeErr.message || 'Unable to communicate with Google Apps Script backend.');
-    }
+    throw new Error('Unable to communicate with Google Apps Script backend. Please verify your internet connection and deployment settings ("Who has access" = "Anyone").');
   },
 
   async handleDemoAction(action, payload) {
