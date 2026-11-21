@@ -88,11 +88,34 @@ function saveCustomer_(data) {
   const now = new Date().toISOString();
   const userEmail = data.userEmail || "admin@srinvestments.com";
   const id = cleanStr_(data.CustomerId) || createId_("CUST");
-  const code = cleanStr_(data.CustomerCode) || ("SR" + Math.floor(10000 + Math.random() * 90000));
-
   const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.CUSTOMERS);
   const existingIndex = rows.findIndex(r => String(r.CustomerId || "").trim() === id);
   const existingRecord = existingIndex >= 0 ? rows[existingIndex] : null;
+
+  // Calculate next sequential numeric Sr.No / ID (last row + 1, numbers only)
+  let code = cleanStr_(data.CustomerCode);
+  if (!code || existingIndex < 0) {
+    if (!code) {
+      let maxNum = 0;
+      rows.forEach(r => {
+        const raw = String(r.CustomerCode || "").trim();
+        const num = parseInt(raw, 10);
+        if (!isNaN(num) && num > maxNum) {
+          maxNum = num;
+        } else {
+          const match = raw.match(/\d+/g);
+          if (match) {
+            const last = parseInt(match[match.length - 1], 10);
+            if (last > maxNum) maxNum = last;
+          }
+        }
+      });
+      const total = rows.length;
+      code = String(Math.max(maxNum, total) + 1);
+    }
+  } else if (existingRecord && existingRecord.CustomerCode) {
+    code = existingRecord.CustomerCode;
+  }
 
   // Audit Fields Management
   const isDeleted = existingRecord 

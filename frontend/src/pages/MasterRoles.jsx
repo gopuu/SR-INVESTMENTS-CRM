@@ -67,22 +67,19 @@ export default function MasterRoles({ onOpenBackup }) {
   const getNextSerial = (items) => {
     let maxNum = 0;
     (items || []).forEach(item => {
-      if (item.IsDeleted) return;
       const raw = String(item.RoleCode || '').trim();
       const num = parseInt(raw, 10);
       if (!isNaN(num) && num > maxNum) {
         maxNum = num;
       } else {
-        const match = raw.match(/\d+$/);
+        const match = raw.match(/\d+/g);
         if (match) {
-          const val = parseInt(match[0], 10);
+          const val = parseInt(match[match.length - 1], 10);
           if (val > maxNum) maxNum = val;
         }
       }
     });
-    if (maxNum > 0) return String(maxNum + 1);
-    const activeCount = (items || []).filter(i => !i.IsDeleted).length;
-    return String(activeCount + 1);
+    return String(Math.max(maxNum, (items || []).length) + 1);
   };
 
   const openAddModal = () => {
@@ -115,7 +112,7 @@ export default function MasterRoles({ onOpenBackup }) {
     const nameVal = String(formData.RoleName || '').trim();
 
     if (!codeVal) {
-      showError('Validation Error', 'S.No / Code is required.');
+      showError('Validation Error', 'Sr.No / ID is required.');
       return;
     }
     if (!nameVal) {
@@ -130,7 +127,7 @@ export default function MasterRoles({ onOpenBackup }) {
       String(r.RoleCode || '').trim().toLowerCase() === codeVal.toLowerCase()
     );
     if (dupCode) {
-      showError('Duplicate S.No / Code', `"${codeVal}" is already assigned to "${dupCode.RoleName}".`);
+      showError('Duplicate Sr.No / ID', `"${codeVal}" is already assigned to "${dupCode.RoleName}".`);
       return;
     }
 
@@ -328,7 +325,7 @@ export default function MasterRoles({ onOpenBackup }) {
             <table className="crm-table">
               <thead>
                 <tr>
-                  <th>S.No / Code</th>
+                  <th>Sr.No / ID</th>
                   <th>Role Name</th>
                   <th>Description</th>
                   <th>Status</th>
@@ -427,17 +424,22 @@ export default function MasterRoles({ onOpenBackup }) {
       >
         <form onSubmit={handleSave}>
           <div className="form-group">
-            <label className="form-label">S.No / Code (Primary Key) *</label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+              <label className="form-label" style={{ margin: 0 }}>
+                Sr.No / ID <span style={{ color: '#2563eb', fontSize: '0.75rem' }}>(Auto-generated)</span>
+              </label>
+              <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Auto-increment</span>
+            </div>
             <input
               type="text"
               className="form-input"
               value={formData.RoleCode}
-              onChange={(e) => setFormData({ ...formData, RoleCode: e.target.value })}
-              placeholder="e.g. 1, 2, 3..."
-              required
+              disabled
+              readOnly
+              style={{ backgroundColor: '#f1f5f9', fontWeight: '700', color: '#1e40af', cursor: 'not-allowed' }}
             />
             <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
-              Unique sequential serial number or primary key.
+              Auto-fetched sequential number from sheet (last row + 1). Only numeric IDs allowed.
             </div>
           </div>
 

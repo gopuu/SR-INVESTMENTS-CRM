@@ -99,22 +99,19 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
   const getNextSerial = (items, codeKey) => {
     let maxNum = 0;
     (items || []).forEach(item => {
-      if (item.IsDeleted) return;
       const raw = String(item[codeKey] || '').trim();
       const num = parseInt(raw, 10);
       if (!isNaN(num) && num > maxNum) {
         maxNum = num;
       } else {
-        const match = raw.match(/\d+$/);
+        const match = raw.match(/\d+/g);
         if (match) {
-          const val = parseInt(match[0], 10);
+          const val = parseInt(match[match.length - 1], 10);
           if (val > maxNum) maxNum = val;
         }
       }
     });
-    if (maxNum > 0) return String(maxNum + 1);
-    const activeCount = (items || []).filter(i => !i.IsDeleted).length;
-    return String(activeCount + 1);
+    return String(Math.max(maxNum, (items || []).length) + 1);
   };
 
   const openAddModal = (type) => {
@@ -173,7 +170,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
     const nameVal = String(formData.name || '').trim();
 
     if (!codeVal) {
-      showError('Validation Error', 'Please enter a valid S.No / Code.');
+      showError('Validation Error', 'Please enter a valid Sr.No / ID.');
       return;
     }
     if (!nameVal) {
@@ -187,7 +184,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
     const codeKey = modalType === 'department' ? 'DepartmentCode' : modalType === 'designation' ? 'DesignationCode' : 'RoleCode';
     const nameKey = modalType === 'department' ? 'DepartmentName' : modalType === 'designation' ? 'DesignationName' : 'RoleName';
 
-    // 1. Check duplicate Code / S.No (case-insensitive)
+    // 1. Check duplicate Code / Sr.No (case-insensitive)
     const dupCode = currentList.find(item => 
       item[idKey] !== formData.id &&
       !item.IsDeleted &&
@@ -195,8 +192,8 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
     );
     if (dupCode) {
       showError(
-        'Duplicate S.No / Code Found',
-        `"${codeVal}" is already assigned to "${dupCode[nameKey]}". Duplicate serial numbers or codes are not allowed.`
+        'Duplicate Sr.No / ID Found',
+        `"${codeVal}" is already assigned to "${dupCode[nameKey]}". Duplicate serial numbers or IDs are not allowed.`
       );
       return;
     }
@@ -599,7 +596,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
               <table className="crm-table">
                 <thead>
                   <tr>
-                    <th>S.No / Code</th>
+                    <th>Sr.No / ID</th>
                     <th>Department Name</th>
                     <th>Description</th>
                     <th>Status</th>
@@ -695,7 +692,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
               <table className="crm-table">
                 <thead>
                   <tr>
-                    <th>S.No / Code</th>
+                    <th>Sr.No / ID</th>
                     <th>Designation Name</th>
                     <th>Mapped Department</th>
                     <th>Description</th>
@@ -797,7 +794,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
               <table className="crm-table">
                 <thead>
                   <tr>
-                    <th>S.No / Code</th>
+                    <th>Sr.No / ID</th>
                     <th>CRM System Role</th>
                     <th>Description & Permissions</th>
                     <th>Status</th>
@@ -948,19 +945,22 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
         <form onSubmit={handleSave}>
           <div className="modal-body">
             <div className="form-group">
-              <label className="form-label">
-                S.No / Code (Primary Key) <span style={{ color: '#ef4444' }}>*</span>
-              </label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                <label className="form-label" style={{ margin: 0 }}>
+                  Sr.No / ID <span style={{ color: '#2563eb', fontSize: '0.75rem' }}>(Auto-generated)</span>
+                </label>
+                <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Auto-increment</span>
+              </div>
               <input
                 type="text"
                 className="form-input"
                 value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                placeholder="e.g. 1, 2, 3..."
-                required
+                disabled
+                readOnly
+                style={{ backgroundColor: '#f1f5f9', fontWeight: '700', color: '#1e40af', cursor: 'not-allowed' }}
               />
               <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
-                Unique numeric serial number or primary key. Duplicate codes/IDs are strictly prevented.
+                Auto-fetched sequential number from sheet (last row + 1). Only numeric IDs allowed.
               </div>
             </div>
 

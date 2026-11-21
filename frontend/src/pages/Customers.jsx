@@ -18,7 +18,7 @@ import {
   Clock,
   RefreshCw
 } from 'lucide-react';
-import { crmApi, subscribeCrmEvents } from '../services/api';
+import { crmApi, subscribeCrmEvents, getNextCustomerCode } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
 import Modal from '../components/Modal';
@@ -129,7 +129,11 @@ export default function Customers({ onOpenBackup }) {
 
   const openAddModal = () => {
     setEditingCustomer(null);
-    setFormData(initialFormState);
+    const nextCode = getNextCustomerCode(customers);
+    setFormData({
+      ...initialFormState,
+      CustomerCode: nextCode
+    });
     setIsModalOpen(true);
   };
 
@@ -325,7 +329,7 @@ export default function Customers({ onOpenBackup }) {
             <table className="crm-table">
               <thead>
                 <tr>
-                  <th>Investor Code</th>
+                  <th>Sr.No / ID</th>
                   <th>Full Name & Audit</th>
                   <th>PAN & Aadhaar</th>
                   <th>Contact Details</th>
@@ -524,6 +528,26 @@ export default function Customers({ onOpenBackup }) {
             </div>
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="form-group">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <label className="form-label" style={{ margin: 0 }}>
+                    Sr.No / ID <span style={{ color: '#2563eb', fontSize: '0.75rem' }}>(Auto-generated)</span>
+                  </label>
+                  <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Auto-increment</span>
+                </div>
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{ backgroundColor: '#f1f5f9', fontWeight: '700', color: '#1e40af', cursor: 'not-allowed' }}
+                  value={formData.CustomerCode || 'Auto-generated on save'}
+                  disabled
+                  readOnly
+                />
+                <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
+                  Auto-fetched sequential number from sheet (last row + 1). Only numeric IDs allowed.
+                </div>
+              </div>
+
               <div className="form-group">
                 <label className="form-label">Full Name <span style={{ color: '#ef4444' }}>*</span></label>
                 <input

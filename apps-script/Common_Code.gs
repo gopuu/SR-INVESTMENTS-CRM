@@ -1415,24 +1415,22 @@ function saveMasterItem_(payload) {
   const existingIndex = rows.findIndex(r => r[idField] === id);
   const existingRecord = existingIndex >= 0 ? rows[existingIndex] : null;
 
-  // 1. Determine Serial Number / Code (use sequential integer if not provided)
+  // 1. Determine Serial Number / ID (auto-fetch next sequence number: last row + 1, numbers only)
   let code = cleanStr_(data[codeField] || "").trim();
-  if (!code) {
+  if (existingIndex < 0 || !code) {
     let maxNum = 0;
     rows.forEach(r => {
-      const isDel = r.IsDeleted === true || r.IsDeleted === "TRUE" || String(r.IsDeleted).toLowerCase() === "true";
-      if (!isDel) {
-        const c = String(r[codeField] || "").trim();
-        const n = parseInt(c, 10);
-        if (!isNaN(n) && n > maxNum) maxNum = n;
-        const match = c.match(/\d+$/);
-        if (match) {
-          const m = parseInt(match[0], 10);
-          if (m > maxNum) maxNum = m;
-        }
+      const c = String(r[codeField] || "").trim();
+      const n = parseInt(c, 10);
+      if (!isNaN(n) && n > maxNum) maxNum = n;
+      const match = c.match(/\d+/g);
+      if (match) {
+        const m = parseInt(match[match.length - 1], 10);
+        if (m > maxNum) maxNum = m;
       }
     });
-    code = String(maxNum > 0 ? maxNum + 1 : (rows.filter(r => !r.IsDeleted || String(r.IsDeleted).toLowerCase() !== "true").length + 1));
+    const total = rows.length;
+    code = String(Math.max(maxNum, total) + 1);
   }
 
   const name = cleanStr_(data[nameField] || "").trim();
@@ -1448,7 +1446,7 @@ function saveMasterItem_(payload) {
     }
   }
 
-  // 3. Strict Duplicate Code / S.No Check (case-insensitive among non-deleted records)
+  // 3. Strict Duplicate Code / Sr.No Check (case-insensitive among non-deleted records)
   const dupCodeRow = rows.find(r => {
     const isDel = r.IsDeleted === true || r.IsDeleted === "TRUE" || String(r.IsDeleted).toLowerCase() === "true";
     if (isDel) return false;
@@ -1457,7 +1455,7 @@ function saveMasterItem_(payload) {
     return existingCode.toLowerCase() === code.toLowerCase();
   });
   if (dupCodeRow) {
-    throw new Error(`Duplicate S.No / Code: '${code}' is already assigned to '${dupCodeRow[nameField] || dupCodeRow[codeField]}'. Each ${type} master record must have a unique serial number or code.`);
+    throw new Error(`Duplicate Sr.No / ID: '${code}' is already assigned to '${dupCodeRow[nameField] || dupCodeRow[codeField]}'. Each ${type} master record must have a unique numeric ID.`);
   }
 
   // 4. Strict Duplicate Name / Title Check (case-insensitive among non-deleted records)

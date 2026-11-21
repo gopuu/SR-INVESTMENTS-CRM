@@ -361,7 +361,7 @@ export default function Staff({ onOpenBackup }) {
               <thead>
                 <tr>
                   <th>Staff Profile & Audit</th>
-                  <th>Employee Code</th>
+                  <th>Sr.No / ID</th>
                   <th>Designation & Role</th>
                   <th>Department</th>
                   <th>Official & Google Emails</th>
@@ -593,22 +593,25 @@ export default function Staff({ onOpenBackup }) {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              {/* Employee Code - Autoincrement & Non-Editable */}
+              {/* Sr.No / ID - Autoincrement & Non-Editable */}
               <div className="form-group">
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
                   <label className="form-label" style={{ margin: 0 }}>
-                    Employee Code <span style={{ color: '#2563eb', fontSize: '0.75rem' }}>(Autoincrement)</span>
+                    Sr.No / ID <span style={{ color: '#2563eb', fontSize: '0.75rem' }}>(Auto-generated)</span>
                   </label>
-                  <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Backend Auto</span>
+                  <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Auto-increment</span>
                 </div>
                 <input
                   type="text"
                   className="form-input"
-                  style={{ backgroundColor: '#f1f5f9', fontWeight: '700', color: '#1e40af' }}
+                  style={{ backgroundColor: '#f1f5f9', fontWeight: '700', color: '#1e40af', cursor: 'not-allowed' }}
                   value={formData.EmployeeCode || 'Auto-generated on save'}
                   disabled
                   readOnly
                 />
+                <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
+                  Auto-fetched sequential number from sheet (last row + 1). Only numeric IDs allowed.
+                </div>
               </div>
 
               <div className="form-group">

@@ -1001,20 +1001,46 @@ export function logAuditLocal(userEmail, action, module, recordId, details) {
   // Master record audit fields are updated directly on the entity
 }
 
-// Next autoincrement employee code generator
+// Next autoincrement serial number / ID generator (pure numeric integer: last row + 1)
 export function getNextEmployeeCode(employees = []) {
   let maxNum = 0;
-  employees.forEach(emp => {
-    if (emp.EmployeeCode && emp.EmployeeCode.startsWith('SR-EMP')) {
-      const numStr = emp.EmployeeCode.replace('SR-EMP', '').trim();
-      const num = parseInt(numStr, 10);
-      if (!isNaN(num) && num > maxNum) {
-        maxNum = num;
+  (employees || []).forEach(emp => {
+    const raw = String(emp.EmployeeCode || '').trim();
+    const num = parseInt(raw, 10);
+    if (!isNaN(num) && num > maxNum) {
+      maxNum = num;
+    } else {
+      const match = raw.match(/\d+/g);
+      if (match) {
+        const last = parseInt(match[match.length - 1], 10);
+        if (last > maxNum) maxNum = last;
       }
     }
   });
-  const nextNum = maxNum + 1;
-  return `SR-EMP${String(nextNum).padStart(2, '0')}`;
+  const total = (employees || []).length;
+  const nextNum = Math.max(maxNum, total) + 1;
+  return String(nextNum);
+}
+
+// Next autoincrement investor serial number / ID generator (pure numeric integer: last row + 1)
+export function getNextCustomerCode(customers = []) {
+  let maxNum = 0;
+  (customers || []).forEach(cust => {
+    const raw = String(cust.CustomerCode || '').trim();
+    const num = parseInt(raw, 10);
+    if (!isNaN(num) && num > maxNum) {
+      maxNum = num;
+    } else {
+      const match = raw.match(/\d+/g);
+      if (match) {
+        const last = parseInt(match[match.length - 1], 10);
+        if (last > maxNum) maxNum = last;
+      }
+    }
+  });
+  const total = (customers || []).length;
+  const nextNum = Math.max(maxNum, total) + 1;
+  return String(nextNum);
 }
 
 let bridgeIframe = null;

@@ -270,22 +270,26 @@ function restoreEmployee_(payload) {
 }
 
 /**
- * Calculates next SR-EMP sequence number automatically from DB rows (scans all rows including archived)
+ * Calculates next numeric Sr.No / ID sequence number automatically from DB rows (last row + 1, numbers only)
  */
 function calculateNextEmployeeCode_(rows) {
   let maxNum = 0;
-  rows.forEach(r => {
-    if (r.EmployeeCode && String(r.EmployeeCode).startsWith("SR-EMP")) {
-      const numStr = String(r.EmployeeCode).replace("SR-EMP", "").trim();
-      const num = parseInt(numStr, 10);
-      if (!isNaN(num) && num > maxNum) {
-        maxNum = num;
+  (rows || []).forEach(r => {
+    const raw = String(r.EmployeeCode || "").trim();
+    const num = parseInt(raw, 10);
+    if (!isNaN(num) && num > maxNum) {
+      maxNum = num;
+    } else {
+      const match = raw.match(/\d+/g);
+      if (match) {
+        const last = parseInt(match[match.length - 1], 10);
+        if (last > maxNum) maxNum = last;
       }
     }
   });
-  const nextNum = maxNum + 1;
-  const padded = nextNum < 10 ? "0" + nextNum : String(nextNum);
-  return "SR-EMP" + padded;
+  const total = (rows || []).length;
+  const nextNum = Math.max(maxNum, total) + 1;
+  return String(nextNum);
 }
 
 /**
