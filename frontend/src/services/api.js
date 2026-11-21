@@ -1333,6 +1333,14 @@ export const crmApi = {
     broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Settings', subType: 'SHOW_DELETED_CHANGED', value: enabled });
   },
 
+  publishEvent(event) {
+    broadcastCrmEvent(event);
+  },
+
+  broadcastEvent(event) {
+    broadcastCrmEvent(event);
+  },
+
   async checkTenantSync(tenantId, lastVersion = 0) {
     return this.call('checkTenantSync', { tenantId, lastVersion });
   },

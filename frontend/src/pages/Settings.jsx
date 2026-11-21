@@ -10,7 +10,7 @@ import {
   Archive,
   Download
 } from 'lucide-react';
-import { crmApi, subscribeCrmEvents } from '../services/api';
+import { crmApi, subscribeCrmEvents, broadcastCrmEvent } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
 import RolesRights from './RolesRights';
@@ -120,7 +120,11 @@ export default function Settings({ onOpenBackup }) {
       showSuccess('Company settings updated successfully!');
 
       // Publish event so Sidebar & Header update company name live
-      crmApi.publishEvent({ type: 'DATA_CHANGED', module: 'Settings', companyName: payload.CompanyName });
+      try {
+        broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Settings', companyName: payload.CompanyName });
+      } catch (e) {
+        console.warn('Broadcast notice:', e);
+      }
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('CRM_NAVBAR_REFRESH'));
       }
