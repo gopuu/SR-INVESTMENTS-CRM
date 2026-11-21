@@ -288,6 +288,21 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
     }
   };
 
+  // Filter items by search keyword
+  const filterList = (list, codeField, nameField) => {
+    if (!search.trim()) return list;
+    const q = search.toLowerCase();
+    return list.filter(item => 
+      (item[codeField] && item[codeField].toLowerCase().includes(q)) ||
+      (item[nameField] && item[nameField].toLowerCase().includes(q)) ||
+      (item.Description && item.Description.toLowerCase().includes(q))
+    );
+  };
+
+  const filteredDepartments = filterList(departments, 'DepartmentCode', 'DepartmentName');
+  const filteredDesignations = filterList(designations, 'DesignationCode', 'DesignationName');
+  const filteredRoles = filterList(roles, 'RoleCode', 'RoleName');
+
   // Active list count for current tab
   const currentTabCount = activeTab === 'departments' 
     ? filteredDepartments.length 
@@ -309,21 +324,6 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [currentTabCount]);
-
-  // Filter items by search keyword
-  const filterList = (list, codeField, nameField) => {
-    if (!search.trim()) return list;
-    const q = search.toLowerCase();
-    return list.filter(item => 
-      (item[codeField] && item[codeField].toLowerCase().includes(q)) ||
-      (item[nameField] && item[nameField].toLowerCase().includes(q)) ||
-      (item.Description && item.Description.toLowerCase().includes(q))
-    );
-  };
-
-  const filteredDepartments = filterList(departments, 'DepartmentCode', 'DepartmentName');
-  const filteredDesignations = filterList(designations, 'DesignationCode', 'DesignationName');
-  const filteredRoles = filterList(roles, 'RoleCode', 'RoleName');
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
