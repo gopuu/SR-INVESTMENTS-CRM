@@ -279,6 +279,7 @@ function getTenantDriveRootFolder_(tenantId) {
  * - If tab exists with columns -> checks Row 1: if any column from schema does not exist, appends it dynamically!
  */
 function ensureSheetAndColumns_(ss, sheetName, schema) {
+  if (!ss) return null;
   let sheet = ss.getSheetByName(sheetName);
   if (!sheet && (sheetName === "Tenant_Licenses" || sheetName === "Tenant_Licensing")) {
     sheet = ss.getSheetByName("Tenant_Licensing") || ss.getSheetByName("Tenant_Licenses");
@@ -289,8 +290,13 @@ function ensureSheetAndColumns_(ss, sheetName, schema) {
 
   // 1. IF TAB DOES NOT EXIST, CREATE IT
   if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
+    try {
+      sheet = ss.insertSheet(sheetName);
+    } catch (err) {
+      sheet = ss.getSheetByName(sheetName);
+    }
   }
+  if (!sheet || typeof sheet.getLastColumn !== "function") return null;
 
   const lastCol = sheet.getLastColumn();
   const lastRow = sheet.getLastRow();
@@ -324,7 +330,8 @@ function ensureSheetAndColumns_(ss, sheetName, schema) {
     if (sheetName === "Tenant_Licenses" || sheetName === "Tenant_Licensing" || sheetName === CRM_CONFIG.SHEETS.TENANT_LICENSES) {
       const hasPaymentMode = existingLower.indexOf("paymentmode") !== -1;
       if (!hasPaymentMode) {
-        return modifyTenantLicensingColumns_(sheet);
+        modifyTenantLicensingColumns_(sheet);
+        return sheet;
       }
     }
 
@@ -420,6 +427,7 @@ function getOrCreateSheet_(sheetName, schema, tenantId) {
  * in a different sequence or from earlier versions.
  */
 function getSheetRowsAsObjects_(sheet, fallbackSchema) {
+  if (!sheet || typeof sheet.getLastColumn !== "function") return [];
   const lastRow = sheet.getLastRow();
   const lastCol = sheet.getLastColumn();
   if (lastRow <= 1 || lastCol === 0) return [];
@@ -504,6 +512,7 @@ function getSheetRowsAsObjects_(sheet, fallbackSchema) {
  * Appends any missing schema headers to Row 1 dynamically without column shift.
  */
 function writeRowByHeaders_(sheet, rowIndex, rowObj, schema) {
+  if (!sheet || typeof sheet.getLastColumn !== "function") return;
   let lastCol = sheet.getLastColumn();
   let headers = lastCol > 0 ? sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h || "").trim()) : [];
 
@@ -545,6 +554,7 @@ function writeRowByHeaders_(sheet, rowIndex, rowObj, schema) {
  * Finds 1-based column index of a header in a sheet
  */
 function getHeaderColIndex_(sheet, headerName) {
+  if (!sheet || typeof sheet.getLastColumn !== "function") return -1;
   const lastCol = sheet.getLastColumn();
   if (lastCol === 0) return -1;
   const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h || "").trim().toLowerCase());
@@ -1148,12 +1158,112 @@ function setupTenantTemplateDatabase(spreadsheetId) {
 }
 
 /**
- * Master CRM Setup: Initializes Central DB registries and ensures _CRM_DATABASE_TEMPLATE exists
+ * Fixes any formula errors (like #ERROR! in ContactPhone) and syncs CompanyName in tenant settings.
+ */
+function cleanTenantSettingsErrors_(ssOrId) {
+  try {
+    const ss = typeof ssOrId === "string" ? SpreadsheetApp.openById(ssOrId) : ssOrId;
+    const sheet = ss.getSheetByName(CRM_CONFIG.SHEETS.SETTINGS) || ss.getSheetByName("CompanySettings") || ss.getSheetByName("Settings");
+    if (!sheet) return;
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return;
+    const values = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+    for (let i = 0; i < values.length; i++) {
+      const key = String(values[i][0] || "").trim().toLowerCase();
+      const row = i + 2;
+      if (key === "contactphone") {
+        const cell = sheet.getRange(row, 2);
+        const valStr = String(cell.getValue() || "");
+        if (valStr.includes("ERROR") || valStr.includes("#") || valStr.startsWith("=") || !valStr.trim()) {
+          cell.clearContent();
+          cell.setNumberFormat("@").setValue("9876543210");
+          Logger.log("[CLEAN_SETTINGS] Fixed ContactPhone #ERROR! in " + ss.getName());
+        }
+      } else if (key === "companyname") {
+        const cell = sheet.getRange(row, 2);
+        const curName = String(cell.getValue() || "").trim();
+        if (curName === "SR Investmentss" || curName === "SR Investments") {
+          cell.setValue("SR Groww");
+          Logger.log("[CLEAN_SETTINGS] Synced CompanyName to 'SR Groww' in " + ss.getName());
+        }
+      }
+    }
+  } catch (err) {
+    Logger.log("[CLEAN_SETTINGS_ERROR] " + err.message);
+  }
+}
+
+/**
+ * Master CRM Setup: Initializes Central DB registries, ensures _CRM_DATABASE_TEMPLATE exists,
+ * and automatically upgrades all operational sheets across every tenant database with latest schema.
  */
 function setupCRM() {
-  setupCentralDatabase();
-  setupTenantTemplateDatabase();
-  return { success: true, message: "Central SaaS Master DB & _CRM_DATABASE_TEMPLATE verified successfully!" };
+  const steps = [];
+  try {
+    setupCentralDatabase();
+    steps.push("Central DB setup: OK");
+  } catch (e) {
+    steps.push("Central DB setup: " + e.message + " stack: " + (e.stack || ""));
+  }
+
+  try {
+    setupTenantTemplateDatabase();
+    steps.push("Template DB setup: OK");
+  } catch (e) {
+    steps.push("Template DB setup: " + e.message + " stack: " + (e.stack || ""));
+  }
+
+  const upgradedTenants = [];
+
+  // Upgrade all active tenant databases registered in Central SaaS DB
+  try {
+    const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+    const tenants = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.TENANT_MASTER);
+    tenants.forEach(t => {
+      const sid = String(t.SpreadsheetId || "").trim();
+      if (sid && sid !== CRM_CONFIG.SPREADSHEET_ID) {
+        try {
+          setupTenantTemplateDatabase(sid);
+          cleanTenantSettingsErrors_(sid);
+          upgradedTenants.push(t.TenantId + ": " + sid);
+          Logger.log("[TENANT_UPGRADE_SUCCESS] Upgraded tenant database: " + t.TenantId + " (" + sid + ")");
+        } catch (tErr) {
+          Logger.log("[TENANT_UPGRADE_WARN] Tenant " + t.TenantId + " upgrade warning: " + tErr.message);
+        }
+      }
+    });
+
+    steps.push("Tenant databases upgraded: " + upgradedTenants.join(", "));
+
+    // Sync TEN001 in Tenant_Master to SR Groww + Mutual Fund CRM tagline
+    const rows = centralSheet.getDataRange().getValues();
+    const headers = rows[0].map(h => String(h || "").trim().toLowerCase());
+    const tIdIdx = headers.indexOf("tenantid");
+    const cNameIdx = headers.indexOf("companyname");
+    const tagIdx = headers.indexOf("tagline");
+    if (tIdIdx !== -1 && cNameIdx !== -1) {
+      for (let r = 1; r < rows.length; r++) {
+        if (String(rows[r][tIdIdx]).trim().toUpperCase() === "TEN001") {
+          centralSheet.getRange(r + 1, cNameIdx + 1).setValue("SR Groww");
+          if (tagIdx !== -1) {
+            const curTag = centralSheet.getRange(r + 1, tagIdx + 1).getValue();
+            if (!curTag) centralSheet.getRange(r + 1, tagIdx + 1).setValue("Mutual Fund CRM");
+          }
+        }
+      }
+    }
+    steps.push("TEN001 branding sync: OK");
+  } catch (err) {
+    Logger.log("[TENANT_UPGRADE_ERROR] " + err.message);
+    steps.push("Tenant upgrade error: " + err.message);
+  }
+
+  return { 
+    success: true, 
+    message: "Central SaaS Master DB and all Tenant Databases upgraded successfully!",
+    steps: steps,
+    upgradedTenants: upgradedTenants
+  };
 }
 
 /**

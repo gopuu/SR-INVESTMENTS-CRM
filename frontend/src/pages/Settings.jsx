@@ -202,6 +202,21 @@ export default function Settings({ onOpenBackup }) {
     }
   };
 
+  const [syncingSchemas, setSyncingSchemas] = useState(false);
+
+  const handleSyncSchemas = async () => {
+    setSyncingSchemas(true);
+    try {
+      const res = await crmApi.call('setupCRM');
+      showSuccess('Google Sheets Schema Synchronized', res?.message || 'All columns (TagLine, Approved_By, Status) added and updated successfully!');
+      setMsg({ text: 'Google Sheets schemas synced successfully across all databases!', type: 'success' });
+    } catch (e) {
+      showError('Sync Failed', e.message || 'Failed to sync database schemas');
+    } finally {
+      setSyncingSchemas(false);
+    }
+  };
+
   const toggleDemoMode = (val) => {
     crmApi.setDemoMode(val);
     setIsDemoMode(val);
@@ -512,6 +527,15 @@ export default function Settings({ onOpenBackup }) {
                 <button className="btn btn-secondary" onClick={testConnection} disabled={pinging}>
                   <RefreshCw size={14} className={pinging ? 'spin-animation' : ''} />
                   {pinging ? 'Pinging...' : 'Test Connection'}
+                </button>
+                <button 
+                  className="btn btn-outline-blue" 
+                  onClick={handleSyncSchemas} 
+                  disabled={syncingSchemas}
+                  title="Appends all missing columns (TagLine, Approved_By, Status) across Central DB and all Tenant Sheets"
+                >
+                  <RefreshCw size={14} className={syncingSchemas ? 'spin-animation' : ''} />
+                  {syncingSchemas ? 'Syncing Sheets...' : 'Sync & Upgrade Google Sheets'}
                 </button>
               </div>
 

@@ -18,11 +18,20 @@ function doGet(e) {
   
   // 1. Health / Ping check
   if (params.ping || params.action === "health") {
+    let syncResult = null;
+    if (params.sync === "1" || params.sync === "true") {
+      try {
+        syncResult = setupCRM();
+      } catch (sErr) {
+        syncResult = { error: sErr.message };
+      }
+    }
     return jsonResponse_({
       success: true,
       status: "healthy",
       service: "SR Investments CRM Live Backend (Blue Edition)",
       spreadsheetId: CRM_CONFIG.SPREADSHEET_ID,
+      syncResult: syncResult,
       timestamp: new Date().toISOString()
     });
   }
@@ -174,6 +183,7 @@ function executeAction_(action, payload) {
       return { ok: true, spreadsheetId: CRM_CONFIG.SPREADSHEET_ID, timestamp: new Date().toISOString() };
 
     case "setupCRM":
+    case "syncAllSchemas":
       return setupCRM();
 
     // Authentication: Credentials & Google
