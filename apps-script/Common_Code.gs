@@ -678,6 +678,12 @@ function getDriveBackupsList_(payload) {
   const cleanTenant = String(activeTenantId).trim().replace(/[^a-zA-Z0-9_-]/g, "_");
   const existingZips = getExistingZipBackups_(root);
 
+  const dispatchStats = getDailyDispatchStats_();
+  const emailCount = Number(dispatchStats.emailCount || 0);
+  const emailMaxLimit = Number(dispatchStats.emailMaxLimit || 200);
+  const isEmailLimitReached = emailCount >= emailMaxLimit;
+  const remainingEmails = Math.max(0, emailMaxLimit - emailCount);
+
   return {
     success: true,
     companyName: cleanCompany,
@@ -686,6 +692,12 @@ function getDriveBackupsList_(payload) {
     driveFolderUrl: root.getUrl(),
     driveFolderPath: "My Drive > SRInvestmentsCRM > org > " + cleanTenant,
     driveFolderName: root.getName(),
+    emailStats: {
+      emailCount: emailCount,
+      emailMaxLimit: emailMaxLimit,
+      remainingEmails: remainingEmails,
+      isLimitReached: isEmailLimitReached
+    },
     backups: existingZips.slice(0, 3).map(z => ({
       id: z.id,
       name: z.name,
@@ -804,6 +816,12 @@ function backupDriveFilesToZip_(payload) {
   // 5. Retrieve updated list of top 3 retained backups
   const updatedZips = getExistingZipBackups_(root).slice(0, 3);
 
+  const dispatchStats = getDailyDispatchStats_();
+  const emailCount = Number(dispatchStats.emailCount || 0);
+  const emailMaxLimit = Number(dispatchStats.emailMaxLimit || 200);
+  const isEmailLimitReached = emailCount >= emailMaxLimit;
+  const remainingEmails = Math.max(0, emailMaxLimit - emailCount);
+
   return {
     success: true,
     fileId: zipFile.getId(),
@@ -812,6 +830,12 @@ function backupDriveFilesToZip_(payload) {
     sizeFormatted: sizeFormatted,
     isLarge: isLarge,
     companyEmail: companyEmail,
+    emailStats: {
+      emailCount: emailCount,
+      emailMaxLimit: emailMaxLimit,
+      remainingEmails: remainingEmails,
+      isLimitReached: isEmailLimitReached
+    },
     downloadUrl: zipFile.getDownloadUrl() || ("https://drive.google.com/uc?export=download&id=" + zipFile.getId()),
     viewUrl: zipFile.getUrl(),
     driveFolderUrl: root.getUrl(),
@@ -832,8 +856,11 @@ function backupDriveFilesToZip_(payload) {
 
 /**
  * Send backup ZIP archive to company email.
- * If file size <= 20MB: attaches ZIP file directly + includes Google Drive link.
- * If file size > 20MB (large): sends email with Google Drive download & view link + Drive path location.
+ * Checks daily limit against Default-Config (EmailMaxLimitPerDay) and Daily_Dispatch_Tracker.
+ * - If limit reached: throws error and advises manual download or waiting 24hrs.
+ * - If under limit: sends email via MailApp and atomically increments Daily_Dispatch_Tracker count.
+ * - If file size <= 20MB: attaches ZIP file directly + includes Google Drive link.
+ * - If file size > 20MB (large): sends email with Google Drive download & view link + Drive path location.
  */
 function sendBackupToEmail_(payload) {
   payload = payload || {};
@@ -843,6 +870,17 @@ function sendBackupToEmail_(payload) {
 
   if (!recipientEmail) {
     throw new Error("Recipient company email address is required.");
+  }
+
+  // 1. Quota & Limit Validation: Check Default-Config limit & Daily_Dispatch_Tracker count
+  const dispatchStats = getDailyDispatchStats_();
+  const currentEmailCount = Number(dispatchStats.emailCount || 0);
+  const maxEmailLimit = Number(dispatchStats.emailMaxLimit || 200);
+
+  if (currentEmailCount >= maxEmailLimit) {
+    throw new Error(
+      "Daily email limit reached (" + currentEmailCount + "/" + maxEmailLimit + " emails sent today). Please opt for manual download or try again after 24 hours."
+    );
   }
 
   let file;
@@ -947,7 +985,19 @@ function sendBackupToEmail_(payload) {
     mailOptions.attachments = attachments;
   }
 
+  // 2. Dispatch email via MailApp
   MailApp.sendEmail(mailOptions);
+
+  // 3. Atomically increment Daily_Dispatch_Tracker in Central DB
+  let updatedStats = null;
+  try {
+    updatedStats = incrementDailyDispatchCount_("EMAIL");
+  } catch (trackErr) {
+    Logger.log("Could not update Daily_Dispatch_Tracker: " + trackErr.message);
+  }
+
+  const finalEmailCount = updatedStats ? updatedStats.emailCount : (currentEmailCount + 1);
+  const remainingEmails = Math.max(0, maxEmailLimit - finalEmailCount);
 
   return {
     success: true,
@@ -956,9 +1006,12 @@ function sendBackupToEmail_(payload) {
     sizeFormatted: sizeFormatted,
     isLarge: isLarge,
     deliveryMode: deliveryMode,
+    emailCount: finalEmailCount,
+    emailMaxLimit: maxEmailLimit,
+    remainingEmails: remainingEmails,
     message: isLarge 
-      ? "Backup size is large (" + sizeFormatted + " > 20MB). Sent Google Drive download link and folder path to " + recipientEmail + "." 
-      : "Backup package (" + sizeFormatted + ") sent successfully with ZIP attachment to " + recipientEmail + "."
+      ? "Backup size is large (" + sizeFormatted + " > 20MB). Sent Google Drive download link and folder path to " + recipientEmail + ". (Today's count: " + finalEmailCount + "/" + maxEmailLimit + ")" 
+      : "Backup package (" + sizeFormatted + ") sent successfully with ZIP attachment to " + recipientEmail + ". (Today's count: " + finalEmailCount + "/" + maxEmailLimit + ")"
   };
 }
 

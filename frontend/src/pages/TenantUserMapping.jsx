@@ -1,21 +1,21 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { 
-  Building2, 
-  Users, 
-  UserCheck, 
-  UserX, 
-  Search, 
-  Filter, 
-  Save, 
-  Trash2, 
-  ShieldCheck, 
-  Shield, 
-  CheckCircle2, 
-  XCircle, 
-  RefreshCw, 
-  Check, 
-  UserPlus, 
-  Briefcase, 
+import {
+  Building2,
+  Users,
+  UserCheck,
+  UserX,
+  Search,
+  Filter,
+  Save,
+  Trash2,
+  ShieldCheck,
+  Shield,
+  CheckCircle2,
+  XCircle,
+  RefreshCw,
+  Check,
+  UserPlus,
+  Briefcase,
   Info,
   CheckSquare,
   Square
@@ -34,25 +34,25 @@ const ROLE_OPTIONS = [
 
 export default function TenantUserMapping({ onOpenBackup }) {
   const { user, isSuperAdmin, syncUserTenantRole, tenant } = useAuth();
-  
+
   // Data states
   const [tenants, setTenants] = useState([]);
   const [centralUsers, setCentralUsers] = useState([]);
   const [allMappings, setAllMappings] = useState([]);
-  
+
   // Selection & Form State
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [userAssignments, setUserAssignments] = useState({}); // { [userId]: { selected: boolean, role: string } }
-  
+
   // UI & Loading states
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
-  
+
   // Search & Filter states for Assignment Box
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [assignmentFilterTab, setAssignmentFilterTab] = useState('all'); // 'all' | 'assigned' | 'unassigned'
-  
+
   // Search & Filter states for Directory Table
   const [tableSearchQuery, setTableSearchQuery] = useState('');
   const [tableTenantFilter, setTableTenantFilter] = useState('all');
@@ -89,8 +89,8 @@ export default function TenantUserMapping({ onOpenBackup }) {
 
       // Auto-select first active tenant if none selected
       setSelectedTenantId(prev => {
-        const nextId = (prev && tList.some(t => t.TenantId === prev)) 
-          ? prev 
+        const nextId = (prev && tList.some(t => t.TenantId === prev))
+          ? prev
           : (tList.find(t => (t.Status || 'Active').toLowerCase() === 'active') || tList[0])?.TenantId || '';
 
         // Auto-sync current user session if already mapped in this tenant
@@ -107,12 +107,12 @@ export default function TenantUserMapping({ onOpenBackup }) {
           });
           const targetId = myCu ? myCu.UserId : (user?.userId || user?.email);
 
-          const myActiveMapping = mList.find(m => 
+          const myActiveMapping = mList.find(m =>
             String(m.TenantId || '').toUpperCase() === String(nextId).toUpperCase() &&
             !m.IsDeleted && String(m.Status || 'Active').toLowerCase() === 'active' &&
             (String(m.UserId || '').trim().toLowerCase() === String(targetId).trim().toLowerCase() ||
-             String(m.UserId || '').trim().toLowerCase() === curEmail ||
-             String(m.UserId || '').trim().toLowerCase() === curUid)
+              String(m.UserId || '').trim().toLowerCase() === curEmail ||
+              String(m.UserId || '').trim().toLowerCase() === curUid)
           );
 
           if (myActiveMapping && myActiveMapping.Role) {
@@ -156,7 +156,7 @@ export default function TenantUserMapping({ onOpenBackup }) {
 
     const currentTenantMappings = allMappings.filter(
       m => String(m.TenantId || '').toUpperCase() === selectedTenantId.toUpperCase() &&
-           !m.IsDeleted && String(m.Status || 'Active').toLowerCase() === 'active'
+        !m.IsDeleted && String(m.Status || 'Active').toLowerCase() === 'active'
     );
 
     const mappedMap = {};
@@ -370,10 +370,10 @@ export default function TenantUserMapping({ onOpenBackup }) {
     return allMappings.filter(m => {
       if (m.IsDeleted) return false;
 
-      const matchTenant = tableTenantFilter === 'all' || 
+      const matchTenant = tableTenantFilter === 'all' ||
         String(m.TenantId || '').toUpperCase() === tableTenantFilter.toUpperCase();
 
-      const matchRole = tableRoleFilter === 'all' || 
+      const matchRole = tableRoleFilter === 'all' ||
         String(m.Role || '').toLowerCase() === tableRoleFilter.toLowerCase();
 
       const matchSearch = !q ||

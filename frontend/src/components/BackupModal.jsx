@@ -37,6 +37,7 @@ export default function BackupModal({ isOpen, onClose }) {
   const [activeEmailTarget, setActiveEmailTarget] = useState(null);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailStatus, setEmailStatus] = useState(null); // { success: boolean, message: string }
+  const [emailStats, setEmailStats] = useState(null); // { emailCount, emailMaxLimit, remainingEmails, isLimitReached }
 
   // Drive folder & backups retention list state
   const [loadingBackups, setLoadingBackups] = useState(false);
@@ -65,6 +66,9 @@ export default function BackupModal({ isOpen, onClose }) {
           setRecipientEmail(prev => prev || res.companyEmail || user?.email || '');
         } else if (user?.email) {
           setRecipientEmail(prev => prev || user.email);
+        }
+        if (res.emailStats) {
+          setEmailStats(res.emailStats);
         }
       }
     } catch (err) {
@@ -114,6 +118,10 @@ export default function BackupModal({ isOpen, onClose }) {
         setRecipientEmail(user.email);
       }
 
+      if (res.emailStats) {
+        setEmailStats(res.emailStats);
+      }
+
       if (res.backups) {
         setBackupsList(res.backups);
       } else {
@@ -151,6 +159,11 @@ export default function BackupModal({ isOpen, onClose }) {
       return;
     }
 
+    if (emailStats?.isLimitReached) {
+      alert(`Daily email limit reached (${emailStats.emailCount}/${emailStats.emailMaxLimit} emails sent today). Please opt for manual download or try again after 24 hours.`);
+      return;
+    }
+
     setSendingEmail(true);
     setEmailStatus(null);
     try {
@@ -163,11 +176,26 @@ export default function BackupModal({ isOpen, onClose }) {
         success: true,
         message: res.message || `Backup sent successfully to ${emailToUse}`
       });
+      if (res.emailCount !== undefined && res.emailMaxLimit !== undefined) {
+        setEmailStats({
+          emailCount: res.emailCount,
+          emailMaxLimit: res.emailMaxLimit,
+          remainingEmails: res.remainingEmails,
+          isLimitReached: res.emailCount >= res.emailMaxLimit
+        });
+      }
     } catch (err) {
+      const errMsg = err?.message || 'Failed to send backup email.';
       setEmailStatus({
         success: false,
-        message: err.message || 'Failed to send backup email.'
+        message: errMsg
       });
+      if (errMsg.toLowerCase().includes('limit reached')) {
+        setEmailStats(prev => ({
+          ...(prev || {}),
+          isLimitReached: true
+        }));
+      }
     } finally {
       setSendingEmail(false);
     }
@@ -396,8 +424,9 @@ export default function BackupModal({ isOpen, onClose }) {
                                   setEmailStatus(null);
                                 }}
                                 className="btn btn-outline-blue btn-sm"
-                                style={{ fontSize: '0.7rem', padding: '2px 7px' }}
-                                title="Send Archive to Company Email"
+                                style={{ fontSize: '0.7rem', padding: '2px 7px', opacity: emailStats?.isLimitReached ? 0.5 : 1 }}
+                                title={emailStats?.isLimitReached ? "Daily email limit reached. Please opt for manual download or try again after 24 hours." : "Send Archive to Company Email"}
+                                disabled={emailStats?.isLimitReached}
                               >
                                 <Mail size={11} />
                               </button>
@@ -458,15 +487,15 @@ export default function BackupModal({ isOpen, onClose }) {
                     </div>
 
                     {/* Action Choice Buttons */}
-                    <div style={{ marginTop: '0.85rem', display: 'flex', gap: '0.65rem', flexWrap: 'wrap' }}>
+                    <div style={{ marginTop: '0.85rem', display: 'flex', gap: '0.65rem', flexWrap: 'wrap', alignItems: 'center' }}>
                       <button
                         type="button"
                         className="btn btn-primary btn-sm"
                         onClick={() => handleDownloadFile(latestBackup)}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 12px', fontSize: '0.785rem' }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 14px', fontSize: '0.8rem' }}
                       >
                         <Download size={13} />
-                        <span>Download to Device</span>
+                        <span>Download (.ZIP) to Device</span>
                       </button>
 
                       <button
@@ -477,12 +506,46 @@ export default function BackupModal({ isOpen, onClose }) {
                           setShowEmailForm(true);
                           setEmailStatus(null);
                         }}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 12px', fontSize: '0.785rem' }}
+                        disabled={emailStats?.isLimitReached}
+                        style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '5px', 
+                          padding: '6px 14px', 
+                          fontSize: '0.8rem',
+                          opacity: emailStats?.isLimitReached ? 0.6 : 1
+                        }}
+                        title={emailStats?.isLimitReached ? "Daily email limit reached. Please opt for manual download or try again after 24 hours." : "Send to Company Email"}
                       >
                         <Mail size={13} />
                         <span>Send to Company Email</span>
+                        {emailStats?.isLimitReached && <span style={{ fontSize: '0.65rem', color: '#b91c1c' }}>(Limit Reached)</span>}
                       </button>
                     </div>
+
+                    {/* Limit Reached Warning Notice */}
+                    {emailStats?.isLimitReached && (
+                      <div style={{
+                        marginTop: '0.85rem',
+                        padding: '0.65rem 0.85rem',
+                        backgroundColor: '#fef2f2',
+                        border: '1px solid #fca5a5',
+                        borderRadius: '8px',
+                        color: '#991b1b',
+                        fontSize: '0.785rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <AlertCircle size={16} color="#dc2626" style={{ flexShrink: 0 }} />
+                        <div>
+                          <div><strong>Daily Email Limit Reached ({emailStats.emailCount}/{emailStats.emailMaxLimit} emails sent today):</strong></div>
+                          <div style={{ fontSize: '0.725rem', color: '#b91c1c', marginTop: '2px' }}>
+                            Email dispatch quota reached in central tracker. Please opt for manual download or try again after 24 hours.
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {downloadedLocally && (
                       <div style={{ fontSize: '0.75rem', color: '#15803d', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -522,13 +585,46 @@ export default function BackupModal({ isOpen, onClose }) {
                   </button>
                 </div>
 
-                <div style={{ fontSize: '0.775rem', color: '#334155', marginBottom: '0.65rem' }}>
+                <div style={{ fontSize: '0.775rem', color: '#334155', marginBottom: '0.5rem' }}>
                   Target Archive: <strong style={{ fontFamily: 'monospace' }}>{(activeEmailTarget || latestBackup)?.fileName || (activeEmailTarget || latestBackup)?.name}</strong>
                   {' '}({(activeEmailTarget || latestBackup)?.sizeFormatted})
                 </div>
 
+                {/* Dispatch Tracker Daily Limit Info */}
+                {emailStats && (
+                  <div style={{
+                    fontSize: '0.735rem',
+                    color: emailStats.isLimitReached ? '#dc2626' : '#1e40af',
+                    fontWeight: '600',
+                    marginBottom: '0.65rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px'
+                  }}>
+                    <span>📊 Central Dispatch Tracker: <strong>{emailStats.emailCount} / {emailStats.emailMaxLimit}</strong> emails sent today {emailStats.isLimitReached ? '(Limit reached - Resets in 24 hrs)' : `(${emailStats.remainingEmails} remaining)`}</span>
+                  </div>
+                )}
+
                 {/* Email Delivery Mode Notice */}
-                {(activeEmailTarget || latestBackup)?.isLarge ? (
+                {emailStats?.isLimitReached ? (
+                  <div style={{
+                    padding: '0.65rem 0.85rem',
+                    backgroundColor: '#fee2e2',
+                    border: '1px solid #fca5a5',
+                    borderRadius: '6px',
+                    color: '#991b1b',
+                    fontSize: '0.75rem',
+                    marginBottom: '0.75rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}>
+                    <AlertCircle size={15} color="#dc2626" style={{ flexShrink: 0 }} />
+                    <span>
+                      <strong>Daily Email Limit Reached ({emailStats.emailCount}/{emailStats.emailMaxLimit}):</strong> Please opt for manual download or try again after 24 hours.
+                    </span>
+                  </div>
+                ) : (activeEmailTarget || latestBackup)?.isLarge ? (
                   <div style={{
                     padding: '0.6rem 0.75rem',
                     backgroundColor: '#fffbeb',
@@ -574,13 +670,14 @@ export default function BackupModal({ isOpen, onClose }) {
                     placeholder="Enter recipient company email..."
                     value={recipientEmail}
                     onChange={(e) => setRecipientEmail(e.target.value)}
+                    disabled={emailStats?.isLimitReached}
                     style={{ flex: 1, fontSize: '0.8125rem', padding: '6px 10px' }}
                   />
                   <button
                     type="button"
                     className="btn btn-primary"
                     onClick={() => handleSendEmail(activeEmailTarget || latestBackup)}
-                    disabled={sendingEmail || !recipientEmail}
+                    disabled={sendingEmail || !recipientEmail || emailStats?.isLimitReached}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', padding: '6px 14px', whiteSpace: 'nowrap' }}
                   >
                     {sendingEmail ? (
@@ -588,6 +685,8 @@ export default function BackupModal({ isOpen, onClose }) {
                         <RefreshCw size={13} className="spin-animation" />
                         <span>Sending...</span>
                       </>
+                    ) : emailStats?.isLimitReached ? (
+                      <span>Limit Reached (24h)</span>
                     ) : (
                       <>
                         <Send size={13} />
