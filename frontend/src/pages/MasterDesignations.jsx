@@ -71,11 +71,32 @@ export default function MasterDesignations({ onOpenBackup }) {
     return unsub;
   }, [loadData]);
 
+  const getNextSerial = (items) => {
+    let maxNum = 0;
+    (items || []).forEach(item => {
+      if (item.IsDeleted) return;
+      const raw = String(item.DesignationCode || '').trim();
+      const num = parseInt(raw, 10);
+      if (!isNaN(num) && num > maxNum) {
+        maxNum = num;
+      } else {
+        const match = raw.match(/\d+$/);
+        if (match) {
+          const val = parseInt(match[0], 10);
+          if (val > maxNum) maxNum = val;
+        }
+      }
+    });
+    if (maxNum > 0) return String(maxNum + 1);
+    const activeCount = (items || []).filter(i => !i.IsDeleted).length;
+    return String(activeCount + 1);
+  };
+
   const openAddModal = () => {
     setEditingItem(null);
     setFormData({
       DesignationId: '',
-      DesignationCode: `DES_${designations.length + 1}`,
+      DesignationCode: getNextSerial(designations),
       DesignationName: '',
       Department: departments[0]?.DepartmentName || '',
       Description: '',
@@ -99,8 +120,37 @@ export default function MasterDesignations({ onOpenBackup }) {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.DesignationName.trim()) {
+    const codeVal = String(formData.DesignationCode || '').trim();
+    const nameVal = String(formData.DesignationName || '').trim();
+
+    if (!codeVal) {
+      showError('Validation Error', 'S.No / Code is required.');
+      return;
+    }
+    if (!nameVal) {
       showError('Validation Error', 'Designation Name is required.');
+      return;
+    }
+
+    // Duplicate Code check
+    const dupCode = designations.find(d => 
+      d.DesignationId !== formData.DesignationId &&
+      !d.IsDeleted &&
+      String(d.DesignationCode || '').trim().toLowerCase() === codeVal.toLowerCase()
+    );
+    if (dupCode) {
+      showError('Duplicate S.No / Code', `"${codeVal}" is already assigned to "${dupCode.DesignationName}".`);
+      return;
+    }
+
+    // Duplicate Name check
+    const dupName = designations.find(d => 
+      d.DesignationId !== formData.DesignationId &&
+      !d.IsDeleted &&
+      String(d.DesignationName || '').trim().toLowerCase() === nameVal.toLowerCase()
+    );
+    if (dupName) {
+      showError('Duplicate Designation Name', `"${nameVal}" already exists in Designation master.`);
       return;
     }
 
@@ -300,7 +350,7 @@ export default function MasterDesignations({ onOpenBackup }) {
             <table className="crm-table">
               <thead>
                 <tr>
-                  <th>Code</th>
+                  <th>S.No / Code</th>
                   <th>Designation Name</th>
                   <th>Department</th>
                   <th>Description</th>
@@ -403,14 +453,18 @@ export default function MasterDesignations({ onOpenBackup }) {
       >
         <form onSubmit={handleSave}>
           <div className="form-group">
-            <label className="form-label">Designation Code</label>
+            <label className="form-label">S.No / Code (Primary Key) *</label>
             <input
               type="text"
               className="form-input"
               value={formData.DesignationCode}
               onChange={(e) => setFormData({ ...formData, DesignationCode: e.target.value })}
+              placeholder="e.g. 1, 2, 3..."
               required
             />
+            <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
+              Unique sequential serial number or primary key.
+            </div>
           </div>
 
           <div className="form-group">

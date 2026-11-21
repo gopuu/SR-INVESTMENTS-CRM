@@ -18,6 +18,7 @@ import Header from '../components/Header';
 import Modal from '../components/Modal';
 import { crmApi, subscribeCrmEvents } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { showSuccess, showError, showWarning, showConfirm } from '../utils/swal';
 
 export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) {
   const { user, isSuperAdmin } = useAuth();
@@ -83,13 +84,35 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
     return () => unsubscribe();
   }, []);
 
+  // Auto-generate next integer serial number
+  const getNextSerial = (items, codeKey) => {
+    let maxNum = 0;
+    (items || []).forEach(item => {
+      if (item.IsDeleted) return;
+      const raw = String(item[codeKey] || '').trim();
+      const num = parseInt(raw, 10);
+      if (!isNaN(num) && num > maxNum) {
+        maxNum = num;
+      } else {
+        const match = raw.match(/\d+$/);
+        if (match) {
+          const val = parseInt(match[0], 10);
+          if (val > maxNum) maxNum = val;
+        }
+      }
+    });
+    if (maxNum > 0) return String(maxNum + 1);
+    const activeCount = (items || []).filter(i => !i.IsDeleted).length;
+    return String(activeCount + 1);
+  };
+
   const openAddModal = (type) => {
     setModalType(type);
     setEditingItem(null);
-    let defaultCode = '';
-    if (type === 'department') defaultCode = `DEP_${departments.length + 1}`;
-    if (type === 'designation') defaultCode = `DES_${designations.length + 1}`;
-    if (type === 'role') defaultCode = `ROL_${roles.length + 1}`;
+    let defaultCode = '1';
+    if (type === 'department') defaultCode = getNextSerial(departments, 'DepartmentCode');
+    if (type === 'designation') defaultCode = getNextSerial(designations, 'DesignationCode');
+    if (type === 'role') defaultCode = getNextSerial(roles, 'RoleCode');
 
     setFormData({
       ...initialForm,
@@ -135,10 +158,52 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.name.trim()) {
-      alert('Please enter a valid title/name.');
+    const codeVal = String(formData.code || '').trim();
+    const nameVal = String(formData.name || '').trim();
+
+    if (!codeVal) {
+      showError('Validation Error', 'Please enter a valid S.No / Code.');
       return;
     }
+    if (!nameVal) {
+      showError('Validation Error', 'Please enter a valid title/name.');
+      return;
+    }
+
+    // Client-side duplicate check
+    const currentList = modalType === 'department' ? departments : modalType === 'designation' ? designations : roles;
+    const idKey = modalType === 'department' ? 'DepartmentId' : modalType === 'designation' ? 'DesignationId' : 'RoleId';
+    const codeKey = modalType === 'department' ? 'DepartmentCode' : modalType === 'designation' ? 'DesignationCode' : 'RoleCode';
+    const nameKey = modalType === 'department' ? 'DepartmentName' : modalType === 'designation' ? 'DesignationName' : 'RoleName';
+
+    // 1. Check duplicate Code / S.No (case-insensitive)
+    const dupCode = currentList.find(item => 
+      item[idKey] !== formData.id &&
+      !item.IsDeleted &&
+      String(item[codeKey] || '').trim().toLowerCase() === codeVal.toLowerCase()
+    );
+    if (dupCode) {
+      showError(
+        'Duplicate S.No / Code Found',
+        `"${codeVal}" is already assigned to "${dupCode[nameKey]}". Duplicate serial numbers or codes are not allowed.`
+      );
+      return;
+    }
+
+    // 2. Check duplicate Name (case-insensitive)
+    const dupName = currentList.find(item => 
+      item[idKey] !== formData.id &&
+      !item.IsDeleted &&
+      String(item[nameKey] || '').trim().toLowerCase() === nameVal.toLowerCase()
+    );
+    if (dupName) {
+      showError(
+        'Duplicate Name Found',
+        `"${nameVal}" already exists in ${modalType} master. Duplicate names are not allowed.`
+      );
+      return;
+    }
+
     setSaving(true);
     try {
       let dataPayload = {
@@ -148,17 +213,17 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
 
       if (modalType === 'department') {
         dataPayload.DepartmentId = formData.id;
-        dataPayload.DepartmentCode = formData.code;
-        dataPayload.DepartmentName = formData.name;
+        dataPayload.DepartmentCode = codeVal;
+        dataPayload.DepartmentName = nameVal;
       } else if (modalType === 'designation') {
         dataPayload.DesignationId = formData.id;
-        dataPayload.DesignationCode = formData.code;
-        dataPayload.DesignationName = formData.name;
+        dataPayload.DesignationCode = codeVal;
+        dataPayload.DesignationName = nameVal;
         dataPayload.Department = formData.department;
       } else if (modalType === 'role') {
         dataPayload.RoleId = formData.id;
-        dataPayload.RoleCode = formData.code;
-        dataPayload.RoleName = formData.name;
+        dataPayload.RoleCode = codeVal;
+        dataPayload.RoleName = nameVal;
       }
 
       await crmApi.call('saveMasterItem', {
@@ -167,32 +232,48 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
         userEmail: user?.email
       });
 
+      showSuccess(
+        `${modalType.charAt(0).toUpperCase() + modalType.slice(1)} Saved`,
+        `"${nameVal}" (${codeVal}) saved successfully.`
+      );
       setIsModalOpen(false);
       await loadAllMasters();
     } catch (err) {
-      alert(err.message || 'Failed to save master record');
+      showError('Save Failed', err.message || 'Failed to save master record');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (type, id, name) => {
-    if (!window.confirm(`Are you sure you want to soft-delete "${name}"?\n\nRecords are soft-deleted to maintain audit compliance.`)) return;
+    const confirmed = await showConfirm(
+      'Soft-Delete Record?',
+      `Are you sure you want to soft-delete "${name}"?\n\nRecords are soft-deleted to maintain audit compliance.`,
+      'Yes, Soft-Delete'
+    );
+    if (!confirmed) return;
     try {
       await crmApi.call('deleteMasterItem', { type, id, userEmail: user?.email });
+      showSuccess('Record Soft-Deleted', `"${name}" has been soft-deleted.`);
       await loadAllMasters();
     } catch (err) {
-      alert(err.message || 'Failed to delete record');
+      showError('Delete Failed', err.message || 'Failed to delete record');
     }
   };
 
   const handleRestore = async (type, id, name) => {
-    if (!window.confirm(`Restore "${name}" back to active status?`)) return;
+    const confirmed = await showConfirm(
+      'Restore Master Record?',
+      `Restore "${name}" back to active status?`,
+      'Yes, Restore'
+    );
+    if (!confirmed) return;
     try {
       await crmApi.call('restoreMasterItem', { type, id, userEmail: user?.email });
+      showSuccess('Record Restored', `"${name}" has been restored to active status.`);
       await loadAllMasters();
     } catch (err) {
-      alert(err.message || 'Failed to restore record');
+      showError('Restore Failed', err.message || 'Failed to restore record');
     }
   };
 
@@ -467,7 +548,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
               <table className="crm-table">
                 <thead>
                   <tr>
-                    <th>Department Code</th>
+                    <th>S.No / Code</th>
                     <th>Department Name</th>
                     <th>Description</th>
                     <th>Status</th>
@@ -552,7 +633,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
               <table className="crm-table">
                 <thead>
                   <tr>
-                    <th>Designation Code</th>
+                    <th>S.No / Code</th>
                     <th>Designation Name</th>
                     <th>Mapped Department</th>
                     <th>Description</th>
@@ -643,7 +724,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
               <table className="crm-table">
                 <thead>
                   <tr>
-                    <th>Role Code</th>
+                    <th>S.No / Code</th>
                     <th>CRM System Role</th>
                     <th>Description & Permissions</th>
                     <th>Status</th>
@@ -741,16 +822,19 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
           <div className="modal-body">
             <div className="form-group">
               <label className="form-label">
-                Code <span style={{ color: '#ef4444' }}>*</span>
+                S.No / Code (Primary Key) <span style={{ color: '#ef4444' }}>*</span>
               </label>
               <input
                 type="text"
                 className="form-input"
                 value={formData.code}
                 onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                placeholder="e.g. WM, SIA, RM..."
+                placeholder="e.g. 1, 2, 3..."
                 required
               />
+              <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
+                Unique numeric serial number or primary key. Duplicate codes/IDs are strictly prevented.
+              </div>
             </div>
 
             <div className="form-group">

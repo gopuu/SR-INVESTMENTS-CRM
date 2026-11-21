@@ -64,11 +64,32 @@ export default function MasterRoles({ onOpenBackup }) {
     return unsub;
   }, [loadRoles]);
 
+  const getNextSerial = (items) => {
+    let maxNum = 0;
+    (items || []).forEach(item => {
+      if (item.IsDeleted) return;
+      const raw = String(item.RoleCode || '').trim();
+      const num = parseInt(raw, 10);
+      if (!isNaN(num) && num > maxNum) {
+        maxNum = num;
+      } else {
+        const match = raw.match(/\d+$/);
+        if (match) {
+          const val = parseInt(match[0], 10);
+          if (val > maxNum) maxNum = val;
+        }
+      }
+    });
+    if (maxNum > 0) return String(maxNum + 1);
+    const activeCount = (items || []).filter(i => !i.IsDeleted).length;
+    return String(activeCount + 1);
+  };
+
   const openAddModal = () => {
     setEditingItem(null);
     setFormData({
       RoleId: '',
-      RoleCode: `ROL_${roles.length + 1}`,
+      RoleCode: getNextSerial(roles),
       RoleName: '',
       Description: '',
       Status: 'Active'
@@ -90,8 +111,37 @@ export default function MasterRoles({ onOpenBackup }) {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.RoleName.trim()) {
+    const codeVal = String(formData.RoleCode || '').trim();
+    const nameVal = String(formData.RoleName || '').trim();
+
+    if (!codeVal) {
+      showError('Validation Error', 'S.No / Code is required.');
+      return;
+    }
+    if (!nameVal) {
       showError('Validation Error', 'Role Name is required.');
+      return;
+    }
+
+    // Duplicate Code check
+    const dupCode = roles.find(r => 
+      r.RoleId !== formData.RoleId &&
+      !r.IsDeleted &&
+      String(r.RoleCode || '').trim().toLowerCase() === codeVal.toLowerCase()
+    );
+    if (dupCode) {
+      showError('Duplicate S.No / Code', `"${codeVal}" is already assigned to "${dupCode.RoleName}".`);
+      return;
+    }
+
+    // Duplicate Name check
+    const dupName = roles.find(r => 
+      r.RoleId !== formData.RoleId &&
+      !r.IsDeleted &&
+      String(r.RoleName || '').trim().toLowerCase() === nameVal.toLowerCase()
+    );
+    if (dupName) {
+      showError('Duplicate Role Name', `"${nameVal}" already exists in Role master.`);
       return;
     }
 
@@ -278,7 +328,7 @@ export default function MasterRoles({ onOpenBackup }) {
             <table className="crm-table">
               <thead>
                 <tr>
-                  <th>Code</th>
+                  <th>S.No / Code</th>
                   <th>Role Name</th>
                   <th>Description</th>
                   <th>Status</th>
@@ -375,14 +425,18 @@ export default function MasterRoles({ onOpenBackup }) {
       >
         <form onSubmit={handleSave}>
           <div className="form-group">
-            <label className="form-label">Role Code</label>
+            <label className="form-label">S.No / Code (Primary Key) *</label>
             <input
               type="text"
               className="form-input"
               value={formData.RoleCode}
               onChange={(e) => setFormData({ ...formData, RoleCode: e.target.value })}
+              placeholder="e.g. 1, 2, 3..."
               required
             />
+            <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
+              Unique sequential serial number or primary key.
+            </div>
           </div>
 
           <div className="form-group">

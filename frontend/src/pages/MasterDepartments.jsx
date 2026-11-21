@@ -65,11 +65,32 @@ export default function MasterDepartments({ onOpenBackup }) {
     return unsub;
   }, [loadDepartments]);
 
+  const getNextSerial = (items) => {
+    let maxNum = 0;
+    (items || []).forEach(item => {
+      if (item.IsDeleted) return;
+      const raw = String(item.DepartmentCode || '').trim();
+      const num = parseInt(raw, 10);
+      if (!isNaN(num) && num > maxNum) {
+        maxNum = num;
+      } else {
+        const match = raw.match(/\d+$/);
+        if (match) {
+          const val = parseInt(match[0], 10);
+          if (val > maxNum) maxNum = val;
+        }
+      }
+    });
+    if (maxNum > 0) return String(maxNum + 1);
+    const activeCount = (items || []).filter(i => !i.IsDeleted).length;
+    return String(activeCount + 1);
+  };
+
   const openAddModal = () => {
     setEditingItem(null);
     setFormData({
       DepartmentId: '',
-      DepartmentCode: `DEP_${departments.length + 1}`,
+      DepartmentCode: getNextSerial(departments),
       DepartmentName: '',
       Description: '',
       Status: 'Active'
@@ -91,8 +112,37 @@ export default function MasterDepartments({ onOpenBackup }) {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.DepartmentName.trim()) {
+    const codeVal = String(formData.DepartmentCode || '').trim();
+    const nameVal = String(formData.DepartmentName || '').trim();
+
+    if (!codeVal) {
+      showError('Validation Error', 'S.No / Code is required.');
+      return;
+    }
+    if (!nameVal) {
       showError('Validation Error', 'Department Name is required.');
+      return;
+    }
+
+    // Duplicate S.No / Code check
+    const dupCode = departments.find(d => 
+      d.DepartmentId !== formData.DepartmentId &&
+      !d.IsDeleted &&
+      String(d.DepartmentCode || '').trim().toLowerCase() === codeVal.toLowerCase()
+    );
+    if (dupCode) {
+      showError('Duplicate S.No / Code', `"${codeVal}" is already assigned to "${dupCode.DepartmentName}".`);
+      return;
+    }
+
+    // Duplicate Name check
+    const dupName = departments.find(d => 
+      d.DepartmentId !== formData.DepartmentId &&
+      !d.IsDeleted &&
+      String(d.DepartmentName || '').trim().toLowerCase() === nameVal.toLowerCase()
+    );
+    if (dupName) {
+      showError('Duplicate Department Name', `"${nameVal}" already exists in Department master.`);
       return;
     }
 
@@ -274,7 +324,7 @@ export default function MasterDepartments({ onOpenBackup }) {
             <table className="crm-table">
               <thead>
                 <tr>
-                  <th>Code</th>
+                  <th>S.No / Code</th>
                   <th>Department Name</th>
                   <th>Description</th>
                   <th>Status</th>
@@ -371,14 +421,18 @@ export default function MasterDepartments({ onOpenBackup }) {
       >
         <form onSubmit={handleSave}>
           <div className="form-group">
-            <label className="form-label">Department Code</label>
+            <label className="form-label">S.No / Code (Primary Key) *</label>
             <input
               type="text"
               className="form-input"
               value={formData.DepartmentCode}
               onChange={(e) => setFormData({ ...formData, DepartmentCode: e.target.value })}
+              placeholder="e.g. 1, 2, 3..."
               required
             />
+            <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
+              Unique sequential serial number or primary key.
+            </div>
           </div>
 
           <div className="form-group">

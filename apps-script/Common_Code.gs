@@ -1062,11 +1062,68 @@ function saveMasterItem_(payload) {
   const existingIndex = rows.findIndex(r => r[idField] === id);
   const existingRecord = existingIndex >= 0 ? rows[existingIndex] : null;
 
+  // 1. Determine Serial Number / Code (use sequential integer if not provided)
+  let code = cleanStr_(data[codeField] || "").trim();
+  if (!code) {
+    let maxNum = 0;
+    rows.forEach(r => {
+      const isDel = r.IsDeleted === true || r.IsDeleted === "TRUE" || String(r.IsDeleted).toLowerCase() === "true";
+      if (!isDel) {
+        const c = String(r[codeField] || "").trim();
+        const n = parseInt(c, 10);
+        if (!isNaN(n) && n > maxNum) maxNum = n;
+        const match = c.match(/\d+$/);
+        if (match) {
+          const m = parseInt(match[0], 10);
+          if (m > maxNum) maxNum = m;
+        }
+      }
+    });
+    code = String(maxNum > 0 ? maxNum + 1 : (rows.filter(r => !r.IsDeleted || String(r.IsDeleted).toLowerCase() !== "true").length + 1));
+  }
+
+  const name = cleanStr_(data[nameField] || "").trim();
+  if (!name) {
+    throw new Error(`Master title/name is required for ${type}.`);
+  }
+
+  // 2. Strict Duplicate ID Check (if creating new record)
+  if (existingIndex < 0 && data[idField]) {
+    const dupIdRow = rows.find(r => r[idField] === data[idField]);
+    if (dupIdRow) {
+      throw new Error(`Duplicate Record ID: ID '${data[idField]}' already exists in ${type} master. Duplicate IDs are not allowed.`);
+    }
+  }
+
+  // 3. Strict Duplicate Code / S.No Check (case-insensitive among non-deleted records)
+  const dupCodeRow = rows.find(r => {
+    const isDel = r.IsDeleted === true || r.IsDeleted === "TRUE" || String(r.IsDeleted).toLowerCase() === "true";
+    if (isDel) return false;
+    if (r[idField] === id) return false; // Ignore current record when updating
+    const existingCode = cleanStr_(r[codeField] || "").trim();
+    return existingCode.toLowerCase() === code.toLowerCase();
+  });
+  if (dupCodeRow) {
+    throw new Error(`Duplicate S.No / Code: '${code}' is already assigned to '${dupCodeRow[nameField] || dupCodeRow[codeField]}'. Each ${type} master record must have a unique serial number or code.`);
+  }
+
+  // 4. Strict Duplicate Name / Title Check (case-insensitive among non-deleted records)
+  const dupNameRow = rows.find(r => {
+    const isDel = r.IsDeleted === true || r.IsDeleted === "TRUE" || String(r.IsDeleted).toLowerCase() === "true";
+    if (isDel) return false;
+    if (r[idField] === id) return false; // Ignore current record when updating
+    const existingName = cleanStr_(r[nameField] || "").trim();
+    return existingName.toLowerCase() === name.toLowerCase();
+  });
+  if (dupNameRow) {
+    throw new Error(`Duplicate Name: '${name}' already exists in ${type} master. Duplicate master names are not allowed.`);
+  }
+
   const recordObj = {
     ...data,
     [idField]: id,
-    [codeField]: cleanStr_(data[codeField] || (prefix + "_" + (rows.length + 1))),
-    [nameField]: cleanStr_(data[nameField]),
+    [codeField]: code,
+    [nameField]: name,
     Description: cleanStr_(data.Description),
     Status: cleanStr_(data.Status || "Active"),
     IsDeleted: existingRecord ? Boolean(existingRecord.IsDeleted === true || existingRecord.IsDeleted === "TRUE") : false,
