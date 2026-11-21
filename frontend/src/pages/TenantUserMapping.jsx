@@ -537,6 +537,7 @@ export default function TenantUserMapping({ onOpenBackup }) {
                 className="form-select"
                 value={selectedTenantId}
                 onChange={(e) => setSelectedTenantId(e.target.value)}
+                disabled={loadingTenants}
                 style={{
                   minWidth: '280px',
                   fontWeight: '600',
@@ -545,12 +546,20 @@ export default function TenantUserMapping({ onOpenBackup }) {
                   backgroundColor: '#ffffff'
                 }}
               >
-                <option value="" disabled>-- Choose Client Tenant --</option>
-                {tenants.map(t => (
-                  <option key={t.TenantId} value={t.TenantId}>
-                    {t.TenantId} - {t.CompanyName || 'Unnamed Organization'} ({t.Status || 'Active'})
-                  </option>
-                ))}
+                {loadingTenants ? (
+                  <option value="" disabled>Fetching data...</option>
+                ) : tenants.length === 0 ? (
+                  <option value="" disabled>No Data Available</option>
+                ) : (
+                  <>
+                    <option value="" disabled>-- Choose Client Tenant --</option>
+                    {tenants.map(t => (
+                      <option key={t.TenantId} value={t.TenantId}>
+                        {t.TenantId} - {t.CompanyName || 'Unnamed Organization'} ({t.Status || 'Active'})
+                      </option>
+                    ))}
+                  </>
+                )}
               </select>
             </div>
           </div>
@@ -706,15 +715,16 @@ export default function TenantUserMapping({ onOpenBackup }) {
           {/* Multi-User Grid */}
           <div style={{ padding: '1.25rem 1.5rem', maxHeight: '460px', overflowY: 'auto' }}>
             {loading ? (
-              <div style={{ padding: '3rem 1rem', textAlign: 'center', color: '#64748b' }}>
+              <div style={{ padding: '3.5rem 1rem', textAlign: 'center', color: '#64748b' }}>
                 <RefreshCw size={28} color="#2563eb" className="spin-animation" style={{ margin: '0 auto 0.75rem' }} />
-                <p style={{ fontSize: '0.875rem' }}>Loading central users and mappings from Google Sheets...</p>
+                <div style={{ fontWeight: '600', fontSize: '1rem', color: '#0f172a' }}>Fetching data...</div>
+                <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>Please wait while user records and assignments are loaded</div>
               </div>
             ) : filteredAssignmentUsers.length === 0 ? (
               <div style={{ padding: '3rem 1rem', textAlign: 'center', border: '2px dashed #e2e8f0', borderRadius: '12px' }}>
                 <Users size={36} color="#cbd5e1" style={{ margin: '0 auto 0.5rem' }} />
-                <p style={{ fontSize: '0.875rem', fontWeight: '600', color: '#475569', margin: 0 }}>No users found</p>
-                <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.25rem' }}>Try adjusting your search query or filter tab.</p>
+                <p style={{ fontSize: '0.95rem', fontWeight: '700', color: '#475569', margin: 0 }}>No Data Found</p>
+                <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.25rem' }}>No users match the search query or filter tab.</p>
               </div>
             ) : (
               <div style={{

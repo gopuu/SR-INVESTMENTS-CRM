@@ -61,6 +61,7 @@ export default function Staff({ onOpenBackup }) {
   const [departments, setDepartments] = useState([]);
   const [designations, setDesignations] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [loadingMasters, setLoadingMasters] = useState(true);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -77,9 +78,9 @@ export default function Staff({ onOpenBackup }) {
     GoogleEmails: '', // Multiple Google IDs
     Mobile: '',
     AlternateMobile: '', // Alternate Mobile numbers
-    Department: 'Wealth Management',
-    Designation: 'Senior Investment Advisor',
-    Role: 'Staff',
+    Department: '',
+    Designation: '',
+    Role: '',
     Password: 'password123',
     JoiningDate: '',
     Status: 'Active',
@@ -92,15 +93,18 @@ export default function Staff({ onOpenBackup }) {
   const [formData, setFormData] = useState(initialFormState);
 
   const loadMasters = async () => {
+    setLoadingMasters(true);
     try {
       const res = await crmApi.call('getMasters');
       if (res) {
-        if (Array.isArray(res.departments) && res.departments.length) setDepartments(res.departments);
-        if (Array.isArray(res.designations) && res.designations.length) setDesignations(res.designations);
-        if (Array.isArray(res.roles) && res.roles.length) setRoles(res.roles);
+        if (Array.isArray(res.departments)) setDepartments(res.departments);
+        if (Array.isArray(res.designations)) setDesignations(res.designations);
+        if (Array.isArray(res.roles)) setRoles(res.roles);
       }
     } catch (e) {
       console.warn('Could not fetch masters for staff dropdowns:', e);
+    } finally {
+      setLoadingMasters(false);
     }
   };
 
@@ -369,15 +373,19 @@ export default function Staff({ onOpenBackup }) {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
-                      <RefreshCw size={22} color="#2563eb" className="spin-animation" style={{ margin: '0 auto 0.5rem' }} />
-                      <p style={{ margin: 0 }}>Loading team members...</p>
+                    <td colSpan="8" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: '#64748b' }}>
+                      <RefreshCw size={26} color="#2563eb" className="spin-animation" style={{ margin: '0 auto 0.75rem' }} />
+                      <div style={{ fontWeight: '600', fontSize: '1rem', color: '#0f172a' }}>Fetching data...</div>
+                      <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>Please wait while staff records are loaded from the database</div>
                     </td>
                   </tr>
                 ) : employees.length === 0 ? (
                   <tr>
-                    <td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
-                      {showDeleted ? 'No deleted staff members in archive.' : 'No staff records found. Click "Add Staff Member" to add one.'}
+                    <td colSpan="8" style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
+                      <div style={{ fontWeight: '700', fontSize: '1rem', color: '#64748b' }}>No Data Found</div>
+                      <div style={{ fontSize: '0.8rem', marginTop: '4px' }}>
+                        {showDeleted ? 'No deleted staff members in archive.' : 'No staff records found. Click "Add Staff Member" to add one.'}
+                      </div>
                     </td>
                   </tr>
                 ) : (
@@ -709,21 +717,20 @@ export default function Staff({ onOpenBackup }) {
                   className="form-select"
                   value={formData.Department}
                   onChange={(e) => setFormData({ ...formData, Department: e.target.value })}
+                  disabled={loadingMasters}
                 >
-                  {departments.length > 0 ? (
-                    departments.filter(d => !d.IsDeleted && d.Status === 'Active').map(d => (
-                      <option key={d.DepartmentId || d.DepartmentCode} value={d.DepartmentName}>
-                        {d.DepartmentName} ({d.DepartmentCode})
-                      </option>
-                    ))
+                  {loadingMasters ? (
+                    <option value="" disabled>Fetching data...</option>
+                  ) : departments.filter(d => !d.IsDeleted && d.Status === 'Active').length === 0 ? (
+                    <option value="" disabled>No Data Available</option>
                   ) : (
                     <>
-                      <option value="Wealth Management">Wealth Management</option>
-                      <option value="Operations & KYC">Operations & KYC</option>
-                      <option value="Mutual Funds">Mutual Funds</option>
-                      <option value="Accounts & Finance">Accounts & Finance</option>
-                      <option value="Administration">Administration</option>
-                      <option value="Compliance & Legal">Compliance & Legal</option>
+                      <option value="">-- Select Department --</option>
+                      {departments.filter(d => !d.IsDeleted && d.Status === 'Active').map(d => (
+                        <option key={d.DepartmentId || d.DepartmentCode} value={d.DepartmentName}>
+                          {d.DepartmentName} ({d.DepartmentCode})
+                        </option>
+                      ))}
                     </>
                   )}
                 </select>
@@ -739,23 +746,20 @@ export default function Staff({ onOpenBackup }) {
                   className="form-select"
                   value={formData.Designation}
                   onChange={(e) => setFormData({ ...formData, Designation: e.target.value })}
+                  disabled={loadingMasters}
                 >
-                  {designations.length > 0 ? (
-                    designations.filter(d => !d.IsDeleted && d.Status === 'Active').map(d => (
-                      <option key={d.DesignationId || d.DesignationCode} value={d.DesignationName}>
-                        {d.DesignationName} ({d.Department || d.DesignationCode})
-                      </option>
-                    ))
+                  {loadingMasters ? (
+                    <option value="" disabled>Fetching data...</option>
+                  ) : designations.filter(d => !d.IsDeleted && d.Status === 'Active').length === 0 ? (
+                    <option value="" disabled>No Data Available</option>
                   ) : (
                     <>
-                      <option value="Senior Investment Advisor">Senior Investment Advisor</option>
-                      <option value="Relationship Manager">Relationship Manager</option>
-                      <option value="Mutual Fund Specialist">Mutual Fund Specialist</option>
-                      <option value="Branch Manager">Branch Manager</option>
-                      <option value="Compliance Officer">Compliance Officer</option>
-                      <option value="Operations Executive">Operations Executive</option>
-                      <option value="Backoffice Executive">Backoffice Executive</option>
-                      <option value="Administrator">Administrator</option>
+                      <option value="">-- Select Designation --</option>
+                      {designations.filter(d => !d.IsDeleted && d.Status === 'Active').map(d => (
+                        <option key={d.DesignationId || d.DesignationCode} value={d.DesignationName}>
+                          {d.DesignationName} ({d.Department || d.DesignationCode})
+                        </option>
+                      ))}
                     </>
                   )}
                 </select>
@@ -771,19 +775,20 @@ export default function Staff({ onOpenBackup }) {
                   className="form-select"
                   value={formData.Role}
                   onChange={(e) => setFormData({ ...formData, Role: e.target.value })}
+                  disabled={loadingMasters}
                 >
-                  {roles.length > 0 ? (
-                    roles.filter(r => !r.IsDeleted && r.Status === 'Active').map(r => (
-                      <option key={r.RoleId || r.RoleCode} value={r.RoleName}>
-                        {r.RoleName} ({r.RoleCode})
-                      </option>
-                    ))
+                  {loadingMasters ? (
+                    <option value="" disabled>Fetching data...</option>
+                  ) : roles.filter(r => !r.IsDeleted && r.Status === 'Active').length === 0 ? (
+                    <option value="" disabled>No Data Available</option>
                   ) : (
                     <>
-                      <option value="Admin">Administrator (Full Access)</option>
-                      <option value="Relationship Manager">Relationship Manager</option>
-                      <option value="Backoffice Staff">Backoffice Staff</option>
-                      <option value="Staff">General Staff</option>
+                      <option value="">-- Select Role --</option>
+                      {roles.filter(r => !r.IsDeleted && r.Status === 'Active').map(r => (
+                        <option key={r.RoleId || r.RoleCode} value={r.RoleName}>
+                          {r.RoleName} ({r.RoleCode})
+                        </option>
+                      ))}
                     </>
                   )}
                 </select>

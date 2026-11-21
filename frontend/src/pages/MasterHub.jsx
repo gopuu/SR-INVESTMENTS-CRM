@@ -357,8 +357,14 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>Departments</div>
-                <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', marginTop: '4px' }}>
-                  {departments.filter(d => !d.IsDeleted).length}
+                <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {loading ? (
+                    <span style={{ fontSize: '0.85rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <RefreshCw size={14} className="spin-animation" color="#2563eb" /> Fetching data...
+                    </span>
+                  ) : (
+                    departments.filter(d => !d.IsDeleted).length
+                  )}
                 </div>
               </div>
               <div style={{ width: '42px', height: '42px', borderRadius: '10px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -384,8 +390,14 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>Designations</div>
-                <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', marginTop: '4px' }}>
-                  {designations.filter(d => !d.IsDeleted).length}
+                <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {loading ? (
+                    <span style={{ fontSize: '0.85rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <RefreshCw size={14} className="spin-animation" color="#2563eb" /> Fetching data...
+                    </span>
+                  ) : (
+                    designations.filter(d => !d.IsDeleted).length
+                  )}
                 </div>
               </div>
               <div style={{ width: '42px', height: '42px', borderRadius: '10px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -411,8 +423,14 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>CRM System Roles</div>
-                <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', marginTop: '4px' }}>
-                  {roles.filter(r => !r.IsDeleted).length}
+                <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {loading ? (
+                    <span style={{ fontSize: '0.85rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <RefreshCw size={14} className="spin-animation" color="#2563eb" /> Fetching data...
+                    </span>
+                  ) : (
+                    roles.filter(r => !r.IsDeleted).length
+                  )}
                 </div>
               </div>
               <div style={{ width: '42px', height: '42px', borderRadius: '10px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -475,7 +493,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
               >
                 <Building2 size={15} />
-                <span>Department Master ({departments.length})</span>
+                <span>Department Master {loading ? '(…)' : `(${departments.length})`}</span>
               </button>
 
               <button
@@ -484,7 +502,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
               >
                 <Briefcase size={15} />
-                <span>Designation Master ({designations.length})</span>
+                <span>Designation Master {loading ? '(…)' : `(${designations.length})`}</span>
               </button>
 
               <button
@@ -493,7 +511,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
               >
                 <Shield size={15} />
-                <span>Role Master ({roles.length})</span>
+                <span>Role Master {loading ? '(…)' : `(${roles.length})`}</span>
               </button>
 
               {isSuperAdmin && (
@@ -590,10 +608,21 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredDepartments.length === 0 ? (
+                  {loading ? (
                     <tr>
-                      <td colSpan="6" style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
-                        No departments found. Click "Add Department" to create one.
+                      <td colSpan="6" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: '#64748b' }}>
+                        <RefreshCw size={26} color="#2563eb" className="spin-animation" style={{ margin: '0 auto 0.75rem' }} />
+                        <div style={{ fontWeight: '600', fontSize: '1rem', color: '#0f172a' }}>Fetching data...</div>
+                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>Please wait while department records are loaded from the database</div>
+                      </td>
+                    </tr>
+                  ) : filteredDepartments.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
+                        <div style={{ fontWeight: '700', fontSize: '1rem', color: '#64748b' }}>No Data Found</div>
+                        <div style={{ fontSize: '0.8rem', marginTop: '4px' }}>
+                          {showDeleted ? 'No deleted departments in archive.' : 'No departments found. Click "Add Department" to create one.'}
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -676,10 +705,21 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredDesignations.length === 0 ? (
+                  {loading ? (
                     <tr>
-                      <td colSpan="7" style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
-                        No designations found. Click "Add Designation" to create one.
+                      <td colSpan="7" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: '#64748b' }}>
+                        <RefreshCw size={26} color="#2563eb" className="spin-animation" style={{ margin: '0 auto 0.75rem' }} />
+                        <div style={{ fontWeight: '600', fontSize: '1rem', color: '#0f172a' }}>Fetching data...</div>
+                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>Please wait while designation records are loaded from the database</div>
+                      </td>
+                    </tr>
+                  ) : filteredDesignations.length === 0 ? (
+                    <tr>
+                      <td colSpan="7" style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
+                        <div style={{ fontWeight: '700', fontSize: '1rem', color: '#64748b' }}>No Data Found</div>
+                        <div style={{ fontSize: '0.8rem', marginTop: '4px' }}>
+                          {showDeleted ? 'No deleted designations in archive.' : 'No designations found. Click "Add Designation" to create one.'}
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -766,10 +806,21 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRoles.length === 0 ? (
+                  {loading ? (
                     <tr>
-                      <td colSpan="6" style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
-                        No roles found. Click "Add Role" to create one.
+                      <td colSpan="6" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: '#64748b' }}>
+                        <RefreshCw size={26} color="#2563eb" className="spin-animation" style={{ margin: '0 auto 0.75rem' }} />
+                        <div style={{ fontWeight: '600', fontSize: '1rem', color: '#0f172a' }}>Fetching data...</div>
+                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>Please wait while role records are loaded from the database</div>
+                      </td>
+                    </tr>
+                  ) : filteredRoles.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
+                        <div style={{ fontWeight: '700', fontSize: '1rem', color: '#64748b' }}>No Data Found</div>
+                        <div style={{ fontSize: '0.8rem', marginTop: '4px' }}>
+                          {showDeleted ? 'No deleted roles in archive.' : 'No roles found. Click "Add Role" to create one.'}
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -941,12 +992,22 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                   className="form-select"
                   value={formData.department}
                   onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                  disabled={loading}
                 >
-                  {departments.filter(d => !d.IsDeleted && d.Status === 'Active').map(dept => (
-                    <option key={dept.DepartmentId} value={dept.DepartmentName}>
-                      {dept.DepartmentName} ({dept.DepartmentCode})
-                    </option>
-                  ))}
+                  {loading ? (
+                    <option value="" disabled>Fetching data...</option>
+                  ) : departments.filter(d => !d.IsDeleted && d.Status === 'Active').length === 0 ? (
+                    <option value="" disabled>No Data Available</option>
+                  ) : (
+                    <>
+                      <option value="">-- Select Department --</option>
+                      {departments.filter(d => !d.IsDeleted && d.Status === 'Active').map(dept => (
+                        <option key={dept.DepartmentId} value={dept.DepartmentName}>
+                          {dept.DepartmentName} ({dept.DepartmentCode})
+                        </option>
+                      ))}
+                    </>
+                  )}
                 </select>
               </div>
             )}

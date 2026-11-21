@@ -339,15 +339,19 @@ export default function Customers({ onOpenBackup }) {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="9" style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
-                      <RefreshCw size={22} color="#2563eb" className="spin-animation" style={{ margin: '0 auto 0.5rem' }} />
-                      <p style={{ margin: 0 }}>Loading mutual fund investors...</p>
+                    <td colSpan="9" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: '#64748b' }}>
+                      <RefreshCw size={26} color="#2563eb" className="spin-animation" style={{ margin: '0 auto 0.75rem' }} />
+                      <div style={{ fontWeight: '600', fontSize: '1rem', color: '#0f172a' }}>Fetching data...</div>
+                      <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>Please wait while investor records are loaded from the database</div>
                     </td>
                   </tr>
                 ) : customers.length === 0 ? (
                   <tr>
-                    <td colSpan="9" style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
-                      {showDeleted ? 'No deleted investors in archive.' : 'No investor records found. Click "Add Investor" to create one.'}
+                    <td colSpan="9" style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
+                      <div style={{ fontWeight: '700', fontSize: '1rem', color: '#64748b' }}>No Data Found</div>
+                      <div style={{ fontSize: '0.8rem', marginTop: '4px' }}>
+                        {showDeleted ? 'No deleted investors in archive.' : 'No investor records found. Click "Add Investor" to create one.'}
+                      </div>
                     </td>
                   </tr>
                 ) : (

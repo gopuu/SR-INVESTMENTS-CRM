@@ -361,15 +361,17 @@ export default function MasterDesignations({ onOpenBackup }) {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="6" style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
-                      <RefreshCw size={24} color="#2563eb" className="spin-animation" style={{ margin: '0 auto 0.5rem' }} />
-                      <p style={{ margin: 0, fontSize: '0.85rem' }}>Loading designations...</p>
+                    <td colSpan="6" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: '#64748b' }}>
+                      <RefreshCw size={26} color="#2563eb" className="spin-animation" style={{ margin: '0 auto 0.75rem' }} />
+                      <div style={{ fontWeight: '600', fontSize: '1rem', color: '#0f172a' }}>Fetching data...</div>
+                      <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>Please wait while designations are loaded from the database</div>
                     </td>
                   </tr>
                 ) : filteredList.length === 0 ? (
                   <tr>
-                    <td colSpan="6" style={{ textAlign: 'center', padding: '2.5rem', color: '#94a3b8' }}>
-                      No designations found matching your search.
+                    <td colSpan="6" style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
+                      <div style={{ fontWeight: '700', fontSize: '1rem', color: '#64748b' }}>No Data Found</div>
+                      <div style={{ fontSize: '0.8rem', marginTop: '4px' }}>No designations found matching your search.</div>
                     </td>
                   </tr>
                 ) : (
@@ -485,14 +487,23 @@ export default function MasterDesignations({ onOpenBackup }) {
               className="form-select"
               value={formData.Department}
               onChange={(e) => setFormData({ ...formData, Department: e.target.value })}
+              disabled={loading}
               required
             >
-              <option value="" disabled>-- Select Department --</option>
-              {departments.map(d => (
-                <option key={d.DepartmentId || d.DepartmentName} value={d.DepartmentName}>
-                  {d.DepartmentName}
-                </option>
-              ))}
+              {loading ? (
+                <option value="" disabled>Fetching data...</option>
+              ) : departments.length === 0 ? (
+                <option value="" disabled>No Data Available</option>
+              ) : (
+                <>
+                  <option value="" disabled>-- Select Department --</option>
+                  {departments.map(d => (
+                    <option key={d.DepartmentId || d.DepartmentName} value={d.DepartmentName}>
+                      {d.DepartmentName}
+                    </option>
+                  ))}
+                </>
+              )}
             </select>
           </div>
 

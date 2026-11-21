@@ -227,6 +227,7 @@ export default function RolesRights({ onOpenBackup, inline = false }) {
               className="form-select"
               value={selectedRole}
               onChange={(e) => setSelectedRole(e.target.value)}
+              disabled={loading}
               style={{
                 width: 'auto',
                 minWidth: '180px',
@@ -237,10 +238,18 @@ export default function RolesRights({ onOpenBackup, inline = false }) {
                 padding: '0.5rem 0.85rem'
               }}
             >
-              <option value="ALL">ALL Roles ({availableRoles.length})</option>
-              {availableRoles.map(r => (
-                <option key={r} value={r}>{r}</option>
-              ))}
+              {loading ? (
+                <option value="" disabled>Fetching data...</option>
+              ) : availableRoles.length === 0 ? (
+                <option value="" disabled>No Data Available</option>
+              ) : (
+                <>
+                  <option value="ALL">ALL Roles ({availableRoles.length})</option>
+                  {availableRoles.map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </>
+              )}
             </select>
           </div>
 
@@ -331,15 +340,17 @@ export default function RolesRights({ onOpenBackup, inline = false }) {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan="6" style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
-                  <RefreshCw size={24} color="#2563eb" className="spin-animation" style={{ margin: '0 auto 0.5rem' }} />
-                  <p style={{ margin: 0, fontSize: '0.85rem' }}>Loading permissions matrix from Google Sheets...</p>
+                <td colSpan="6" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: '#64748b' }}>
+                  <RefreshCw size={26} color="#2563eb" className="spin-animation" style={{ margin: '0 auto 0.75rem' }} />
+                  <div style={{ fontWeight: '600', fontSize: '1rem', color: '#0f172a' }}>Fetching data...</div>
+                  <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>Please wait while permissions matrix is loaded from Google Sheets</div>
                 </td>
               </tr>
             ) : displayedRights.length === 0 ? (
               <tr>
-                <td colSpan="6" style={{ textAlign: 'center', padding: '2.5rem', color: '#94a3b8' }}>
-                  No permission records found for the selected role.
+                <td colSpan="6" style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
+                  <div style={{ fontWeight: '700', fontSize: '1rem', color: '#64748b' }}>No Data Found</div>
+                  <div style={{ fontSize: '0.8rem', marginTop: '4px' }}>No permission records found for the selected role.</div>
                 </td>
               </tr>
             ) : (
