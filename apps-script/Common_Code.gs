@@ -660,13 +660,19 @@ function getDriveBackupsList_(payload) {
 
   let companyName = "SR_Investments";
   let activeTenantId = tenantId || "TEN001";
+  let companyEmail = "";
   try {
     const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
     const tenants = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.TENANT_MASTER);
     const t = tenants.find(x => String(x.TenantId).trim().toUpperCase() === String(activeTenantId).trim().toUpperCase() && !x.IsDeleted);
     if (t && t.CompanyName) companyName = t.CompanyName;
     if (t && t.TenantId) activeTenantId = t.TenantId;
+    if (t && t.SupportEmail) companyEmail = t.SupportEmail;
   } catch (e) {}
+
+  if (!companyEmail && payload.userEmail) {
+    companyEmail = payload.userEmail;
+  }
 
   const cleanCompany = String(companyName).trim().replace(/[^a-zA-Z0-9_-]/g, "_");
   const cleanTenant = String(activeTenantId).trim().replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -676,6 +682,7 @@ function getDriveBackupsList_(payload) {
     success: true,
     companyName: cleanCompany,
     tenantId: cleanTenant,
+    companyEmail: companyEmail,
     driveFolderUrl: root.getUrl(),
     driveFolderPath: "My Drive > SRInvestmentsCRM > org > " + cleanTenant,
     driveFolderName: root.getName(),
@@ -703,14 +710,20 @@ function backupDriveFilesToZip_(payload) {
 
   let companyName = "SR_Investments";
   let activeTenantId = tenantId || "TEN001";
+  let companyEmail = "";
   try {
     const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
     const tenants = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.TENANT_MASTER);
     const t = tenants.find(x => String(x.TenantId).trim().toUpperCase() === String(activeTenantId).trim().toUpperCase() && !x.IsDeleted);
     if (t && t.CompanyName) companyName = t.CompanyName;
     if (t && t.TenantId) activeTenantId = t.TenantId;
+    if (t && t.SupportEmail) companyEmail = t.SupportEmail;
   } catch (e) {
     Logger.log("Could not resolve tenant for backup: " + e.message);
+  }
+
+  if (!companyEmail && payload.userEmail) {
+    companyEmail = payload.userEmail;
   }
 
   const cleanCompany = String(companyName).trim().replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -782,12 +795,23 @@ function backupDriveFilesToZip_(payload) {
   const zipFile = root.createFile(zipBlob);
   zipFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
+  const fileSizeBytes = zipFile.getSize();
+  const sizeFormatted = fileSizeBytes > 1048576 
+    ? (fileSizeBytes / 1048576).toFixed(2) + " MB" 
+    : (fileSizeBytes / 1024).toFixed(1) + " KB";
+  const isLarge = fileSizeBytes > (20 * 1024 * 1024);
+
   // 5. Retrieve updated list of top 3 retained backups
   const updatedZips = getExistingZipBackups_(root).slice(0, 3);
 
   return {
     success: true,
+    fileId: zipFile.getId(),
     fileName: zipFileName,
+    fileSizeBytes: fileSizeBytes,
+    sizeFormatted: sizeFormatted,
+    isLarge: isLarge,
+    companyEmail: companyEmail,
     downloadUrl: zipFile.getDownloadUrl() || ("https://drive.google.com/uc?export=download&id=" + zipFile.getId()),
     viewUrl: zipFile.getUrl(),
     driveFolderUrl: root.getUrl(),
@@ -803,6 +827,138 @@ function backupDriveFilesToZip_(payload) {
       downloadUrl: z.downloadUrl,
       viewUrl: z.viewUrl
     }))
+  };
+}
+
+/**
+ * Send backup ZIP archive to company email.
+ * If file size <= 20MB: attaches ZIP file directly + includes Google Drive link.
+ * If file size > 20MB (large): sends email with Google Drive download & view link + Drive path location.
+ */
+function sendBackupToEmail_(payload) {
+  payload = payload || {};
+  const fileId = payload.fileId;
+  const tenantId = payload.tenantId || payload.activeTenantId || null;
+  const recipientEmail = (payload.recipientEmail || payload.email || "").trim();
+
+  if (!recipientEmail) {
+    throw new Error("Recipient company email address is required.");
+  }
+
+  let file;
+  if (fileId) {
+    try {
+      file = DriveApp.getFileById(fileId);
+    } catch (e) {
+      Logger.log("Could not find file by id: " + fileId);
+    }
+  }
+
+  const root = tenantId ? getTenantDriveRootFolder_(tenantId) : getDriveRootFolder_();
+  if (!file) {
+    const existing = getExistingZipBackups_(root);
+    if (existing.length === 0) {
+      throw new Error("No backup archive found on Google Drive to email.");
+    }
+    file = existing[0].file;
+  }
+
+  const fileName = file.getName();
+  const fileSizeBytes = file.getSize();
+  const sizeFormatted = fileSizeBytes > 1048576 
+    ? (fileSizeBytes / 1048576).toFixed(2) + " MB" 
+    : (fileSizeBytes / 1024).toFixed(1) + " KB";
+
+  let companyName = "SR Investments";
+  let activeTenantId = tenantId || "TEN001";
+  try {
+    const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+    const tenants = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.TENANT_MASTER);
+    const t = tenants.find(x => String(x.TenantId).trim().toUpperCase() === String(activeTenantId).trim().toUpperCase() && !x.IsDeleted);
+    if (t && t.CompanyName) companyName = t.CompanyName;
+    if (t && t.TenantId) activeTenantId = t.TenantId;
+  } catch (e) {
+    Logger.log("Error fetching company name for backup email: " + e.message);
+  }
+
+  const isLarge = fileSizeBytes > (20 * 1024 * 1024);
+  const downloadUrl = file.getDownloadUrl() || ("https://drive.google.com/uc?export=download&id=" + file.getId());
+  const driveFolderPath = "My Drive > SRInvestmentsCRM > org > " + activeTenantId;
+  const driveFolderUrl = root.getUrl();
+  const emailSubject = "[" + companyName + " CRM Backup] " + fileName;
+
+  let deliveryMode = "attachment";
+  const attachments = [];
+
+  if (!isLarge) {
+    try {
+      attachments.push(file.getBlob().setName(fileName));
+    } catch (attErr) {
+      Logger.log("Could not get blob for attachment: " + attErr.message);
+      deliveryMode = "drive_link";
+    }
+  } else {
+    deliveryMode = "drive_link";
+  }
+
+  const htmlBody = 
+    "<div style='font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;'>" +
+      "<div style='background: linear-gradient(135deg, #1e40af, #2563eb); padding: 22px; color: #ffffff; text-align: center;'>" +
+        "<h2 style='margin: 0; font-size: 20px;'>" + companyName + " CRM</h2>" +
+        "<p style='margin: 5px 0 0; opacity: 0.9; font-size: 13px;'>Full System & Google Drive Backup Archive</p>" +
+      "</div>" +
+      "<div style='padding: 24px; color: #1e293b; background: #ffffff;'>" +
+        "<p style='font-size: 15px; margin-top: 0;'>Hello,</p>" +
+        "<p style='font-size: 14px; line-height: 1.5; color: #334155;'>" +
+          "A full system and Google Drive database backup archive has been generated for <strong>" + companyName + "</strong>." +
+        "</p>" +
+        "<div style='background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 18px 0;'>" +
+          "<table style='width: 100%; font-size: 13px; border-collapse: collapse;'>" +
+            "<tr><td style='padding: 5px 0; color: #64748b; width: 140px;'><strong>Archive Name:</strong></td><td style='font-family: monospace; color: #0f172a; font-weight: 600;'>" + fileName + "</td></tr>" +
+            "<tr><td style='padding: 5px 0; color: #64748b;'><strong>Archive Size:</strong></td><td style='color: #0f172a;'>" + sizeFormatted + (isLarge ? " <span style='background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600;'>Large File (>20MB)</span>" : "") + "</td></tr>" +
+            "<tr><td style='padding: 5px 0; color: #64748b;'><strong>Created At:</strong></td><td style='color: #0f172a;'>" + Utilities.formatDate(new Date(), "Asia/Kolkata", "dd MMM yyyy, hh:mm a") + " IST</td></tr>" +
+            "<tr><td style='padding: 5px 0; color: #64748b;'><strong>Drive Location:</strong></td><td style='color: #2563eb; font-family: monospace;'>" + driveFolderPath + "</td></tr>" +
+          "</table>" +
+        "</div>" +
+        (isLarge ? 
+          "<div style='background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 14px; margin-bottom: 18px; color: #92400e; font-size: 13px; line-height: 1.5;'>" +
+            "⚠️ <strong>Large File Notice:</strong> Because this backup package size (" + sizeFormatted + ") exceeds standard email attachment limits (>20MB), it has been securely stored in your company Google Drive. Click below to access or download it directly." +
+          "</div>" : 
+          "<p style='font-size: 13px; color: #16a34a; font-weight: 600;'>📎 The complete backup ZIP file is attached directly to this email.</p>"
+        ) +
+        "<div style='text-align: center; margin: 24px 0 16px;'>" +
+          "<a href='" + downloadUrl + "' style='background: #2563eb; color: #ffffff; text-decoration: none; padding: 11px 22px; border-radius: 6px; font-size: 13px; font-weight: bold; display: inline-block; margin-right: 10px;'>📥 Download Backup (.ZIP)</a>" +
+          "<a href='" + driveFolderUrl + "' style='background: #f1f5f9; color: #334155; text-decoration: none; padding: 11px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; display: inline-block; border: 1px solid #cbd5e1;'>📁 Open in Google Drive</a>" +
+        "</div>" +
+      "</div>" +
+      "<div style='background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 14px; text-align: center; font-size: 12px; color: #94a3b8;'>" +
+        "Retention Policy: The system automatically retains Current + Last 2 backups in Google Drive." +
+      "</div>" +
+    "</div>";
+
+  const mailOptions = {
+    to: recipientEmail,
+    name: companyName + " CRM Backup Service",
+    subject: emailSubject,
+    htmlBody: htmlBody
+  };
+
+  if (attachments.length > 0) {
+    mailOptions.attachments = attachments;
+  }
+
+  MailApp.sendEmail(mailOptions);
+
+  return {
+    success: true,
+    fileName: fileName,
+    recipientEmail: recipientEmail,
+    sizeFormatted: sizeFormatted,
+    isLarge: isLarge,
+    deliveryMode: deliveryMode,
+    message: isLarge 
+      ? "Backup size is large (" + sizeFormatted + " > 20MB). Sent Google Drive download link and folder path to " + recipientEmail + "." 
+      : "Backup package (" + sizeFormatted + ") sent successfully with ZIP attachment to " + recipientEmail + "."
   };
 }
 

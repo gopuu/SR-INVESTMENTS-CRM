@@ -333,6 +333,9 @@ function executeAction_(action, payload) {
     case "getDriveBackupsList":
       return getDriveBackupsList_(payload);
 
+    case "sendBackupToEmail":
+      return sendBackupToEmail_(payload);
+
     // Realtime Notifications
     case "getNotifications":
       return getNotifications_(payload);

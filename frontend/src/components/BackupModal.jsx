@@ -13,7 +13,9 @@ import {
   Check,
   HardDrive,
   RefreshCw,
-  FileArchive
+  FileArchive,
+  Mail,
+  Send
 } from 'lucide-react';
 import { crmApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -25,6 +27,16 @@ export default function BackupModal({ isOpen, onClose }) {
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [fileName, setFileName] = useState('');
   const [copiedPath, setCopiedPath] = useState(false);
+  const [latestBackup, setLatestBackup] = useState(null);
+  const [downloadedLocally, setDownloadedLocally] = useState(false);
+
+  // Email delivery state
+  const [companyEmail, setCompanyEmail] = useState('');
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [activeEmailTarget, setActiveEmailTarget] = useState(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailStatus, setEmailStatus] = useState(null); // { success: boolean, message: string }
 
   // Drive folder & backups retention list state
   const [loadingBackups, setLoadingBackups] = useState(false);
@@ -48,6 +60,12 @@ export default function BackupModal({ isOpen, onClose }) {
         if (res.driveFolderPath) setDriveFolderPath(res.driveFolderPath);
         if (res.companyName) setCompanyName(res.companyName);
         if (res.tenantId) setTenantId(res.tenantId);
+        if (res.companyEmail) {
+          setCompanyEmail(res.companyEmail);
+          setRecipientEmail(prev => prev || res.companyEmail || user?.email || '');
+        } else if (user?.email) {
+          setRecipientEmail(prev => prev || user.email);
+        }
       }
     } catch (err) {
       console.warn('Failed to load drive backups list:', err);
@@ -59,6 +77,11 @@ export default function BackupModal({ isOpen, onClose }) {
   useEffect(() => {
     if (isOpen) {
       setDownloadSuccess(false);
+      setLatestBackup(null);
+      setDownloadedLocally(false);
+      setShowEmailForm(false);
+      setEmailStatus(null);
+      setActiveEmailTarget(null);
       setFileName('');
       loadExistingBackups();
     }
@@ -72,11 +95,25 @@ export default function BackupModal({ isOpen, onClose }) {
 
     setDownloading(true);
     setDownloadSuccess(false);
+    setLatestBackup(null);
+    setDownloadedLocally(false);
+    setShowEmailForm(false);
+    setEmailStatus(null);
 
     try {
-      const res = await crmApi.call('downloadDriveBackup');
-      setFileName(res.fileName || `${companyName}_CRM_${tenantId}_Backup.zip`);
+      const res = await crmApi.call('downloadDriveBackup', { userEmail: user?.email });
+      const currentFileName = res.fileName || `${companyName}_CRM_${tenantId}_Backup.zip`;
+      setFileName(currentFileName);
+      setLatestBackup(res);
       setDownloadSuccess(true);
+
+      if (res.companyEmail) {
+        setCompanyEmail(res.companyEmail);
+        setRecipientEmail(res.companyEmail);
+      } else if (user?.email) {
+        setRecipientEmail(user.email);
+      }
+
       if (res.backups) {
         setBackupsList(res.backups);
       } else {
@@ -84,20 +121,55 @@ export default function BackupModal({ isOpen, onClose }) {
       }
       if (res.driveFolderUrl) setDriveFolderUrl(res.driveFolderUrl);
       if (res.driveFolderPath) setDriveFolderPath(res.driveFolderPath);
-
-      // Auto trigger browser download
-      if (res.downloadUrl) {
-        const link = document.createElement('a');
-        link.href = res.downloadUrl;
-        link.download = res.fileName || `${companyName}_CRM_${tenantId}_Backup.zip`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
     } catch (err) {
       alert(err.message || 'Failed to prepare Drive backup.');
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleDownloadFile = (backupItem) => {
+    const item = backupItem || latestBackup;
+    if (!item?.downloadUrl) {
+      alert('Download link is not available for this archive.');
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = item.downloadUrl;
+    link.download = item.fileName || item.name || `${companyName}_CRM_${tenantId}_Backup.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setDownloadedLocally(true);
+  };
+
+  const handleSendEmail = async (targetItem) => {
+    const item = targetItem || activeEmailTarget || latestBackup;
+    const emailToUse = (recipientEmail || companyEmail || user?.email || '').trim();
+    if (!emailToUse) {
+      alert('Please enter a valid recipient email address.');
+      return;
+    }
+
+    setSendingEmail(true);
+    setEmailStatus(null);
+    try {
+      const res = await crmApi.call('sendBackupToEmail', {
+        fileId: item?.fileId || item?.id,
+        recipientEmail: emailToUse,
+        tenantId: tenantId
+      });
+      setEmailStatus({
+        success: true,
+        message: res.message || `Backup sent successfully to ${emailToUse}`
+      });
+    } catch (err) {
+      setEmailStatus({
+        success: false,
+        message: err.message || 'Failed to send backup email.'
+      });
+    } finally {
+      setSendingEmail(false);
     }
   };
 
@@ -306,16 +378,29 @@ export default function BackupModal({ isOpen, onClose }) {
                           <td style={{ padding: '8px 12px', textAlign: 'right' }}>
                             <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
                               {b.downloadUrl && (
-                                <a
-                                  href={b.downloadUrl}
-                                  download={b.name}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadFile(b)}
                                   className="btn btn-outline-blue btn-sm"
-                                  style={{ fontSize: '0.7rem', padding: '2px 7px', textDecoration: 'none' }}
+                                  style={{ fontSize: '0.7rem', padding: '2px 7px' }}
                                   title="Download ZIP"
                                 >
                                   <Download size={11} />
-                                </a>
+                                </button>
                               )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveEmailTarget(b);
+                                  setShowEmailForm(true);
+                                  setEmailStatus(null);
+                                }}
+                                className="btn btn-outline-blue btn-sm"
+                                style={{ fontSize: '0.7rem', padding: '2px 7px' }}
+                                title="Send Archive to Company Email"
+                              >
+                                <Mail size={11} />
+                              </button>
                               {b.viewUrl && (
                                 <a
                                   href={b.viewUrl}
@@ -342,26 +427,192 @@ export default function BackupModal({ isOpen, onClose }) {
               </div>
             </div>
 
-            {downloadSuccess && (
+            {/* Post-Backup Generation Delivery Choice: Download or Send to Company Email */}
+            {downloadSuccess && latestBackup && (
               <div style={{
-                padding: '0.85rem 1rem',
-                backgroundColor: '#dbeafe',
-                border: '1px solid #93c5fd',
-                borderRadius: '8px',
-                color: '#1e40af',
-                fontSize: '0.825rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.6rem',
-                marginBottom: '1rem'
+                padding: '1.15rem',
+                backgroundColor: '#f0fdf4',
+                border: '1.5px solid #86efac',
+                borderRadius: '10px',
+                marginBottom: '1rem',
+                boxShadow: '0 2px 6px rgba(22, 163, 74, 0.08)'
               }}>
-                <CheckCircle size={18} color="#2563eb" />
-                <div>
-                  <div>New backup generated: <strong>{fileName}</strong></div>
-                  <div style={{ fontSize: '0.75rem', color: '#1e3a8a', marginTop: '2px' }}>
-                    Archive saved to Google Drive and retained under the 3-backup limit. Download started automatically.
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                  <CheckCircle2 size={24} color="#16a34a" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                      <strong style={{ fontSize: '0.925rem', color: '#15803d' }}>
+                        Backup Archive Generated Successfully!
+                      </strong>
+                      <span style={{ fontSize: '0.725rem', fontWeight: '700', padding: '2px 8px', borderRadius: '12px', backgroundColor: '#dcfce7', color: '#166534' }}>
+                        {latestBackup.sizeFormatted || 'Ready'}
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: '0.8rem', color: '#334155', fontFamily: 'monospace', marginTop: '4px', wordBreak: 'break-all' }}>
+                      {latestBackup.fileName}
+                    </div>
+
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '3px' }}>
+                      Archive stored in your tenant Google Drive. Select delivery method below:
+                    </div>
+
+                    {/* Action Choice Buttons */}
+                    <div style={{ marginTop: '0.85rem', display: 'flex', gap: '0.65rem', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        onClick={() => handleDownloadFile(latestBackup)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 12px', fontSize: '0.785rem' }}
+                      >
+                        <Download size={13} />
+                        <span>Download to Device</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn btn-outline-blue btn-sm"
+                        onClick={() => {
+                          setActiveEmailTarget(latestBackup);
+                          setShowEmailForm(true);
+                          setEmailStatus(null);
+                        }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 12px', fontSize: '0.785rem' }}
+                      >
+                        <Mail size={13} />
+                        <span>Send to Company Email</span>
+                      </button>
+                    </div>
+
+                    {downloadedLocally && (
+                      <div style={{ fontSize: '0.75rem', color: '#15803d', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Check size={13} />
+                        <span>Backup package downloaded to your device.</span>
+                      </div>
+                    )}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Send to Company Email Form / Modal Strip */}
+            {showEmailForm && (
+              <div style={{
+                padding: '1rem 1.15rem',
+                backgroundColor: '#eff6ff',
+                border: '1.5px solid #93c5fd',
+                borderRadius: '10px',
+                marginBottom: '1rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Mail size={16} color="#2563eb" />
+                    <strong style={{ fontSize: '0.85rem', color: '#1e40af' }}>
+                      Send Backup to Company Email
+                    </strong>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-icon"
+                    onClick={() => { setShowEmailForm(false); setEmailStatus(null); }}
+                    style={{ width: '22px', height: '22px', fontSize: '11px' }}
+                    title="Close"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div style={{ fontSize: '0.775rem', color: '#334155', marginBottom: '0.65rem' }}>
+                  Target Archive: <strong style={{ fontFamily: 'monospace' }}>{(activeEmailTarget || latestBackup)?.fileName || (activeEmailTarget || latestBackup)?.name}</strong>
+                  {' '}({(activeEmailTarget || latestBackup)?.sizeFormatted})
+                </div>
+
+                {/* Email Delivery Mode Notice */}
+                {(activeEmailTarget || latestBackup)?.isLarge ? (
+                  <div style={{
+                    padding: '0.6rem 0.75rem',
+                    backgroundColor: '#fffbeb',
+                    border: '1px solid #fde68a',
+                    borderRadius: '6px',
+                    color: '#92400e',
+                    fontSize: '0.75rem',
+                    marginBottom: '0.75rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}>
+                    <AlertCircle size={15} color="#d97706" style={{ flexShrink: 0 }} />
+                    <span>
+                      <strong>Large Archive (&gt;20MB):</strong> Delivered to company email via secure Google Drive link &amp; location path to avoid email attachment limits.
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{
+                    padding: '0.6rem 0.75rem',
+                    backgroundColor: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    borderRadius: '6px',
+                    color: '#166534',
+                    fontSize: '0.75rem',
+                    marginBottom: '0.75rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}>
+                    <CheckCircle2 size={15} color="#16a34a" style={{ flexShrink: 0 }} />
+                    <span>
+                      Package size is {(activeEmailTarget || latestBackup)?.sizeFormatted || 'standard'}. Will be attached directly as a <strong>.ZIP file</strong> to the email (+ Google Drive link included).
+                    </span>
+                  </div>
+                )}
+
+                {/* Recipient Email Input & Dispatch */}
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <input
+                    type="email"
+                    className="form-input"
+                    placeholder="Enter recipient company email..."
+                    value={recipientEmail}
+                    onChange={(e) => setRecipientEmail(e.target.value)}
+                    style={{ flex: 1, fontSize: '0.8125rem', padding: '6px 10px' }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => handleSendEmail(activeEmailTarget || latestBackup)}
+                    disabled={sendingEmail || !recipientEmail}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', padding: '6px 14px', whiteSpace: 'nowrap' }}
+                  >
+                    {sendingEmail ? (
+                      <>
+                        <RefreshCw size={13} className="spin-animation" />
+                        <span>Sending...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send size={13} />
+                        <span>Send Email</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {emailStatus && (
+                  <div style={{
+                    marginTop: '0.65rem',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    backgroundColor: emailStatus.success ? '#dcfce7' : '#fee2e2',
+                    color: emailStatus.success ? '#15803d' : '#b91c1c',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}>
+                    {emailStatus.success ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                    <span>{emailStatus.message}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
