@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Building2, 
   Briefcase, 
@@ -12,7 +12,8 @@ import {
   CheckCircle2, 
   AlertCircle,
   FolderTree,
-  UserCheck
+  UserCheck,
+  RefreshCw
 } from 'lucide-react';
 import Header from '../components/Header';
 import Modal from '../components/Modal';
@@ -30,6 +31,16 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
   const [loading, setLoading] = useState(true);
   const [showDeleted, setShowDeleted] = useState(() => crmApi.getShowDeletedGlobally());
   const [search, setSearch] = useState('');
+
+  // Progressive scroll pagination state (Initial 10 rows, auto-loads +10 on scroll)
+  const PAGE_SIZE = 10;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef(null);
+
+  // Reset pagination when active tab, search, or showDeleted changes
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [activeTab, search, showDeleted]);
 
   // Master Datasets
   const [departments, setDepartments] = useState([]);
@@ -247,14 +258,14 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
 
   const handleDelete = async (type, id, name) => {
     const confirmed = await showConfirm(
-      'Soft-Delete Record?',
-      `Are you sure you want to soft-delete "${name}"?\n\nRecords are soft-deleted to maintain audit compliance.`,
-      'Yes, Soft-Delete'
+      'Delete Record?',
+      `Are you sure you want to delete "${name}"? Records are preserved in the deleted archive.`,
+      'Yes, Delete'
     );
     if (!confirmed) return;
     try {
       await crmApi.call('deleteMasterItem', { type, id, userEmail: user?.email });
-      showSuccess('Record Soft-Deleted', `"${name}" has been soft-deleted.`);
+      showSuccess('Record Deleted', `"${name}" has been deleted.`);
       await loadAllMasters();
     } catch (err) {
       showError('Delete Failed', err.message || 'Failed to delete record');
@@ -276,6 +287,28 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
       showError('Restore Failed', err.message || 'Failed to restore record');
     }
   };
+
+  // Active list count for current tab
+  const currentTabCount = activeTab === 'departments' 
+    ? filteredDepartments.length 
+    : activeTab === 'designations' 
+    ? filteredDesignations.length 
+    : filteredRoles.length;
+
+  // Infinite scroll intersection observer for high performance fast scrolling
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setVisibleCount(prev => Math.min(prev + PAGE_SIZE, currentTabCount));
+      }
+    }, { threshold: 0.1, rootMargin: '120px' });
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [currentTabCount]);
 
   // Filter items by search keyword
   const filterList = (list, codeField, nameField) => {
@@ -498,7 +531,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                 <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} />
               </div>
 
-              {/* Show Soft-Deleted Toggle */}
+              {/* Show Deleted Toggle */}
               <label style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -564,7 +597,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                       </td>
                     </tr>
                   ) : (
-                    filteredDepartments.map((dept) => (
+                    filteredDepartments.slice(0, visibleCount).map((dept) => (
                       <tr key={dept.DepartmentId} style={dept.IsDeleted ? { backgroundColor: '#fff5f5' } : {}}>
                         <td>
                           <span style={{ 
@@ -612,7 +645,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                                 </button>
                                 <button
                                   className="btn-icon"
-                                  title="Soft-Delete Department"
+                                  title="Delete Department"
                                   onClick={() => handleDelete('department', dept.DepartmentId, dept.DepartmentName)}
                                 >
                                   <Trash2 size={15} color="#ef4444" />
@@ -650,7 +683,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                       </td>
                     </tr>
                   ) : (
-                    filteredDesignations.map((desig) => (
+                    filteredDesignations.slice(0, visibleCount).map((desig) => (
                       <tr key={desig.DesignationId} style={desig.IsDeleted ? { backgroundColor: '#fff5f5' } : {}}>
                         <td>
                           <span style={{ 
@@ -703,7 +736,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                                 </button>
                                 <button
                                   className="btn-icon"
-                                  title="Soft-Delete Designation"
+                                  title="Delete Designation"
                                   onClick={() => handleDelete('designation', desig.DesignationId, desig.DesignationName)}
                                 >
                                   <Trash2 size={15} color="#ef4444" />
@@ -740,7 +773,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                       </td>
                     </tr>
                   ) : (
-                    filteredRoles.map((role) => (
+                    filteredRoles.slice(0, visibleCount).map((role) => (
                       <tr key={role.RoleId} style={role.IsDeleted ? { backgroundColor: '#fff5f5' } : {}}>
                         <td>
                           <span style={{ 
@@ -788,7 +821,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                                 </button>
                                 <button
                                   className="btn-icon"
-                                  title="Soft-Delete Role"
+                                  title="Delete Role"
                                   onClick={() => handleDelete('role', role.RoleId, role.RoleName)}
                                 >
                                   <Trash2 size={15} color="#ef4444" />
@@ -804,6 +837,49 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
               </table>
             )}
           </div>
+
+          {/* Progressive Infinite Scroll Sentinel & Counter */}
+          {!loading && currentTabCount > 0 && (
+            <div ref={sentinelRef} style={{
+              padding: '0.85rem 1.25rem',
+              backgroundColor: '#f8fafc',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '0.5rem'
+            }}>
+              <span style={{ fontSize: '0.785rem', color: '#64748b' }}>
+                Showing <strong>{Math.min(visibleCount, currentTabCount)}</strong> of <strong>{currentTabCount}</strong> records
+              </span>
+              {visibleCount < currentTabCount ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <span style={{ fontSize: '0.775rem', color: '#2563eb', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <RefreshCw size={13} className="spin-animation" /> Scroll for more (+10)
+                  </span>
+                  <button
+                    className="btn btn-outline-blue btn-sm"
+                    style={{ fontSize: '0.725rem', padding: '2px 8px' }}
+                    onClick={() => setVisibleCount(prev => Math.min(prev + PAGE_SIZE, currentTabCount))}
+                  >
+                    Load More (+10)
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '0.725rem', padding: '2px 8px' }}
+                    onClick={() => setVisibleCount(currentTabCount)}
+                  >
+                    Load All ({currentTabCount})
+                  </button>
+                </div>
+              ) : (
+                <span style={{ fontSize: '0.75rem', color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: '600' }}>
+                  <CheckCircle2 size={14} /> All {currentTabCount} records loaded
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

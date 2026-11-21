@@ -326,9 +326,12 @@ function executeAction_(action, payload) {
     case "restoreMasterItem":
       return restoreMasterItem_(payload);
 
-    // Drive Full ZIP Backup
+    // Drive Full ZIP Backup & Listing
     case "downloadDriveBackup":
       return backupDriveFilesToZip_(payload);
+
+    case "getDriveBackupsList":
+      return getDriveBackupsList_(payload);
 
     // Realtime Notifications
     case "getNotifications":

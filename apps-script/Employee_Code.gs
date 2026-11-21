@@ -227,10 +227,10 @@ function deleteEmployee_(payload) {
   // Sync deactivation to central Tenant_User_Mapping
   syncEmployeeDeleteToUserMapping_(rec.Email, tenantId, userEmail);
 
-  logAudit_(userEmail, "SOFT_DELETE", "Staff", rec.EmployeeCode || employeeId, 
-    "Soft-deleted staff member: " + (rec.FullName || "") + " (" + (rec.EmployeeCode || employeeId) + ")");
+  logAudit_(userEmail, "DELETE", "Staff", rec.EmployeeCode || employeeId, 
+    "Deleted staff member: " + (rec.FullName || "") + " (" + (rec.EmployeeCode || employeeId) + ")");
 
-  return { success: true, message: "Staff member soft-deleted successfully (retained in compliance audit archive)." };
+  return { success: true, message: "Staff member deleted successfully (retained in compliance audit archive)." };
 }
 
 /**

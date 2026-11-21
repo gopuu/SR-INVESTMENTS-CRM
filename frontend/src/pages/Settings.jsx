@@ -178,7 +178,7 @@ export default function Settings({ onOpenBackup }) {
     setShowDeletedGlobally(val);
     setMsg({
       text: val 
-        ? 'Show Deleted Data ENABLED: All modules (Customers, Staff, etc.) will now display soft-deleted records.' 
+        ? 'Show Deleted Data ENABLED: All modules (Customers, Staff, etc.) will now display deleted records.' 
         : 'Show Deleted Data DISABLED: Only active records are displayed across modules.',
       type: 'info'
     });
@@ -391,7 +391,7 @@ export default function Settings({ onOpenBackup }) {
                       </h3>
                     </div>
                     <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0, maxWidth: '650px' }}>
-                      By default (unchecked), only active records are fetched. When checked, soft-deleted / archived records will be displayed across ALL CRM modules (Customers, Staff, etc.) with archival timestamps and one-click restore.
+                      By default (unchecked), only active records are fetched. When checked, deleted / archived records will be displayed across ALL CRM modules (Customers, Staff, etc.) with archival timestamps and one-click restore.
                     </p>
                   </div>
 

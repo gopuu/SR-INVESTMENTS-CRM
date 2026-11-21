@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Users, 
   Search, 
@@ -7,6 +7,7 @@ import {
   Trash2, 
   Download, 
   CheckCircle, 
+  CheckCircle2,
   AlertCircle, 
   FileText,
   Building,
@@ -14,7 +15,8 @@ import {
   UserCheck,
   RotateCcw,
   Archive,
-  Clock
+  Clock,
+  RefreshCw
 } from 'lucide-react';
 import { crmApi, subscribeCrmEvents } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -31,6 +33,31 @@ export default function Customers({ onOpenBackup }) {
   const [kycFilter, setKycFilter] = useState('');
   const [showDeleted, setShowDeleted] = useState(() => crmApi.getShowDeletedGlobally());
   
+  // Progressive scroll pagination state (Initial 10 rows, auto-loads +10 on scroll)
+  const PAGE_SIZE = 10;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef(null);
+
+  // Reset pagination to initial 10 rows when search or filter criteria change
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [search, kycFilter, showDeleted]);
+
+  // Infinite scroll intersection observer for high performance fast scrolling
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setVisibleCount(prev => Math.min(prev + PAGE_SIZE, customers.length));
+      }
+    }, { threshold: 0.1, rootMargin: '120px' });
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [customers.length]);
+
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
@@ -149,14 +176,14 @@ export default function Customers({ onOpenBackup }) {
 
   const handleDelete = async (id, name) => {
     const confirmed = await showConfirm(
-      'Soft-Delete Investor?',
-      `Are you sure you want to soft-delete investor "${name}"? Per SEBI compliance, records are preserved in the audit trail.`
+      'Delete Investor?',
+      `Are you sure you want to delete investor "${name}"? Records are preserved in the deleted archive.`
     );
     if (!confirmed) return;
     try {
       await crmApi.call('deleteCustomer', { customerId: id });
       await loadCustomers();
-      showSuccess(`Investor "${name}" soft-deleted.`);
+      showSuccess(`Investor "${name}" deleted.`);
     } catch (err) {
       showError(err.message || 'Failed to delete customer');
     }
@@ -165,7 +192,7 @@ export default function Customers({ onOpenBackup }) {
   const handleRestore = async (id, name) => {
     const confirmed = await showConfirm(
       'Restore Investor?',
-      `Restore soft-deleted investor "${name}" to active status?`
+      `Restore deleted investor "${name}" to active status?`
     );
     if (!confirmed) return;
     try {
@@ -249,7 +276,7 @@ export default function Customers({ onOpenBackup }) {
                 <option value="Rejected">Rejected</option>
               </select>
 
-              {/* Soft-Delete Compliance Archive Toggle */}
+              {/* Deleted Records Archive Toggle */}
               <label style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -270,7 +297,7 @@ export default function Customers({ onOpenBackup }) {
                   style={{ accentColor: '#dc2626', cursor: 'pointer' }}
                 />
                 <Archive size={13} />
-                <span>Show Soft-Deleted</span>
+                <span>Show Deleted</span>
               </label>
 
               <button className="btn btn-secondary" onClick={exportCSV} title="Export to CSV">
@@ -313,17 +340,18 @@ export default function Customers({ onOpenBackup }) {
                 {loading ? (
                   <tr>
                     <td colSpan="9" style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
-                      Loading mutual fund investors...
+                      <RefreshCw size={22} color="#2563eb" className="spin-animation" style={{ margin: '0 auto 0.5rem' }} />
+                      <p style={{ margin: 0 }}>Loading mutual fund investors...</p>
                     </td>
                   </tr>
                 ) : customers.length === 0 ? (
                   <tr>
                     <td colSpan="9" style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
-                      {showDeleted ? 'No soft-deleted investors in audit archive.' : 'No investor records found. Click "Add Investor" to create one.'}
+                      {showDeleted ? 'No deleted investors in archive.' : 'No investor records found. Click "Add Investor" to create one.'}
                     </td>
                   </tr>
                 ) : (
-                  customers.map((c) => (
+                  customers.slice(0, visibleCount).map((c) => (
                     <tr key={c.CustomerId || c.CustomerCode} style={c.IsDeleted ? { backgroundColor: '#fff5f5' } : {}}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -332,7 +360,7 @@ export default function Customers({ onOpenBackup }) {
                           </strong>
                           {c.IsDeleted && (
                             <span className="badge" style={{ backgroundColor: '#fee2e2', color: '#b91c1c', fontSize: '0.625rem' }}>
-                              Soft-Deleted
+                              Deleted
                             </span>
                           )}
                         </div>
@@ -395,7 +423,7 @@ export default function Customers({ onOpenBackup }) {
                           {c.IsDeleted ? (
                             <button
                               className="btn btn-outline-blue btn-sm"
-                              title="Restore Soft-Deleted Investor"
+                              title="Restore Deleted Investor"
                               onClick={() => handleRestore(c.CustomerId, c.FullName)}
                               style={{ fontSize: '0.72rem', padding: '3px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                             >
@@ -416,7 +444,7 @@ export default function Customers({ onOpenBackup }) {
                               {hasPermission('Customers', 'CanDelete') && (
                                 <button
                                   className="btn-icon"
-                                  title="Soft-Delete Investor (Audit preserved)"
+                                  title="Delete Investor"
                                   onClick={() => handleDelete(c.CustomerId, c.FullName)}
                                 >
                                   <Trash2 size={15} color="#ef4444" />
@@ -432,6 +460,49 @@ export default function Customers({ onOpenBackup }) {
               </tbody>
             </table>
           </div>
+
+          {/* Progressive Infinite Scroll Sentinel & Counter */}
+          {!loading && customers.length > 0 && (
+            <div ref={sentinelRef} style={{
+              padding: '0.85rem 1.25rem',
+              backgroundColor: '#f8fafc',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '0.5rem'
+            }}>
+              <span style={{ fontSize: '0.785rem', color: '#64748b' }}>
+                Showing <strong>{Math.min(visibleCount, customers.length)}</strong> of <strong>{customers.length}</strong> investors
+              </span>
+              {visibleCount < customers.length ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <span style={{ fontSize: '0.775rem', color: '#2563eb', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <RefreshCw size={13} className="spin-animation" /> Scroll for more (+10)
+                  </span>
+                  <button
+                    className="btn btn-outline-blue btn-sm"
+                    style={{ fontSize: '0.725rem', padding: '2px 8px' }}
+                    onClick={() => setVisibleCount(prev => Math.min(prev + PAGE_SIZE, customers.length))}
+                  >
+                    Load More (+10)
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '0.725rem', padding: '2px 8px' }}
+                    onClick={() => setVisibleCount(customers.length)}
+                  >
+                    Load All ({customers.length})
+                  </button>
+                </div>
+              ) : (
+                <span style={{ fontSize: '0.75rem', color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: '600' }}>
+                  <CheckCircle2 size={14} /> All {customers.length} records loaded
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

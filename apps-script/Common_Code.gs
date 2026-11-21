@@ -609,56 +609,200 @@ function deleteDriveFileSafely_(fileId) {
   }
 }
 
+function formatBytes_(bytes) {
+  if (!bytes || bytes <= 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+}
+
+/**
+ * Reads existing ZIP backup files from the tenant drive root folder,
+ * sorted newest first by creation timestamp
+ */
+function getExistingZipBackups_(folder) {
+  const zipList = [];
+  try {
+    const files = folder.getFiles();
+    while (files.hasNext()) {
+      const file = files.next();
+      const name = file.getName();
+      if (name.toLowerCase().endsWith(".zip")) {
+        const createdDate = file.getDateCreated();
+        zipList.push({
+          file: file,
+          id: file.getId(),
+          name: name,
+          size: file.getSize(),
+          sizeFormatted: formatBytes_(file.getSize()),
+          createdAt: createdDate ? createdDate.getTime() : 0,
+          createdDate: createdDate ? createdDate.toISOString() : new Date().toISOString(),
+          downloadUrl: file.getDownloadUrl() || ("https://drive.google.com/uc?export=download&id=" + file.getId()),
+          viewUrl: file.getUrl()
+        });
+      }
+    }
+  } catch (err) {
+    Logger.log("getExistingZipBackups_ error: " + err.message);
+  }
+  zipList.sort((a, b) => b.createdAt - a.createdAt);
+  return zipList;
+}
+
+/**
+ * Get listing of last 3 backups and Drive folder path for tenant
+ */
+function getDriveBackupsList_(payload) {
+  payload = payload || {};
+  const tenantId = payload.tenantId || payload.activeTenantId || null;
+  const root = tenantId ? getTenantDriveRootFolder_(tenantId) : getDriveRootFolder_();
+
+  let companyName = "SR_Investments";
+  let activeTenantId = tenantId || "TEN001";
+  try {
+    const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+    const tenants = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.TENANT_MASTER);
+    const t = tenants.find(x => String(x.TenantId).trim().toUpperCase() === String(activeTenantId).trim().toUpperCase() && !x.IsDeleted);
+    if (t && t.CompanyName) companyName = t.CompanyName;
+    if (t && t.TenantId) activeTenantId = t.TenantId;
+  } catch (e) {}
+
+  const cleanCompany = String(companyName).trim().replace(/[^a-zA-Z0-9_-]/g, "_");
+  const cleanTenant = String(activeTenantId).trim().replace(/[^a-zA-Z0-9_-]/g, "_");
+  const existingZips = getExistingZipBackups_(root);
+
+  return {
+    success: true,
+    companyName: cleanCompany,
+    tenantId: cleanTenant,
+    driveFolderUrl: root.getUrl(),
+    driveFolderPath: "My Drive > SRInvestmentsCRM > org > " + cleanTenant,
+    driveFolderName: root.getName(),
+    backups: existingZips.slice(0, 3).map(z => ({
+      id: z.id,
+      name: z.name,
+      sizeFormatted: z.sizeFormatted,
+      createdDate: z.createdDate,
+      downloadUrl: z.downloadUrl,
+      viewUrl: z.viewUrl
+    }))
+  };
+}
+
 /**
  * Generate full ZIP backup of Google Drive folder and files
+ * Retention: Always keep Current + last 2 backups (Max 3). Automatically removes older backups.
+ * Naming: CompanyName_CRM_TENANTID_DATETIME.ZIP
+ * Subfolders: CompanyName_CRM_TENANTID_<folder>
  */
 function backupDriveFilesToZip_(payload) {
   payload = payload || {};
   const tenantId = payload.tenantId || payload.activeTenantId || null;
   const root = tenantId ? getTenantDriveRootFolder_(tenantId) : getDriveRootFolder_();
-  const blobs = [];
 
-  // Helper to collect files recursively
+  let companyName = "SR_Investments";
+  let activeTenantId = tenantId || "TEN001";
+  try {
+    const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+    const tenants = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.TENANT_MASTER);
+    const t = tenants.find(x => String(x.TenantId).trim().toUpperCase() === String(activeTenantId).trim().toUpperCase() && !x.IsDeleted);
+    if (t && t.CompanyName) companyName = t.CompanyName;
+    if (t && t.TenantId) activeTenantId = t.TenantId;
+  } catch (e) {
+    Logger.log("Could not resolve tenant for backup: " + e.message);
+  }
+
+  const cleanCompany = String(companyName).trim().replace(/[^a-zA-Z0-9_-]/g, "_");
+  const cleanTenant = String(activeTenantId).trim().replace(/[^a-zA-Z0-9_-]/g, "_");
+  const prefixBase = cleanCompany + "_CRM_" + cleanTenant;
+
+  // 1. Retention Management: Keep at most 2 previous backups so when new 1 is added, total is 3
+  const existingZips = getExistingZipBackups_(root);
+  if (existingZips.length >= 3) {
+    // Delete oldest backups beyond the top 2
+    for (let i = 2; i < existingZips.length; i++) {
+      try {
+        existingZips[i].file.setTrashed(true);
+        Logger.log("Removed older backup exceeding retention limit (max 3): " + existingZips[i].name);
+      } catch (err) {
+        Logger.log("Error trashing older backup: " + err.message);
+      }
+    }
+  }
+
+  // 2. Helper to collect files recursively into ZIP with CompanyName_CRM_TENANTID_<folder> naming
+  const blobs = [];
   function collectBlobs(folder, pathPrefix) {
     const files = folder.getFiles();
     while (files.hasNext()) {
       const file = files.next();
-      const blob = file.getBlob().setName(pathPrefix + "/" + file.getName());
+      const fname = file.getName();
+      // Skip .zip backup files so we don't zip previous zips
+      if (fname.toLowerCase().endsWith(".zip")) continue;
+      const blob = file.getBlob().setName(pathPrefix + "/" + fname);
       blobs.push(blob);
     }
     const subfolders = folder.getFolders();
     while (subfolders.hasNext()) {
       const sub = subfolders.next();
-      collectBlobs(sub, pathPrefix + "/" + sub.getName());
+      let subName = sub.getName();
+      // Replace generic SR_CRM_ with CompanyName_CRM_TENANTID_
+      if (subName.indexOf("SR_CRM_") === 0) {
+        subName = subName.replace("SR_CRM_", prefixBase + "_");
+      } else if (subName.indexOf("SR_") === 0) {
+        subName = subName.replace("SR_", prefixBase + "_");
+      } else {
+        subName = prefixBase + "_" + subName;
+      }
+      collectBlobs(sub, pathPrefix + "/" + subName);
     }
   }
 
-  collectBlobs(root, "SRInvestmentsCRM");
+  collectBlobs(root, prefixBase);
 
-  // Also include Database JSON snapshot (from tenant operational database)
+  // 3. Database JSON snapshot (from tenant operational database)
   const custSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.CUSTOMERS, CRM_SCHEMAS.CUSTOMERS, tenantId);
   const empSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES, tenantId);
   const dbSnapshot = {
     exportedAt: new Date().toISOString(),
-    tenantId: tenantId || "Default",
-    firm: "SR INVESTMENTS",
+    tenantId: cleanTenant,
+    companyName: cleanCompany,
     customers: getSheetRowsAsObjects_(custSheet, CRM_SCHEMAS.CUSTOMERS),
     employees: getSheetRowsAsObjects_(empSheet, CRM_SCHEMAS.EMPLOYEES)
   };
-  blobs.push(Utilities.newBlob(JSON.stringify(dbSnapshot, null, 2), "application/json", "Database_Snapshot.json"));
+  blobs.push(Utilities.newBlob(JSON.stringify(dbSnapshot, null, 2), "application/json", prefixBase + "_Database_Snapshot.json"));
 
+  // 4. Create ZIP: CompanyName_CRM_TENANTID_DATETIME.ZIP
   const dateStr = Utilities.formatDate(new Date(), "Asia/Kolkata", "yyyyMMdd_HHmmss");
-  const zipFileName = "SR_Investments_Drive_Backup_" + dateStr + ".zip";
+  const zipFileName = prefixBase + "_" + dateStr + ".zip";
   const zipBlob = Utilities.zip(blobs, zipFileName);
 
   // Save to Drive root folder
   const zipFile = root.createFile(zipBlob);
   zipFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
+  // 5. Retrieve updated list of top 3 retained backups
+  const updatedZips = getExistingZipBackups_(root).slice(0, 3);
+
   return {
     success: true,
     fileName: zipFileName,
-    downloadUrl: zipFile.getDownloadUrl() || ("https://drive.google.com/uc?export=download&id=" + zipFile.getId())
+    downloadUrl: zipFile.getDownloadUrl() || ("https://drive.google.com/uc?export=download&id=" + zipFile.getId()),
+    viewUrl: zipFile.getUrl(),
+    driveFolderUrl: root.getUrl(),
+    driveFolderPath: "My Drive > SRInvestmentsCRM > org > " + cleanTenant,
+    driveFolderName: root.getName(),
+    companyName: cleanCompany,
+    tenantId: cleanTenant,
+    backups: updatedZips.map(z => ({
+      id: z.id,
+      name: z.name,
+      sizeFormatted: z.sizeFormatted,
+      createdDate: z.createdDate,
+      downloadUrl: z.downloadUrl,
+      viewUrl: z.viewUrl
+    }))
   };
 }
 
@@ -1182,8 +1326,8 @@ function deleteMasterItem_(payload) {
   if (colDelBy > 0) sheet.getRange(rowNum, colDelBy).setValue(userEmail);
   if (colDelAt > 0) sheet.getRange(rowNum, colDelAt).setValue(now);
 
-  logAudit_(userEmail, "SOFT_DELETE", "MasterHub", id, `Soft-deleted ${type}: ${id}`);
-  return { success: true, message: `${type} soft-deleted.` };
+  logAudit_(userEmail, "DELETE", "MasterHub", id, `Deleted ${type}: ${id}`);
+  return { success: true, message: `${type} deleted.` };
 }
 
 function restoreMasterItem_(payload) {
@@ -1571,7 +1715,7 @@ function deleteTenant_(payload) {
     Status: "Suspended"
   }, CRM_SCHEMAS.TENANT_MASTER);
 
-  return { success: true, message: "Client organization soft deleted." };
+  return { success: true, message: "Client organization deleted." };
 }
 
 /**
@@ -1742,7 +1886,7 @@ function saveTenantUserMappings_(payload) {
     savedCount++;
   });
 
-  // 2. If replaceMode is true (default), unselected existing mappings for this tenant are deactivated / soft-deleted
+  // 2. If replaceMode is true (default), unselected existing mappings for this tenant are deactivated / deleted
   const replaceMode = payload.replaceMode !== false;
   let unmappedCount = 0;
   if (replaceMode) {
@@ -1750,7 +1894,7 @@ function saveTenantUserMappings_(payload) {
       if (!selectedUserIdsSet.has(uKey)) {
         const item = existingByUserId[uKey];
         if (!item.record.IsDeleted || String(item.record.IsDeleted).toLowerCase() !== "true") {
-          const softDeleted = Object.assign({}, item.record, {
+          const deletedRecord = Object.assign({}, item.record, {
             Status: "Inactive",
             IsDeleted: true,
             Updated_By: userEmail,
@@ -1758,7 +1902,7 @@ function saveTenantUserMappings_(payload) {
             Deleted_By: userEmail,
             Deleted_At: now
           });
-          writeRowByHeaders_(mapSheet, item.rowNumber, softDeleted, CRM_SCHEMAS.TENANT_USER_MAPPING);
+          writeRowByHeaders_(mapSheet, item.rowNumber, deletedRecord, CRM_SCHEMAS.TENANT_USER_MAPPING);
           unmappedCount++;
         }
       }
@@ -1775,7 +1919,7 @@ function saveTenantUserMappings_(payload) {
 }
 
 /**
- * Remove/soft-delete a single Tenant-User Mapping (SuperAdmin only)
+ * Remove/delete a single Tenant-User Mapping (SuperAdmin only)
  */
 function deleteTenantUserMapping_(payload) {
   payload = payload || {};
@@ -1804,7 +1948,7 @@ function deleteTenantUserMapping_(payload) {
     throw new Error("Tenant-User Mapping not found.");
   }
 
-  const softDeleted = Object.assign({}, mappings[targetIndex], {
+  const deletedRecord = Object.assign({}, mappings[targetIndex], {
     Status: "Inactive",
     IsDeleted: true,
     Updated_By: userEmail,
@@ -1812,7 +1956,7 @@ function deleteTenantUserMapping_(payload) {
     Deleted_By: userEmail,
     Deleted_At: now
   });
-  writeRowByHeaders_(mapSheet, targetIndex + 2, softDeleted, CRM_SCHEMAS.TENANT_USER_MAPPING);
+  writeRowByHeaders_(mapSheet, targetIndex + 2, deletedRecord, CRM_SCHEMAS.TENANT_USER_MAPPING);
 
   return {
     success: true,

@@ -358,15 +358,15 @@ export default function SuperAdminPortal({ onOpenBackup }) {
 
   const handleDeleteTenant = async (t) => {
     const confirmed = await showConfirm(
-      'Soft Delete Organization?',
-      `Are you sure you want to deactivate and soft delete client organization "${t.CompanyName}" (${t.TenantId})? This will suspend workspace access.`
+      'Delete Organization?',
+      `Are you sure you want to deactivate and delete client organization "${t.CompanyName}" (${t.TenantId})? This will suspend workspace access.`
     );
     if (!confirmed) return;
 
     try {
       await crmApi.call('deleteTenant', { tenantId: t.TenantId });
       loadTenants();
-      showSuccess(`Client organization "${t.CompanyName}" soft deleted.`);
+      showSuccess(`Client organization "${t.CompanyName}" deleted.`);
     } catch (err) {
       showError(err.message || 'Failed to delete client');
     }
@@ -735,7 +735,7 @@ export default function SuperAdminPortal({ onOpenBackup }) {
                   checked={showDeleted}
                   onChange={(e) => setShowDeleted(e.target.checked)}
                 />
-                <span>Show Soft Deleted</span>
+                <span>Show Deleted</span>
               </label>
 
               <button
@@ -923,12 +923,12 @@ export default function SuperAdminPortal({ onOpenBackup }) {
                               <Edit3 size={14} />
                             </button>
 
-                            {/* Soft Delete */}
+                            {/* Delete Organization */}
                             {!t.IsDeleted && (
                               <button
                                 className="btn btn-secondary btn-sm"
                                 onClick={() => handleDeleteTenant(t)}
-                                title="Soft Delete Client Organization"
+                                title="Delete Client Organization"
                                 style={{ padding: '0.35rem 0.5rem', color: '#ef4444' }}
                               >
                                 <Trash2 size={14} />

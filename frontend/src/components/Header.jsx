@@ -152,7 +152,7 @@ export default function Header({ title, subtitle, onRefresh, refreshing, onOpenB
         return { bg: '#dbeafe', color: '#1d4ed8', label: 'Updated' };
       case 'DELETE':
       case 'SOFT_DELETE':
-        return { bg: '#fee2e2', color: '#b91c1c', label: 'Soft Deleted' };
+        return { bg: '#fee2e2', color: '#b91c1c', label: 'Deleted' };
       case 'RESTORE':
         return { bg: '#f3e8ff', color: '#7e22ce', label: 'Restored' };
       default:

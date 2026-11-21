@@ -173,10 +173,10 @@ function deleteCustomer_(payload) {
   if (colDeletedBy > 0) sheet.getRange(rowNum, colDeletedBy).setValue(userEmail);
   if (colDeletedAt > 0) sheet.getRange(rowNum, colDeletedAt).setValue(now);
 
-  logAudit_(userEmail, "SOFT_DELETE", "Customers", rec.CustomerCode || customerId, 
-    "Soft-deleted investor: " + (rec.FullName || "") + " (" + (rec.CustomerCode || customerId) + ")");
+  logAudit_(userEmail, "DELETE", "Customers", rec.CustomerCode || customerId, 
+    "Deleted investor: " + (rec.FullName || "") + " (" + (rec.CustomerCode || customerId) + ")");
 
-  return { success: true, message: "Investor soft-deleted successfully (preserved in compliance audit archive)." };
+  return { success: true, message: "Investor deleted successfully (preserved in compliance audit archive)." };
 }
 
 /**

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   UserCheck, 
   Search, 
@@ -14,7 +14,9 @@ import {
   Shield,
   RotateCcw,
   Archive,
-  Clock
+  Clock,
+  RefreshCw,
+  CheckCircle2
 } from 'lucide-react';
 import { crmApi, getNextEmployeeCode, subscribeCrmEvents } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -29,6 +31,31 @@ export default function Staff({ onOpenBackup }) {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [showDeleted, setShowDeleted] = useState(() => crmApi.getShowDeletedGlobally());
+
+  // Progressive scroll pagination state (Initial 10 rows, auto-loads +10 on scroll)
+  const PAGE_SIZE = 10;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef(null);
+
+  // Reset pagination to initial 10 rows when search or filter criteria change
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [search, showDeleted]);
+
+  // Infinite scroll intersection observer for high performance fast scrolling
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setVisibleCount(prev => Math.min(prev + PAGE_SIZE, employees.length));
+      }
+    }, { threshold: 0.1, rootMargin: '120px' });
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [employees.length]);
 
   // Master Hub Datasets for Dropdowns
   const [departments, setDepartments] = useState([]);
@@ -226,8 +253,8 @@ export default function Staff({ onOpenBackup }) {
 
   const handleDelete = async (id, name) => {
     const confirmed = await showConfirm(
-      'Soft-Delete Staff Member?',
-      `Are you sure you want to soft-delete staff member "${name}"? Per SEBI compliance, records are preserved in the audit trail.`
+      'Delete Staff Member?',
+      `Are you sure you want to delete staff member "${name}"? Records are preserved in the deleted archive.`
     );
     if (!confirmed) return;
     try {
@@ -242,7 +269,7 @@ export default function Staff({ onOpenBackup }) {
   const handleRestore = async (id, name) => {
     const confirmed = await showConfirm(
       'Restore Staff Member?',
-      `Restore soft-deleted staff member "${name}" to active status?`
+      `Restore deleted staff member "${name}" to active status?`
     );
     if (!confirmed) return;
     try {
@@ -284,7 +311,7 @@ export default function Staff({ onOpenBackup }) {
             </form>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-              {/* Soft-Delete Compliance Archive Toggle */}
+              {/* Deleted Records Archive Toggle */}
               <label style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -305,7 +332,7 @@ export default function Staff({ onOpenBackup }) {
                   style={{ accentColor: '#dc2626', cursor: 'pointer' }}
                 />
                 <Archive size={13} />
-                <span>Show Soft-Deleted</span>
+                <span>Show Deleted</span>
               </label>
 
               {hasPermission('Staff', 'CanCreate') && (
@@ -343,17 +370,18 @@ export default function Staff({ onOpenBackup }) {
                 {loading ? (
                   <tr>
                     <td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
-                      Loading team members...
+                      <RefreshCw size={22} color="#2563eb" className="spin-animation" style={{ margin: '0 auto 0.5rem' }} />
+                      <p style={{ margin: 0 }}>Loading team members...</p>
                     </td>
                   </tr>
                 ) : employees.length === 0 ? (
                   <tr>
                     <td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
-                      {showDeleted ? 'No soft-deleted staff members in audit archive.' : 'No staff records found. Click "Add Staff Member" to add one.'}
+                      {showDeleted ? 'No deleted staff members in archive.' : 'No staff records found. Click "Add Staff Member" to add one.'}
                     </td>
                   </tr>
                 ) : (
-                  employees.map((e) => (
+                  employees.slice(0, visibleCount).map((e) => (
                     <tr key={e.EmployeeId || e.EmployeeCode} style={e.IsDeleted ? { backgroundColor: '#fff5f5' } : {}}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
@@ -385,7 +413,7 @@ export default function Staff({ onOpenBackup }) {
                           </strong>
                           {e.IsDeleted && (
                             <span className="badge" style={{ backgroundColor: '#fee2e2', color: '#b91c1c', fontSize: '0.625rem' }}>
-                              Soft-Deleted
+                              Deleted
                             </span>
                           )}
                         </div>
@@ -433,7 +461,7 @@ export default function Staff({ onOpenBackup }) {
                           {e.IsDeleted ? (
                             <button
                               className="btn btn-outline-blue btn-sm"
-                              title="Restore Soft-Deleted Staff"
+                              title="Restore Deleted Staff"
                               onClick={() => handleRestore(e.EmployeeId, e.FullName)}
                               style={{ fontSize: '0.72rem', padding: '3px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                             >
@@ -454,7 +482,7 @@ export default function Staff({ onOpenBackup }) {
                               {hasPermission('Staff', 'CanDelete') && (
                                 <button
                                   className="btn-icon"
-                                  title="Soft-Delete Staff Member (Audit preserved)"
+                                  title="Delete Staff Member"
                                   onClick={() => handleDelete(e.EmployeeId, e.FullName)}
                                 >
                                   <Trash2 size={15} color="#ef4444" />
@@ -470,6 +498,49 @@ export default function Staff({ onOpenBackup }) {
               </tbody>
             </table>
           </div>
+
+          {/* Progressive Infinite Scroll Sentinel & Counter */}
+          {!loading && employees.length > 0 && (
+            <div ref={sentinelRef} style={{
+              padding: '0.85rem 1.25rem',
+              backgroundColor: '#f8fafc',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '0.5rem'
+            }}>
+              <span style={{ fontSize: '0.785rem', color: '#64748b' }}>
+                Showing <strong>{Math.min(visibleCount, employees.length)}</strong> of <strong>{employees.length}</strong> staff members
+              </span>
+              {visibleCount < employees.length ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <span style={{ fontSize: '0.775rem', color: '#2563eb', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <RefreshCw size={13} className="spin-animation" /> Scroll for more (+10)
+                  </span>
+                  <button
+                    className="btn btn-outline-blue btn-sm"
+                    style={{ fontSize: '0.725rem', padding: '2px 8px' }}
+                    onClick={() => setVisibleCount(prev => Math.min(prev + PAGE_SIZE, employees.length))}
+                  >
+                    Load More (+10)
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '0.725rem', padding: '2px 8px' }}
+                    onClick={() => setVisibleCount(employees.length)}
+                  >
+                    Load All ({employees.length})
+                  </button>
+                </div>
+              ) : (
+                <span style={{ fontSize: '0.75rem', color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: '600' }}>
+                  <CheckCircle2 size={14} /> All {employees.length} records loaded
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

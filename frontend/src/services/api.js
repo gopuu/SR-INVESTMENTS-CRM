@@ -2221,7 +2221,7 @@ export const crmApi = {
           localStorage.setItem(STORAGE_KEYS.TENANTS, JSON.stringify(tenants));
         }
         broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Tenants' });
-        return { success: true, message: 'Client organization soft deleted.' };
+        return { success: true, message: 'Client organization deleted.' };
       }
 
       case 'getPaymentAccounts': {
@@ -2682,7 +2682,7 @@ export const crmApi = {
         return { customerId: id, customerCode: code, message: 'Investor saved successfully.' };
       }
 
-      // Soft-Delete Customer Always
+      // Delete Customer Always
       case 'deleteCustomer': {
         const customerId = payload.customerId || payload.CustomerId;
         const userEmail = payload.userEmail || 'admin@srinvestments.com';
@@ -2694,21 +2694,21 @@ export const crmApi = {
           rec.Deleted_By = userEmail;
           rec.Deleted_At = new Date().toISOString();
           localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(list));
-          logAuditLocal(userEmail, 'SOFT_DELETE', 'Customers', rec.CustomerCode, `Soft-deleted investor: ${rec.FullName} (${rec.CustomerCode})`);
+          logAuditLocal(userEmail, 'DELETE', 'Customers', rec.CustomerCode, `Deleted investor: ${rec.FullName} (${rec.CustomerCode})`);
           dispatchNotification({
             action: 'DELETE',
             module: 'Customers',
             recordId: rec.CustomerCode,
-            title: `Customer Soft-Deleted: ${rec.FullName}`,
-            message: `${rec.FullName} (${rec.CustomerCode}) was archived by ${userEmail}.`,
+            title: `Customer Deleted: ${rec.FullName}`,
+            message: `${rec.FullName} (${rec.CustomerCode}) was deleted by ${userEmail}.`,
             targetRoute: 'customers'
           });
           broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Customers', recordId: rec.CustomerCode });
         }
-        return { success: true, message: 'Customer soft-deleted successfully (retained in compliance audit archive).' };
+        return { success: true, message: 'Customer deleted successfully (retained in compliance audit archive).' };
       }
 
-      // Restore Soft-Deleted Customer
+      // Restore Deleted Customer
       case 'restoreCustomer': {
         const customerId = payload.customerId || payload.CustomerId;
         const userEmail = payload.userEmail || 'admin@srinvestments.com';
@@ -2985,7 +2985,7 @@ export const crmApi = {
         return { employeeId: id, employeeCode: code, message: `Staff ${code} saved successfully.` };
       }
 
-      // Soft-Delete Employee Always
+      // Delete Employee Always
       case 'deleteEmployee': {
         const empId = payload.employeeId || payload.EmployeeId;
         const userEmail = payload.userEmail || 'admin@srinvestments.com';
@@ -3013,21 +3013,21 @@ export const crmApi = {
             }
           } catch (e) {}
 
-          logAuditLocal(userEmail, 'SOFT_DELETE', 'Staff', rec.EmployeeCode, `Soft-deleted staff member: ${rec.FullName} (${rec.EmployeeCode})`);
+          logAuditLocal(userEmail, 'DELETE', 'Staff', rec.EmployeeCode, `Deleted staff member: ${rec.FullName} (${rec.EmployeeCode})`);
           dispatchNotification({
             action: 'DELETE',
             module: 'Staff',
             recordId: rec.EmployeeCode,
-            title: `Staff Archived: ${rec.FullName}`,
-            message: `${rec.FullName} (${rec.EmployeeCode}) was archived by ${userEmail}.`,
+            title: `Staff Deleted: ${rec.FullName}`,
+            message: `${rec.FullName} (${rec.EmployeeCode}) was deleted by ${userEmail}.`,
             targetRoute: 'staff'
           });
           broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Staff', recordId: rec.EmployeeCode });
         }
-        return { success: true, message: 'Staff member soft-deleted successfully (retained in compliance audit archive).' };
+        return { success: true, message: 'Staff member deleted successfully (retained in compliance audit archive).' };
       }
 
-      // Restore Soft-Deleted Employee
+      // Restore Deleted Employee
       case 'restoreEmployee': {
         const empId = payload.employeeId || payload.EmployeeId;
         const userEmail = payload.userEmail || 'admin@srinvestments.com';
@@ -3055,18 +3055,39 @@ export const crmApi = {
         return { success: true, message: 'Staff member restored successfully.' };
       }
 
-      // Drive Backup in ZIP format
+      // Drive Backup Listing & ZIP generator
+      case 'getDriveBackupsList': {
+        const activeTenant = crmApi.getActiveTenant() || { tenantId: 'TEN001', companyName: 'SR_Investments' };
+        const cleanCompany = (activeTenant.companyName || 'SR_Investments').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const cleanTenant = (activeTenant.tenantId || 'TEN001').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const existingBackups = JSON.parse(localStorage.getItem('crm_drive_backups_list') || '[]');
+        return {
+          success: true,
+          companyName: cleanCompany,
+          tenantId: cleanTenant,
+          driveFolderUrl: 'https://drive.google.com/drive/folders/SRInvestmentsCRM',
+          driveFolderPath: `My Drive > SRInvestmentsCRM > org > ${cleanTenant}`,
+          driveFolderName: cleanTenant,
+          backups: existingBackups.slice(0, 3)
+        };
+      }
+
       case 'downloadDriveBackup': {
         const customers = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMERS) || '[]');
         const employees = JSON.parse(localStorage.getItem(STORAGE_KEYS.EMPLOYEES) || '[]');
         const settings = JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTINGS) || '{}');
+        const activeTenant = crmApi.getActiveTenant() || { tenantId: 'TEN001', companyName: 'SR_Investments' };
+        const cleanCompany = (activeTenant.companyName || 'SR_Investments').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const cleanTenant = (activeTenant.tenantId || 'TEN001').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const prefixBase = `${cleanCompany}_CRM_${cleanTenant}`;
 
         // Create client-side downloadable backup JSON or manifest
         const backupPackage = {
           meta: {
-            title: 'SR INVESTMENTS CRM - Full Database & File Backup',
+            title: `${cleanCompany} CRM - Full Database & File Backup`,
             generatedAt: new Date().toISOString(),
-            firm: 'SR INVESTMENTS (ARN-189241)',
+            tenantId: cleanTenant,
+            firm: cleanCompany,
             version: '2.0.0'
           },
           database: {
@@ -3076,11 +3097,42 @@ export const crmApi = {
           }
         };
 
+        const now = new Date();
+        const dateStr = now.getFullYear().toString() +
+          String(now.getMonth() + 1).padStart(2, '0') +
+          String(now.getDate()).padStart(2, '0') + '_' +
+          String(now.getHours()).padStart(2, '0') +
+          String(now.getMinutes()).padStart(2, '0') +
+          String(now.getSeconds()).padStart(2, '0');
+        const zipFileName = `${prefixBase}_${dateStr}.zip`;
+
         const blob = new Blob([JSON.stringify(backupPackage, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
+
+        // Keep at most 2 previous in local storage, so total with new one is 3
+        const list = JSON.parse(localStorage.getItem('crm_drive_backups_list') || '[]');
+        const updatedList = [
+          {
+            id: 'backup_' + Date.now(),
+            name: zipFileName,
+            sizeFormatted: '1.24 MB',
+            createdDate: now.toISOString(),
+            downloadUrl: url,
+            viewUrl: 'https://drive.google.com/drive/folders/SRInvestmentsCRM'
+          },
+          ...list.slice(0, 2)
+        ];
+        localStorage.setItem('crm_drive_backups_list', JSON.stringify(updatedList));
+
         return {
+          success: true,
           downloadUrl: url,
-          fileName: `SR_Investments_Drive_Backup_${new Date().toISOString().slice(0, 10)}.zip`
+          fileName: zipFileName,
+          driveFolderUrl: 'https://drive.google.com/drive/folders/SRInvestmentsCRM',
+          driveFolderPath: `My Drive > SRInvestmentsCRM > org > ${cleanTenant}`,
+          companyName: cleanCompany,
+          tenantId: cleanTenant,
+          backups: updatedList
         };
       }
 
@@ -3249,10 +3301,10 @@ export const crmApi = {
           list[index].Deleted_By = userEmail;
           list[index].Deleted_At = now;
           localStorage.setItem(storageKey, JSON.stringify(list));
-          logAuditLocal(userEmail, 'SOFT_DELETE', 'MasterHub', id, `Soft-deleted ${type}: ${id}`);
+          logAuditLocal(userEmail, 'DELETE', 'MasterHub', id, `Deleted ${type}: ${id}`);
           broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'MasterHub', subType: type });
         }
-        return { success: true, message: `${type} soft-deleted.` };
+        return { success: true, message: `${type} deleted.` };
       }
 
       case 'restoreMasterItem': {
