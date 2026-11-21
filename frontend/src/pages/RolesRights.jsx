@@ -36,16 +36,33 @@ export default function RolesRights({ onOpenBackup, inline = false }) {
   const [selectedRole, setSelectedRole] = useState('ALL'); // 'ALL' or specific role name
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [approvalSettings, setApprovalSettings] = useState({
+    enabled: false,
+    onAdd: true,
+    onEdit: true,
+    onDelete: true
+  });
+  const [savingApproval, setSavingApproval] = useState(false);
 
   const canEditRights = user?.role === 'Admin' || hasPermission('RolesRights', 'CanEdit');
 
   const loadRightsAndRoles = async () => {
     try {
       setLoading(true);
-      const [rtsRes, rolesRes] = await Promise.all([
+      const [rtsRes, rolesRes, appRes] = await Promise.all([
         crmApi.call('getRolesRights').catch(() => []),
-        crmApi.call('getRoles', { includeDeleted: false }).catch(() => [])
+        crmApi.call('getRoles', { includeDeleted: false }).catch(() => []),
+        crmApi.call('getApprovalSettings').catch(() => ({ enabled: false, onAdd: true, onEdit: true, onDelete: true }))
       ]);
+
+      if (appRes) {
+        setApprovalSettings({
+          enabled: Boolean(appRes.enabled),
+          onAdd: appRes.onAdd !== false,
+          onEdit: appRes.onEdit !== false,
+          onDelete: appRes.onDelete !== false
+        });
+      }
 
       const loadedRights = Array.isArray(rtsRes) ? rtsRes : [];
       const loadedRoles = Array.isArray(rolesRes) ? rolesRes : [];
@@ -172,6 +189,28 @@ export default function RolesRights({ onOpenBackup, inline = false }) {
     }));
   };
 
+  // Save approval workflow settings
+  const handleSaveApprovalSettings = async () => {
+    if (!canEditRights) {
+      showError('Restricted', 'Only Admins can change approval governance.');
+      return;
+    }
+    setSavingApproval(true);
+    try {
+      await crmApi.call('saveApprovalSettings', approvalSettings);
+      showSuccess(
+        'Approval Settings Saved',
+        approvalSettings.enabled 
+          ? 'Admin Approval Workflow is now ENABLED. Non-admin operations will be marked as "Approval Pending".' 
+          : 'Admin Approval Workflow is now DISABLED. All authorized staff can add/edit/delete directly.'
+      );
+    } catch (err) {
+      showError('Save Failed', err.message || 'Failed to save approval settings.');
+    } finally {
+      setSavingApproval(false);
+    }
+  };
+
   // Save all rights
   const handleSaveRights = async () => {
     if (!canEditRights) {
@@ -193,6 +232,117 @@ export default function RolesRights({ onOpenBackup, inline = false }) {
 
   const content = (
     <div className="crm-card" style={{ padding: '2rem' }}>
+      {/* Admin Approval Governance Card */}
+      <div style={{
+        marginBottom: '1.75rem',
+        padding: '1.25rem 1.5rem',
+        borderRadius: '12px',
+        backgroundColor: approvalSettings.enabled ? '#eff6ff' : '#f8fafc',
+        border: `1.5px solid ${approvalSettings.enabled ? '#93c5fd' : '#e2e8f0'}`,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.85rem'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <div style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                backgroundColor: approvalSettings.enabled ? '#2563eb' : '#94a3b8',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ffffff'
+              }}>
+                <ShieldCheck size={18} />
+              </div>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '800', color: '#0f172a' }}>
+                  Admin Approval Workflow (Data Change Governance)
+                </h4>
+                <p style={{ margin: '2px 0 0 0', fontSize: '0.775rem', color: '#64748b' }}>
+                  When enabled, any record added, edited, or deleted by Non-Admin users is marked with Status <strong>'Approval Pending'</strong> and requires an Admin to approve it before it becomes active.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: canEditRights ? 'pointer' : 'not-allowed', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={approvalSettings.enabled}
+                onChange={(e) => setApprovalSettings({ ...approvalSettings, enabled: e.target.checked })}
+                disabled={!canEditRights || savingApproval}
+                style={{ width: '20px', height: '20px', accentColor: '#2563eb', cursor: 'pointer' }}
+              />
+              <span style={{ fontWeight: '700', fontSize: '0.875rem', color: approvalSettings.enabled ? '#1d4ed8' : '#64748b' }}>
+                {approvalSettings.enabled ? 'APPROVAL ENABLED' : 'APPROVAL DISABLED (Direct Access)'}
+              </span>
+            </label>
+
+            {canEditRights && (
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={handleSaveApprovalSettings}
+                disabled={savingApproval}
+                style={{ fontSize: '0.78rem', padding: '0.45rem 1rem' }}
+              >
+                <Save size={14} /> {savingApproval ? 'Saving...' : 'Save Approval Config'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Granular Add/Edit/Delete approval options */}
+        {approvalSettings.enabled && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1.5rem',
+            paddingTop: '0.65rem',
+            borderTop: '1px solid #bfdbfe',
+            fontSize: '0.8rem',
+            color: '#1e3a8a',
+            flexWrap: 'wrap'
+          }}>
+            <span style={{ fontWeight: '700' }}>Require Approval for:</span>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={approvalSettings.onAdd}
+                onChange={(e) => setApprovalSettings({ ...approvalSettings, onAdd: e.target.checked })}
+                disabled={!canEditRights}
+                style={{ accentColor: '#2563eb' }}
+              />
+              <span>Add / New Records</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={approvalSettings.onEdit}
+                onChange={(e) => setApprovalSettings({ ...approvalSettings, onEdit: e.target.checked })}
+                disabled={!canEditRights}
+                style={{ accentColor: '#2563eb' }}
+              />
+              <span>Edit / Updates</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={approvalSettings.onDelete}
+                onChange={(e) => setApprovalSettings({ ...approvalSettings, onDelete: e.target.checked })}
+                disabled={!canEditRights}
+                style={{ accentColor: '#2563eb' }}
+              />
+              <span>Delete Operations</span>
+            </label>
+          </div>
+        )}
+      </div>
+
       {/* Top Controls Bar: Role Dropdown on left side of Save button */}
       <div style={{
         display: 'flex',

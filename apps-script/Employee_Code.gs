@@ -150,6 +150,21 @@ function saveEmployee_(data) {
   }
 
   // Audit Fields
+  const isNew = existingIndex < 0;
+  const isAdmin = isCallerAdmin_(data);
+  const approval = getApprovalSettings_(tenantId);
+  const needsApproval = !isAdmin && ((isNew && approval.onAdd) || (!isNew && approval.onEdit));
+
+  let status = cleanStr_(data.Status || "Active");
+  let approvedBy = existingRecord ? (existingRecord.Approved_By || (isAdmin ? userEmail : "Direct")) : (isAdmin ? userEmail : "Direct");
+  let approvedAt = existingRecord ? (existingRecord.Approved_At || now) : now;
+
+  if (needsApproval) {
+    status = "Approval Pending";
+    approvedBy = "";
+    approvedAt = "";
+  }
+
   const isDeleted = existingRecord ? Boolean(existingRecord.IsDeleted === true || existingRecord.IsDeleted === "TRUE") : false;
   const createdBy = existingRecord ? (existingRecord.Created_By || userEmail) : userEmail;
   const createdAt = existingRecord ? (existingRecord.Created_At || existingRecord.CreatedAt || now) : now;
@@ -157,12 +172,6 @@ function saveEmployee_(data) {
   const updatedAt = now;
   const deletedBy = existingRecord ? (existingRecord.Deleted_By || "") : "";
   const deletedAt = existingRecord ? (existingRecord.Deleted_At || "") : "";
-
-  // Sanitize status to Active or Inactive
-  let status = cleanStr_(data.Status || "Active");
-  if (status !== "Active" && status !== "Inactive") {
-    status = "Active";
-  }
 
   const recordObj = {
     EmployeeId: id,
@@ -188,6 +197,8 @@ function saveEmployee_(data) {
     Created_At: createdAt,
     Updated_By: updatedBy,
     Updated_At: updatedAt,
+    Approved_By: approvedBy,
+    Approved_At: approvedAt,
     Deleted_By: deletedBy,
     Deleted_At: deletedAt
   };
@@ -199,16 +210,19 @@ function saveEmployee_(data) {
   syncEmployeeToUserMaster_(recordObj, tenantId, userEmail);
 
   if (existingIndex >= 0) {
-    logAudit_(userEmail, "UPDATE", "Staff", code, "Updated staff: " + code + " (" + data.FullName + ")");
+    logAudit_(userEmail, "UPDATE", "Staff", code, "Updated staff: " + code + " (" + data.FullName + ")" + (needsApproval ? " [Approval Pending]" : ""));
   } else {
-    logAudit_(userEmail, "CREATE", "Staff", code, "Created staff: " + code + " (" + data.FullName + ")");
+    logAudit_(userEmail, "CREATE", "Staff", code, "Created staff: " + code + " (" + data.FullName + ")" + (needsApproval ? " [Approval Pending]" : ""));
   }
 
   return { 
     employeeId: id, 
     employeeCode: code, 
     photoUrl: photoUrl, 
-    message: "Staff member " + code + " saved successfully." 
+    pendingApproval: needsApproval,
+    message: needsApproval 
+      ? "Staff member submitted for Admin approval (Status: Approval Pending)." 
+      : "Staff member " + code + " saved successfully." 
   };
 }
 
@@ -229,6 +243,22 @@ function deleteEmployee_(payload) {
   const rec = rows[index];
   const now = new Date().toISOString();
   const rowNum = index + 2;
+
+  const isAdmin = isCallerAdmin_(payload);
+  const approval = getApprovalSettings_(tenantId);
+
+  // If non-admin and delete approval required: do not delete, set Status = 'Approval Pending (Delete)'
+  if (!isAdmin && approval.onDelete) {
+    const colStatus = getHeaderColIndex_(sheet, "Status");
+    const colUpdBy = getHeaderColIndex_(sheet, "Updated_By");
+    const colUpdAt = getHeaderColIndex_(sheet, "Updated_At");
+    if (colStatus > 0) sheet.getRange(rowNum, colStatus).setValue("Approval Pending (Delete)");
+    if (colUpdBy > 0) sheet.getRange(rowNum, colUpdBy).setValue(userEmail);
+    if (colUpdAt > 0) sheet.getRange(rowNum, colUpdAt).setValue(now);
+    logAudit_(userEmail, "REQUEST_DELETE", "Staff", rec.EmployeeCode || employeeId, 
+      "Delete request submitted for staff: " + (rec.FullName || "") + " (Pending Admin Approval)");
+    return { success: true, message: "Staff deletion submitted. Admin approval pending.", pendingApproval: true };
+  }
 
   const colIsDeleted = getHeaderColIndex_(sheet, "IsDeleted");
   const colDeletedBy = getHeaderColIndex_(sheet, "Deleted_By");

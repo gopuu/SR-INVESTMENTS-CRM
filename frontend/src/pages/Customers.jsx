@@ -16,7 +16,9 @@ import {
   RotateCcw,
   Archive,
   Clock,
-  RefreshCw
+  RefreshCw,
+  Check,
+  X
 } from 'lucide-react';
 import { crmApi, subscribeCrmEvents, getInitialsCode } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -25,7 +27,8 @@ import Modal from '../components/Modal';
 import { showSuccess, showError, showWarning, showConfirm } from '../utils/swal';
 
 export default function Customers({ onOpenBackup }) {
-  const { hasPermission } = useAuth();
+  const { user, hasPermission, isSuperAdmin } = useAuth();
+  const isAdmin = user?.role === 'Admin' || user?.role?.toLowerCase() === 'admin' || isSuperAdmin;
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -229,6 +232,38 @@ export default function Customers({ onOpenBackup }) {
     }
   };
 
+  const handleApprove = async (customerId, name) => {
+    const confirmed = await showConfirm(
+      'Approve Investor?',
+      `Approve pending changes/creation for "${name}"? This will make the record Active.`,
+      'Yes, Approve'
+    );
+    if (!confirmed) return;
+    try {
+      await crmApi.call('approveRecord', { type: 'customer', id: customerId, adminEmail: user?.email });
+      showSuccess('Approved', `"${name}" approved successfully.`);
+      await loadCustomers();
+    } catch (err) {
+      showError('Approval Failed', err.message || 'Failed to approve investor record');
+    }
+  };
+
+  const handleReject = async (customerId, name) => {
+    const confirmed = await showConfirm(
+      'Reject Investor Request?',
+      `Reject pending request for "${name}"?`,
+      'Yes, Reject'
+    );
+    if (!confirmed) return;
+    try {
+      await crmApi.call('rejectRecord', { type: 'customer', id: customerId, adminEmail: user?.email });
+      showSuccess('Rejected', `"${name}" request has been rejected.`);
+      await loadCustomers();
+    } catch (err) {
+      showError('Rejection Failed', err.message || 'Failed to reject investor record');
+    }
+  };
+
   const exportCSV = () => {
     if (!customers.length) return showWarning('No data to export');
     const headers = ['CustomerCode', 'FullName', 'Email', 'Mobile', 'PAN', 'AadhaarLast4', 'KYC', 'Category', 'Bank', 'AccountNo', 'IFSC', 'City', 'RiskProfile'];
@@ -358,13 +393,14 @@ export default function Customers({ onOpenBackup }) {
                   <th>Category</th>
                   <th>Risk Profile</th>
                   <th>KYC Status</th>
+                  <th>Status</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="9" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: '#64748b' }}>
+                    <td colSpan="10" style={{ textAlign: 'center', padding: '3.5rem 1rem', color: '#64748b' }}>
                       <RefreshCw size={26} color="#2563eb" className="spin-animation" style={{ margin: '0 auto 0.75rem' }} />
                       <div style={{ fontWeight: '600', fontSize: '1rem', color: '#0f172a' }}>Fetching data...</div>
                       <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>Please wait while investor records are loaded from the database</div>
@@ -372,7 +408,7 @@ export default function Customers({ onOpenBackup }) {
                   </tr>
                 ) : customers.length === 0 ? (
                   <tr>
-                    <td colSpan="9" style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
+                    <td colSpan="10" style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
                       <div style={{ fontWeight: '700', fontSize: '1rem', color: '#64748b' }}>No Data Found</div>
                       <div style={{ fontSize: '0.8rem', marginTop: '4px' }}>
                         {showDeleted ? 'No deleted investors in archive.' : 'No investor records found. Click "Add Investor" to create one.'}
@@ -407,6 +443,11 @@ export default function Customers({ onOpenBackup }) {
                         <div style={{ fontSize: '0.675rem', color: '#94a3b8', marginTop: '2px' }}>
                           Created: {c.Created_At ? new Date(c.Created_At).toLocaleDateString() : '—'} ({c.Created_By || 'System'})
                         </div>
+                        {c.Approved_By && (
+                          <div style={{ fontSize: '0.675rem', color: '#059669', marginTop: '2px', fontWeight: '600' }}>
+                            ✓ Approved by: {c.Approved_By}
+                          </div>
+                        )}
                       </td>
                       <td>
                         <div>
@@ -447,8 +488,52 @@ export default function Customers({ onOpenBackup }) {
                           {c.KycStatus || 'Pending'}
                         </span>
                       </td>
+                      <td>
+                        {(() => {
+                          const s = String(c.Status || 'Active').trim();
+                          if (s.toLowerCase().includes('pending')) {
+                            return (
+                              <span className="badge" style={{ backgroundColor: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <Clock size={11} /> {s}
+                              </span>
+                            );
+                          }
+                          if (s.toLowerCase() === 'rejected') {
+                            return (
+                              <span className="badge" style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5' }}>
+                                Rejected
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className={`badge ${s === 'Active' ? 'badge-primary' : 'badge-danger'}`}>
+                              {s}
+                            </span>
+                          );
+                        })()}
+                      </td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
+                          {isAdmin && c.Status?.toLowerCase().includes('pending') && (
+                            <>
+                              <button
+                                className="btn-icon"
+                                title="Approve Investor"
+                                onClick={() => handleApprove(c.CustomerId, c.FullName)}
+                                style={{ backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }}
+                              >
+                                <Check size={15} color="#059669" />
+                              </button>
+                              <button
+                                className="btn-icon"
+                                title="Reject Investor"
+                                onClick={() => handleReject(c.CustomerId, c.FullName)}
+                                style={{ backgroundColor: '#fef2f2', borderColor: '#fecaca' }}
+                              >
+                                <X size={15} color="#dc2626" />
+                              </button>
+                            </>
+                          )}
                           {c.IsDeleted ? (
                             <button
                               className="btn btn-outline-blue btn-sm"

@@ -359,6 +359,19 @@ function executeAction_(action, payload) {
     case "saveRolesRights":
       return saveRolesRights_(payload);
 
+    // Data Change Governance & Admin Approval Workflow
+    case "getApprovalSettings":
+      return getApprovalSettingsApi_(payload);
+
+    case "saveApprovalSettings":
+      return saveApprovalSettings_(payload);
+
+    case "approveRecord":
+      return approveRecord_(payload);
+
+    case "rejectRecord":
+      return rejectRecord_(payload);
+
     // Central Database Management & Maintenance
     case "setupCentralDatabase":
       return setupCentralDatabase();

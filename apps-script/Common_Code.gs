@@ -100,14 +100,14 @@ const CRM_SCHEMAS = {
     "CustomerId", "CustomerCode", "FullName", "Email", "Mobile", "PanNumber",
     "AadhaarLast4", "KycStatus", "InvestorCategory", "DateOfBirth", "NomineeName",
     "NomineeRelation", "BankName", "AccountNumber", "IfscCode", "City", "State",
-    "RiskProfile", "Notes",
-    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
+    "RiskProfile", "Notes", "Status",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Approved_By", "Approved_At", "Deleted_By", "Deleted_At"
   ],
   EMPLOYEES: [
     "EmployeeId", "EmployeeCode", "FullName", "Email", "GoogleEmails", "Mobile", "AlternateMobile",
     "Department", "Designation", "Role", "Password", "JoiningDate", "Status",
     "Address", "City", "State", "PhotoUrl", "DriveFileId",
-    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Approved_By", "Approved_At", "Deleted_By", "Deleted_At"
   ],
   SETTINGS: [
     "Key", "Value", "Description",
@@ -129,15 +129,15 @@ const CRM_SCHEMAS = {
   ],
   DEPARTMENTS: [
     "DepartmentId", "DepartmentCode", "DepartmentName", "Description", "Status",
-    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Approved_By", "Approved_At", "Deleted_By", "Deleted_At"
   ],
   DESIGNATIONS: [
     "DesignationId", "DesignationCode", "DesignationName", "Department", "Description", "Status",
-    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Approved_By", "Approved_At", "Deleted_By", "Deleted_At"
   ],
   ROLES: [
     "RoleId", "RoleCode", "RoleName", "Description", "Status",
-    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Approved_By", "Approved_At", "Deleted_By", "Deleted_At"
   ]
 };
 
@@ -1501,18 +1501,35 @@ function saveMasterItem_(payload) {
     throw new Error(`Duplicate Name: '${name}' already exists in ${type} master. Duplicate master names are not allowed.`);
   }
 
+  const isNew = existingIndex < 0;
+  const isAdmin = isCallerAdmin_(payload);
+  const approval = getApprovalSettings_(tenantId);
+  const needsApproval = !isAdmin && ((isNew && approval.onAdd) || (!isNew && approval.onEdit));
+
+  let statusVal = cleanStr_(data.Status || "Active");
+  let approvedBy = existingRecord ? (existingRecord.Approved_By || (isAdmin ? userEmail : "Direct")) : (isAdmin ? userEmail : "Direct");
+  let approvedAt = existingRecord ? (existingRecord.Approved_At || now) : now;
+
+  if (needsApproval) {
+    statusVal = "Approval Pending";
+    approvedBy = "";
+    approvedAt = "";
+  }
+
   const recordObj = {
     ...data,
     [idField]: id,
     [codeField]: code,
     [nameField]: name,
     Description: cleanStr_(data.Description),
-    Status: cleanStr_(data.Status || "Active"),
+    Status: statusVal,
     IsDeleted: existingRecord ? Boolean(existingRecord.IsDeleted === true || existingRecord.IsDeleted === "TRUE") : false,
     Created_By: existingRecord ? (existingRecord.Created_By || userEmail) : userEmail,
     Created_At: existingRecord ? (existingRecord.Created_At || now) : now,
     Updated_By: userEmail,
     Updated_At: now,
+    Approved_By: approvedBy,
+    Approved_At: approvedAt,
     Deleted_By: existingRecord ? (existingRecord.Deleted_By || "") : "",
     Deleted_At: existingRecord ? (existingRecord.Deleted_At || "") : ""
   };
@@ -1520,9 +1537,17 @@ function saveMasterItem_(payload) {
   const rowIndex = existingIndex >= 0 ? existingIndex + 2 : 0;
   writeRowByHeaders_(sheet, rowIndex, recordObj, schema);
   logAudit_(userEmail, existingIndex >= 0 ? "UPDATE" : "CREATE", "MasterHub", recordObj[codeField], 
-    `${existingIndex >= 0 ? "Updated" : "Created"} ${type}: ${recordObj[nameField]} (${recordObj[codeField]})`);
+    `${existingIndex >= 0 ? "Updated" : "Created"} ${type}: ${recordObj[nameField]} (${recordObj[codeField]})` + 
+    (needsApproval ? " [Approval Pending]" : ""));
 
-  return { success: true, item: recordObj };
+  return { 
+    success: true, 
+    item: recordObj, 
+    pendingApproval: needsApproval,
+    message: needsApproval 
+      ? `${type} submitted for Admin approval (Status: Approval Pending).`
+      : `${type} saved successfully.`
+  };
 }
 
 function deleteMasterItem_(payload) {
@@ -1556,6 +1581,21 @@ function deleteMasterItem_(payload) {
   if (index === -1) throw new Error("Record not found: " + id);
 
   const rowNum = index + 2;
+  const isAdmin = isCallerAdmin_(payload);
+  const approval = getApprovalSettings_(tenantId);
+
+  // If non-admin and delete approval required: do not delete, set Status = 'Approval Pending (Delete)'
+  if (!isAdmin && approval.onDelete) {
+    const colStatus = getHeaderColIndex_(sheet, "Status");
+    const colUpdBy = getHeaderColIndex_(sheet, "Updated_By");
+    const colUpdAt = getHeaderColIndex_(sheet, "Updated_At");
+    if (colStatus > 0) sheet.getRange(rowNum, colStatus).setValue("Approval Pending (Delete)");
+    if (colUpdBy > 0) sheet.getRange(rowNum, colUpdBy).setValue(userEmail);
+    if (colUpdAt > 0) sheet.getRange(rowNum, colUpdAt).setValue(now);
+    logAudit_(userEmail, "REQUEST_DELETE", "MasterHub", id, `Delete request submitted for ${type}: ${id} (Pending Admin Approval)`);
+    return { success: true, message: `${type} deletion submitted. Admin approval pending.`, pendingApproval: true };
+  }
+
   const colIsDel = getHeaderColIndex_(sheet, "IsDeleted");
   const colDelBy = getHeaderColIndex_(sheet, "Deleted_By");
   const colDelAt = getHeaderColIndex_(sheet, "Deleted_At");
@@ -1613,6 +1653,248 @@ function restoreMasterItem_(payload) {
 
   logAudit_(userEmail, "RESTORE", "MasterHub", id, `Restored ${type}: ${id}`);
   return { success: true, message: `${type} restored.` };
+}
+
+/**
+ * ==========================================
+ * DATA MODIFICATION & APPROVAL WORKFLOW
+ * Admin Approval Needed on Add / Edit / Delete
+ * ==========================================
+ */
+function isCallerAdmin_(payload) {
+  if (!payload) return false;
+  if (payload.isSuperAdmin === true || String(payload.isSuperAdmin).toLowerCase() === "true") return true;
+  const role = String(payload.role || payload.Role || "").trim().toLowerCase();
+  if (role === "admin" || role === "superadmin" || role === "super_admin") return true;
+  const email = String(payload.userEmail || "").trim().toLowerCase();
+  if (email && (email.startsWith("admin@") || email.includes("superadmin"))) return true;
+  return false;
+}
+
+function verifyIsAdminOrSuperAdmin_(payload) {
+  if (!isCallerAdmin_(payload)) {
+    throw new Error("Admin privileges required for this action.");
+  }
+}
+
+function getApprovalSettings_(tenantId) {
+  try {
+    const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.SETTINGS, CRM_SCHEMAS.SETTINGS, tenantId);
+    const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.SETTINGS);
+    const getVal = (key) => {
+      const r = rows.find(x => (!x.IsDeleted || String(x.IsDeleted).toLowerCase() !== "true") && String(x.Key || "").toLowerCase() === key.toLowerCase());
+      return r ? String(r.Value || "").trim().toLowerCase() : "";
+    };
+
+    const masterEnabled = getVal("requireadminapproval") === "true" || getVal("adminapprovalrequired") === "true";
+    const onAdd = masterEnabled && getVal("requireapprovalonadd") !== "false";
+    const onEdit = masterEnabled && getVal("requireapprovalonedit") !== "false";
+    const onDelete = masterEnabled && getVal("requireapprovalondelete") !== "false";
+
+    return {
+      enabled: masterEnabled,
+      onAdd: onAdd,
+      onEdit: onEdit,
+      onDelete: onDelete
+    };
+  } catch (err) {
+    Logger.log("getApprovalSettings_ error: " + err.message);
+    return { enabled: false, onAdd: false, onEdit: false, onDelete: false };
+  }
+}
+
+function getApprovalSettingsApi_(payload) {
+  payload = payload || {};
+  const tenantId = payload.tenantId || payload.activeTenantId || null;
+  const settings = getApprovalSettings_(tenantId);
+  return { success: true, ...settings };
+}
+
+function saveApprovalSettings_(payload) {
+  payload = payload || {};
+  verifyIsAdminOrSuperAdmin_(payload);
+  const tenantId = payload.tenantId || payload.activeTenantId || null;
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.SETTINGS, CRM_SCHEMAS.SETTINGS, tenantId);
+  const now = new Date().toISOString();
+
+  const settingsToSave = {
+    AdminApprovalRequired: payload.enabled ? "true" : "false",
+    RequireApprovalOnAdd: payload.onAdd !== false ? "true" : "false",
+    RequireApprovalOnEdit: payload.onEdit !== false ? "true" : "false",
+    RequireApprovalOnDelete: payload.onDelete !== false ? "true" : "false"
+  };
+
+  const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.SETTINGS);
+  Object.keys(settingsToSave).forEach(key => {
+    const val = settingsToSave[key];
+    const cleanKey = key.toLowerCase();
+    const index = rows.findIndex(r => String(r.Key || "").replace(/_/g, "").toLowerCase() === cleanKey);
+    if (index >= 0) {
+      sheet.getRange(index + 2, 2).setValue(val);
+      const uCol = CRM_SCHEMAS.SETTINGS.indexOf("Updated_At") + 1;
+      if (uCol > 0) sheet.getRange(index + 2, uCol).setValue(now);
+    } else {
+      writeRowByHeaders_(sheet, 0, {
+        Key: key,
+        Value: val,
+        Description: "Approval workflow configuration",
+        IsDeleted: false,
+        Created_By: payload.userEmail || "System",
+        Created_At: now,
+        Updated_By: payload.userEmail || "System",
+        Updated_At: now
+      }, CRM_SCHEMAS.SETTINGS);
+    }
+  });
+
+  logAudit_(payload.userEmail || "System", "UPDATE_APPROVAL_SETTINGS", "Settings", 
+    `Approval workflow updated: Enabled=${payload.enabled}, Add=${payload.onAdd}, Edit=${payload.onEdit}, Delete=${payload.onDelete}`);
+
+  return {
+    success: true,
+    message: "Approval workflow settings saved successfully.",
+    settings: {
+      enabled: Boolean(payload.enabled),
+      onAdd: payload.onAdd !== false,
+      onEdit: payload.onEdit !== false,
+      onDelete: payload.onDelete !== false
+    }
+  };
+}
+
+function approveRecord_(payload) {
+  payload = payload || {};
+  verifyIsAdminOrSuperAdmin_(payload);
+  const tenantId = payload.tenantId || payload.activeTenantId || null;
+  const module = String(payload.module || "").trim().toLowerCase();
+  const id = payload.id;
+  const adminEmail = payload.userEmail || "admin@srinvestments.com";
+  const now = new Date().toISOString();
+
+  let sheetName, schema, idField;
+  if (module === "department" || module === "departments") {
+    sheetName = CRM_CONFIG.SHEETS.DEPARTMENTS;
+    schema = CRM_SCHEMAS.DEPARTMENTS;
+    idField = "DepartmentId";
+  } else if (module === "designation" || module === "designations") {
+    sheetName = CRM_CONFIG.SHEETS.DESIGNATIONS;
+    schema = CRM_SCHEMAS.DESIGNATIONS;
+    idField = "DesignationId";
+  } else if (module === "role" || module === "roles") {
+    sheetName = CRM_CONFIG.SHEETS.ROLES;
+    schema = CRM_SCHEMAS.ROLES;
+    idField = "RoleId";
+  } else if (module === "staff" || module === "employee" || module === "employees") {
+    sheetName = CRM_CONFIG.SHEETS.EMPLOYEES;
+    schema = CRM_SCHEMAS.EMPLOYEES;
+    idField = "EmployeeId";
+  } else if (module === "customer" || module === "customers") {
+    sheetName = CRM_CONFIG.SHEETS.CUSTOMERS;
+    schema = CRM_SCHEMAS.CUSTOMERS;
+    idField = "CustomerId";
+  } else {
+    throw new Error("Invalid module for approval: " + module);
+  }
+
+  const sheet = getOrCreateSheet_(sheetName, schema, tenantId);
+  const rows = getSheetRowsAsObjects_(sheet, schema);
+  const index = rows.findIndex(r => String(r[idField] || "").trim() === String(id).trim());
+  if (index === -1) throw new Error("Record not found for approval: " + id);
+
+  const rowNum = index + 2;
+  const rec = rows[index];
+  const isDeleteRequest = String(rec.Status || "").toLowerCase().includes("delete");
+
+  const colStatus = getHeaderColIndex_(sheet, "Status");
+  const colAppBy = getHeaderColIndex_(sheet, "Approved_By");
+  const colAppAt = getHeaderColIndex_(sheet, "Approved_At");
+  const colUpdBy = getHeaderColIndex_(sheet, "Updated_By");
+  const colUpdAt = getHeaderColIndex_(sheet, "Updated_At");
+  const colIsDel = getHeaderColIndex_(sheet, "IsDeleted");
+  const colDelBy = getHeaderColIndex_(sheet, "Deleted_By");
+  const colDelAt = getHeaderColIndex_(sheet, "Deleted_At");
+
+  if (isDeleteRequest) {
+    if (colIsDel > 0) sheet.getRange(rowNum, colIsDel).setValue(true);
+    if (colStatus > 0) sheet.getRange(rowNum, colStatus).setValue("Deleted");
+    if (colDelBy > 0) sheet.getRange(rowNum, colDelBy).setValue(adminEmail);
+    if (colDelAt > 0) sheet.getRange(rowNum, colDelAt).setValue(now);
+  } else {
+    if (colStatus > 0) sheet.getRange(rowNum, colStatus).setValue("Active");
+  }
+
+  if (colAppBy > 0) sheet.getRange(rowNum, colAppBy).setValue(adminEmail);
+  if (colAppAt > 0) sheet.getRange(rowNum, colAppAt).setValue(now);
+  if (colUpdBy > 0) sheet.getRange(rowNum, colUpdBy).setValue(adminEmail);
+  if (colUpdAt > 0) sheet.getRange(rowNum, colUpdAt).setValue(now);
+
+  logAudit_(adminEmail, "APPROVE", module, id, `Approved ${module} (${id})`);
+  return { success: true, message: `${module} record approved successfully by ${adminEmail}.` };
+}
+
+function rejectRecord_(payload) {
+  payload = payload || {};
+  verifyIsAdminOrSuperAdmin_(payload);
+  const tenantId = payload.tenantId || payload.activeTenantId || null;
+  const module = String(payload.module || "").trim().toLowerCase();
+  const id = payload.id;
+  const reason = payload.reason ? (" - " + payload.reason) : "";
+  const adminEmail = payload.userEmail || "admin@srinvestments.com";
+  const now = new Date().toISOString();
+
+  let sheetName, schema, idField;
+  if (module === "department" || module === "departments") {
+    sheetName = CRM_CONFIG.SHEETS.DEPARTMENTS;
+    schema = CRM_SCHEMAS.DEPARTMENTS;
+    idField = "DepartmentId";
+  } else if (module === "designation" || module === "designations") {
+    sheetName = CRM_CONFIG.SHEETS.DESIGNATIONS;
+    schema = CRM_SCHEMAS.DESIGNATIONS;
+    idField = "DesignationId";
+  } else if (module === "role" || module === "roles") {
+    sheetName = CRM_CONFIG.SHEETS.ROLES;
+    schema = CRM_SCHEMAS.ROLES;
+    idField = "RoleId";
+  } else if (module === "staff" || module === "employee" || module === "employees") {
+    sheetName = CRM_CONFIG.SHEETS.EMPLOYEES;
+    schema = CRM_SCHEMAS.EMPLOYEES;
+    idField = "EmployeeId";
+  } else if (module === "customer" || module === "customers") {
+    sheetName = CRM_CONFIG.SHEETS.CUSTOMERS;
+    schema = CRM_SCHEMAS.CUSTOMERS;
+    idField = "CustomerId";
+  } else {
+    throw new Error("Invalid module for rejection: " + module);
+  }
+
+  const sheet = getOrCreateSheet_(sheetName, schema, tenantId);
+  const rows = getSheetRowsAsObjects_(sheet, schema);
+  const index = rows.findIndex(r => String(r[idField] || "").trim() === String(id).trim());
+  if (index === -1) throw new Error("Record not found for rejection: " + id);
+
+  const rowNum = index + 2;
+  const rec = rows[index];
+  const isDeleteRequest = String(rec.Status || "").toLowerCase().includes("delete");
+
+  const colStatus = getHeaderColIndex_(sheet, "Status");
+  const colAppBy = getHeaderColIndex_(sheet, "Approved_By");
+  const colAppAt = getHeaderColIndex_(sheet, "Approved_At");
+  const colUpdBy = getHeaderColIndex_(sheet, "Updated_By");
+  const colUpdAt = getHeaderColIndex_(sheet, "Updated_At");
+
+  if (isDeleteRequest) {
+    if (colStatus > 0) sheet.getRange(rowNum, colStatus).setValue("Active");
+  } else {
+    if (colStatus > 0) sheet.getRange(rowNum, colStatus).setValue("Rejected");
+  }
+
+  if (colAppBy > 0) sheet.getRange(rowNum, colAppBy).setValue(adminEmail + " (Rejected" + reason + ")");
+  if (colAppAt > 0) sheet.getRange(rowNum, colAppAt).setValue(now);
+  if (colUpdBy > 0) sheet.getRange(rowNum, colUpdBy).setValue(adminEmail);
+  if (colUpdAt > 0) sheet.getRange(rowNum, colUpdAt).setValue(now);
+
+  logAudit_(adminEmail, "REJECT", module, id, `Rejected ${module} (${id})${reason}`);
+  return { success: true, message: `${module} record rejected.` };
 }
 
 /**

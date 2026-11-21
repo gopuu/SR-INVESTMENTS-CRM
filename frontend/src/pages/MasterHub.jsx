@@ -13,7 +13,10 @@ import {
   AlertCircle,
   FolderTree,
   UserCheck,
-  RefreshCw
+  RefreshCw,
+  Check,
+  X,
+  Clock
 } from 'lucide-react';
 import Header from '../components/Header';
 import Modal from '../components/Modal';
@@ -282,6 +285,63 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
     } catch (err) {
       showError('Restore Failed', err.message || 'Failed to restore record');
     }
+  };
+
+  const isAdmin = user?.role === 'Admin' || user?.role?.toLowerCase() === 'admin' || isSuperAdmin;
+
+  const handleApprove = async (type, id, name) => {
+    const confirmed = await showConfirm(
+      'Approve Change?',
+      `Approve pending request for "${name}"? This will make the record Active.`,
+      'Yes, Approve'
+    );
+    if (!confirmed) return;
+    try {
+      await crmApi.call('approveRecord', { type, id, adminEmail: user?.email });
+      showSuccess('Approved', `"${name}" approved successfully.`);
+      await loadAllMasters();
+    } catch (err) {
+      showError('Approval Failed', err.message || 'Failed to approve record');
+    }
+  };
+
+  const handleReject = async (type, id, name) => {
+    const confirmed = await showConfirm(
+      'Reject Request?',
+      `Reject pending request for "${name}"?`,
+      'Yes, Reject'
+    );
+    if (!confirmed) return;
+    try {
+      await crmApi.call('rejectRecord', { type, id, adminEmail: user?.email });
+      showSuccess('Rejected', `"${name}" request has been rejected.`);
+      await loadAllMasters();
+    } catch (err) {
+      showError('Rejection Failed', err.message || 'Failed to reject record');
+    }
+  };
+
+  const renderStatusBadge = (status) => {
+    const s = String(status || 'Active').trim();
+    if (s.toLowerCase().includes('pending')) {
+      return (
+        <span className="badge" style={{ backgroundColor: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+          <Clock size={11} /> {s}
+        </span>
+      );
+    }
+    if (s.toLowerCase() === 'rejected') {
+      return (
+        <span className="badge" style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5' }}>
+          Rejected
+        </span>
+      );
+    }
+    return (
+      <span className={`badge ${s === 'Active' ? 'badge-primary' : 'badge-danger'}`}>
+        {s}
+      </span>
+    );
   };
 
   // Filter items by search keyword
@@ -642,15 +702,38 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                           {dept.Description || '—'}
                         </td>
                         <td>
-                          <span className={`badge ${dept.Status === 'Active' ? 'badge-primary' : 'badge-danger'}`}>
-                            {dept.Status || 'Active'}
-                          </span>
+                          {renderStatusBadge(dept.Status)}
                         </td>
                         <td style={{ fontSize: '0.725rem', color: '#94a3b8' }}>
-                          {dept.Created_At ? new Date(dept.Created_At).toLocaleDateString() : '—'} ({dept.Created_By || 'System'})
+                          <div>{dept.Created_At ? new Date(dept.Created_At).toLocaleDateString() : '—'} ({dept.Created_By || 'System'})</div>
+                          {dept.Approved_By && (
+                            <div style={{ fontSize: '0.675rem', color: '#059669', marginTop: '2px', fontWeight: '600' }}>
+                              ✓ Approved by: {dept.Approved_By}
+                            </div>
+                          )}
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
+                            {isAdmin && dept.Status?.toLowerCase().includes('pending') && (
+                              <>
+                                <button
+                                  className="btn-icon"
+                                  title="Approve Department"
+                                  onClick={() => handleApprove('department', dept.DepartmentId, dept.DepartmentName)}
+                                  style={{ backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }}
+                                >
+                                  <Check size={15} color="#059669" />
+                                </button>
+                                <button
+                                  className="btn-icon"
+                                  title="Reject Department"
+                                  onClick={() => handleReject('department', dept.DepartmentId, dept.DepartmentName)}
+                                  style={{ backgroundColor: '#fef2f2', borderColor: '#fecaca' }}
+                                >
+                                  <X size={15} color="#dc2626" />
+                                </button>
+                              </>
+                            )}
                             {dept.IsDeleted ? (
                               <button
                                 className="btn btn-outline-blue btn-sm"
@@ -744,15 +827,38 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                           {desig.Description || '—'}
                         </td>
                         <td>
-                          <span className={`badge ${desig.Status === 'Active' ? 'badge-primary' : 'badge-danger'}`}>
-                            {desig.Status || 'Active'}
-                          </span>
+                          {renderStatusBadge(desig.Status)}
                         </td>
                         <td style={{ fontSize: '0.725rem', color: '#94a3b8' }}>
-                          {desig.Created_At ? new Date(desig.Created_At).toLocaleDateString() : '—'} ({desig.Created_By || 'System'})
+                          <div>{desig.Created_At ? new Date(desig.Created_At).toLocaleDateString() : '—'} ({desig.Created_By || 'System'})</div>
+                          {desig.Approved_By && (
+                            <div style={{ fontSize: '0.675rem', color: '#059669', marginTop: '2px', fontWeight: '600' }}>
+                              ✓ Approved by: {desig.Approved_By}
+                            </div>
+                          )}
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
+                            {isAdmin && desig.Status?.toLowerCase().includes('pending') && (
+                              <>
+                                <button
+                                  className="btn-icon"
+                                  title="Approve Designation"
+                                  onClick={() => handleApprove('designation', desig.DesignationId, desig.DesignationName)}
+                                  style={{ backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }}
+                                >
+                                  <Check size={15} color="#059669" />
+                                </button>
+                                <button
+                                  className="btn-icon"
+                                  title="Reject Designation"
+                                  onClick={() => handleReject('designation', desig.DesignationId, desig.DesignationName)}
+                                  style={{ backgroundColor: '#fef2f2', borderColor: '#fecaca' }}
+                                >
+                                  <X size={15} color="#dc2626" />
+                                </button>
+                              </>
+                            )}
                             {desig.IsDeleted ? (
                               <button
                                 className="btn btn-outline-blue btn-sm"
@@ -840,15 +946,38 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                           {role.Description || '—'}
                         </td>
                         <td>
-                          <span className={`badge ${role.Status === 'Active' ? 'badge-primary' : 'badge-danger'}`}>
-                            {role.Status || 'Active'}
-                          </span>
+                          {renderStatusBadge(role.Status)}
                         </td>
                         <td style={{ fontSize: '0.725rem', color: '#94a3b8' }}>
-                          {role.Created_At ? new Date(role.Created_At).toLocaleDateString() : '—'} ({role.Created_By || 'System'})
+                          <div>{role.Created_At ? new Date(role.Created_At).toLocaleDateString() : '—'} ({role.Created_By || 'System'})</div>
+                          {role.Approved_By && (
+                            <div style={{ fontSize: '0.675rem', color: '#059669', marginTop: '2px', fontWeight: '600' }}>
+                              ✓ Approved by: {role.Approved_By}
+                            </div>
+                          )}
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
+                            {isAdmin && role.Status?.toLowerCase().includes('pending') && (
+                              <>
+                                <button
+                                  className="btn-icon"
+                                  title="Approve Role"
+                                  onClick={() => handleApprove('role', role.RoleId, role.RoleName)}
+                                  style={{ backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }}
+                                >
+                                  <Check size={15} color="#059669" />
+                                </button>
+                                <button
+                                  className="btn-icon"
+                                  title="Reject Role"
+                                  onClick={() => handleReject('role', role.RoleId, role.RoleName)}
+                                  style={{ backgroundColor: '#fef2f2', borderColor: '#fecaca' }}
+                                >
+                                  <X size={15} color="#dc2626" />
+                                </button>
+                              </>
+                            )}
                             {role.IsDeleted ? (
                               <button
                                 className="btn btn-outline-blue btn-sm"

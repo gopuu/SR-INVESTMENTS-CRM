@@ -3433,6 +3433,99 @@ export const crmApi = {
         return { success: true, message: 'Role permissions saved.' };
       }
 
+      case 'getApprovalSettings': {
+        const stored = localStorage.getItem('sr_crm_approval_settings');
+        if (stored) return JSON.parse(stored);
+        return { success: true, enabled: false, onAdd: false, onEdit: false, onDelete: false };
+      }
+
+      case 'saveApprovalSettings': {
+        const settings = {
+          success: true,
+          enabled: Boolean(payload.enabled),
+          onAdd: payload.onAdd !== false,
+          onEdit: payload.onEdit !== false,
+          onDelete: payload.onDelete !== false
+        };
+        localStorage.setItem('sr_crm_approval_settings', JSON.stringify(settings));
+        broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Settings', subType: 'APPROVAL_SETTINGS_CHANGED' });
+        return { success: true, message: 'Approval workflow settings saved successfully.', settings };
+      }
+
+      case 'approveRecord': {
+        const mod = String(payload.module || '').toLowerCase();
+        const id = payload.id;
+        const now = new Date().toISOString();
+        const adminEmail = payload.userEmail || 'admin@srinvestments.com';
+
+        let storageKey = '';
+        let idField = '';
+        if (mod.includes('dep')) { storageKey = STORAGE_KEYS.DEPARTMENTS; idField = 'DepartmentId'; }
+        else if (mod.includes('des')) { storageKey = STORAGE_KEYS.DESIGNATIONS; idField = 'DesignationId'; }
+        else if (mod.includes('rol')) { storageKey = STORAGE_KEYS.ROLES; idField = 'RoleId'; }
+        else if (mod.includes('staf') || mod.includes('emp')) { storageKey = STORAGE_KEYS.EMPLOYEES; idField = 'EmployeeId'; }
+        else if (mod.includes('cust')) { storageKey = STORAGE_KEYS.CUSTOMERS; idField = 'CustomerId'; }
+
+        if (storageKey) {
+          let list = JSON.parse(localStorage.getItem(storageKey) || '[]');
+          const idx = list.findIndex(r => String(r[idField] || '') === String(id));
+          if (idx !== -1) {
+            const isDelete = String(list[idx].Status || '').toLowerCase().includes('delete');
+            if (isDelete) {
+              list[idx].IsDeleted = true;
+              list[idx].Status = 'Deleted';
+              list[idx].Deleted_By = adminEmail;
+              list[idx].Deleted_At = now;
+            } else {
+              list[idx].Status = 'Active';
+            }
+            list[idx].Approved_By = adminEmail;
+            list[idx].Approved_At = now;
+            list[idx].Updated_By = adminEmail;
+            list[idx].Updated_At = now;
+            localStorage.setItem(storageKey, JSON.stringify(list));
+            broadcastCrmEvent({ type: 'DATA_CHANGED', module: mod });
+          }
+        }
+        return { success: true, message: `${payload.module} approved successfully.` };
+      }
+
+      case 'rejectRecord': {
+        const mod = String(payload.module || '').toLowerCase();
+        const id = payload.id;
+        const reason = payload.reason ? (' - ' + payload.reason) : '';
+        const now = new Date().toISOString();
+        const adminEmail = payload.userEmail || 'admin@srinvestments.com';
+
+        let storageKey = '';
+        let idField = '';
+        if (mod.includes('dep')) { storageKey = STORAGE_KEYS.DEPARTMENTS; idField = 'DepartmentId'; }
+        else if (mod.includes('des')) { storageKey = STORAGE_KEYS.DESIGNATIONS; idField = 'DesignationId'; }
+        else if (mod.includes('rol')) { storageKey = STORAGE_KEYS.ROLES; idField = 'RoleId'; }
+        else if (mod.includes('staf') || mod.includes('emp')) { storageKey = STORAGE_KEYS.EMPLOYEES; idField = 'EmployeeId'; }
+        else if (mod.includes('cust')) { storageKey = STORAGE_KEYS.CUSTOMERS; idField = 'CustomerId'; }
+
+        if (storageKey) {
+          let list = JSON.parse(localStorage.getItem(storageKey) || '[]');
+          const idx = list.findIndex(r => String(r[idField] || '') === String(id));
+          if (idx !== -1) {
+            const isDelete = String(list[idx].Status || '').toLowerCase().includes('delete');
+            if (isDelete) {
+              list[idx].Status = 'Active';
+            } else {
+              list[idx].Status = 'Rejected';
+            }
+            list[idx].Approved_By = adminEmail + ' (Rejected' + reason + ')';
+            list[idx].Approved_At = now;
+            list[idx].Updated_By = adminEmail;
+            list[idx].Updated_At = now;
+            localStorage.setItem(storageKey, JSON.stringify(list));
+            broadcastCrmEvent({ type: 'DATA_CHANGED', module: mod });
+          }
+        }
+        return { success: true, message: `${payload.module} rejected.` };
+      }
+
       case 'updateUserProfile': {
         return { success: true, message: 'Profile updated.' };
       }

@@ -115,6 +115,21 @@ function saveCustomer_(data) {
   }
 
   // Audit Fields Management
+  const isNew = existingIndex < 0;
+  const isAdmin = isCallerAdmin_(data);
+  const approval = getApprovalSettings_(tenantId);
+  const needsApproval = !isAdmin && ((isNew && approval.onAdd) || (!isNew && approval.onEdit));
+
+  let statusVal = cleanStr_(data.Status || "Active");
+  let approvedBy = existingRecord ? (existingRecord.Approved_By || (isAdmin ? userEmail : "Direct")) : (isAdmin ? userEmail : "Direct");
+  let approvedAt = existingRecord ? (existingRecord.Approved_At || now) : now;
+
+  if (needsApproval) {
+    statusVal = "Approval Pending";
+    approvedBy = "";
+    approvedAt = "";
+  }
+
   const isDeleted = existingRecord 
     ? Boolean(existingRecord.IsDeleted === true || existingRecord.IsDeleted === "TRUE" || existingRecord.IsDeleted === "true") 
     : false;
@@ -145,11 +160,14 @@ function saveCustomer_(data) {
     State: cleanStr_(data.State),
     RiskProfile: cleanStr_(data.RiskProfile || "Moderate"),
     Notes: cleanStr_(data.Notes),
+    Status: statusVal,
     IsDeleted: isDeleted,
     Created_By: createdBy,
     Created_At: createdAt,
     Updated_By: updatedBy,
     Updated_At: updatedAt,
+    Approved_By: approvedBy,
+    Approved_At: approvedAt,
     Deleted_By: deletedBy,
     Deleted_At: deletedAt
   };
@@ -158,12 +176,19 @@ function saveCustomer_(data) {
   writeRowByHeaders_(sheet, rowIndex, recordObj, CRM_SCHEMAS.CUSTOMERS);
 
   if (existingIndex >= 0) {
-    logAudit_(userEmail, "UPDATE", "Customers", code, "Updated investor: " + code + " (" + data.FullName + ")");
+    logAudit_(userEmail, "UPDATE", "Customers", code, "Updated investor: " + code + " (" + data.FullName + ")" + (needsApproval ? " [Approval Pending]" : ""));
   } else {
-    logAudit_(userEmail, "CREATE", "Customers", code, "Created investor: " + code + " (" + data.FullName + ")");
+    logAudit_(userEmail, "CREATE", "Customers", code, "Created investor: " + code + " (" + data.FullName + ")" + (needsApproval ? " [Approval Pending]" : ""));
   }
 
-  return { customerId: id, customerCode: code, message: "Investor saved successfully." };
+  return { 
+    customerId: id, 
+    customerCode: code, 
+    pendingApproval: needsApproval,
+    message: needsApproval 
+      ? "Investor submitted for Admin approval (Status: Approval Pending)." 
+      : "Investor saved successfully." 
+  };
 }
 
 /**
@@ -183,6 +208,23 @@ function deleteCustomer_(payload) {
 
   const rec = rows[index];
   const now = new Date().toISOString();
+  const rowNum = index + 2;
+
+  const isAdmin = isCallerAdmin_(payload);
+  const approval = getApprovalSettings_(tenantId);
+
+  // If non-admin and delete approval required: do not delete, set Status = 'Approval Pending (Delete)'
+  if (!isAdmin && approval.onDelete) {
+    const colStatus = getHeaderColIndex_(sheet, "Status");
+    const colUpdBy = getHeaderColIndex_(sheet, "Updated_By");
+    const colUpdAt = getHeaderColIndex_(sheet, "Updated_At");
+    if (colStatus > 0) sheet.getRange(rowNum, colStatus).setValue("Approval Pending (Delete)");
+    if (colUpdBy > 0) sheet.getRange(rowNum, colUpdBy).setValue(userEmail);
+    if (colUpdAt > 0) sheet.getRange(rowNum, colUpdAt).setValue(now);
+    logAudit_(userEmail, "REQUEST_DELETE", "Customers", rec.CustomerCode || customerId, 
+      "Delete request submitted for investor: " + (rec.FullName || "") + " (Pending Admin Approval)");
+    return { success: true, message: "Investor deletion submitted. Admin approval pending.", pendingApproval: true };
+  }
   const rowNum = index + 2;
 
   const colIsDeleted = getHeaderColIndex_(sheet, "IsDeleted");

@@ -16,7 +16,9 @@ import {
   Archive,
   Clock,
   RefreshCw,
-  CheckCircle2
+  CheckCircle2,
+  Check,
+  X
 } from 'lucide-react';
 import { crmApi, getInitialsCode, subscribeCrmEvents } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -25,7 +27,8 @@ import Modal from '../components/Modal';
 import { showSuccess, showError, showWarning, showConfirm } from '../utils/swal';
 
 export default function Staff({ onOpenBackup }) {
-  const { hasPermission } = useAuth();
+  const { user, hasPermission, isSuperAdmin } = useAuth();
+  const isAdmin = user?.role === 'Admin' || user?.role?.toLowerCase() === 'admin' || isSuperAdmin;
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -304,6 +307,38 @@ export default function Staff({ onOpenBackup }) {
     }
   };
 
+  const handleApprove = async (employeeId, name) => {
+    const confirmed = await showConfirm(
+      'Approve Staff Change?',
+      `Approve pending changes/creation for "${name}"? This will make the record Active.`,
+      'Yes, Approve'
+    );
+    if (!confirmed) return;
+    try {
+      await crmApi.call('approveRecord', { type: 'employee', id: employeeId, adminEmail: user?.email });
+      showSuccess('Approved', `"${name}" approved successfully.`);
+      await loadStaff();
+    } catch (err) {
+      showError('Approval Failed', err.message || 'Failed to approve staff record');
+    }
+  };
+
+  const handleReject = async (employeeId, name) => {
+    const confirmed = await showConfirm(
+      'Reject Staff Request?',
+      `Reject pending request for "${name}"?`,
+      'Yes, Reject'
+    );
+    if (!confirmed) return;
+    try {
+      await crmApi.call('rejectRecord', { type: 'employee', id: employeeId, adminEmail: user?.email });
+      showSuccess('Rejected', `"${name}" request has been rejected.`);
+      await loadStaff();
+    } catch (err) {
+      showError('Rejection Failed', err.message || 'Failed to reject staff record');
+    }
+  };
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <Header 
@@ -430,6 +465,11 @@ export default function Staff({ onOpenBackup }) {
                             <div style={{ fontSize: '0.675rem', color: '#94a3b8', marginTop: '2px' }}>
                               Created: {e.Created_At ? new Date(e.Created_At).toLocaleDateString() : '—'} ({e.Created_By || 'System'})
                             </div>
+                            {e.Approved_By && (
+                              <div style={{ fontSize: '0.675rem', color: '#059669', marginTop: '2px', fontWeight: '600' }}>
+                                ✓ Approved by: {e.Approved_By}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -475,6 +515,20 @@ export default function Staff({ onOpenBackup }) {
                       <td>
                         {(() => {
                           const statusStr = String(e.Status || '').trim().toLowerCase();
+                          if (statusStr.includes('pending')) {
+                            return (
+                              <span className="badge" style={{ backgroundColor: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <Clock size={11} /> {e.Status}
+                              </span>
+                            );
+                          }
+                          if (statusStr === 'rejected') {
+                            return (
+                              <span className="badge" style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5' }}>
+                                Rejected
+                              </span>
+                            );
+                          }
                           const isEmpActive = statusStr === 'active';
                           return (
                             <span className={`badge ${isEmpActive ? 'badge-primary' : 'badge-danger'}`}>
@@ -485,6 +539,26 @@ export default function Staff({ onOpenBackup }) {
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
+                          {isAdmin && e.Status?.toLowerCase().includes('pending') && (
+                            <>
+                              <button
+                                className="btn-icon"
+                                title="Approve Staff Request"
+                                onClick={() => handleApprove(e.EmployeeId, e.FullName)}
+                                style={{ backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }}
+                              >
+                                <Check size={15} color="#059669" />
+                              </button>
+                              <button
+                                className="btn-icon"
+                                title="Reject Staff Request"
+                                onClick={() => handleReject(e.EmployeeId, e.FullName)}
+                                style={{ backgroundColor: '#fef2f2', borderColor: '#fecaca' }}
+                              >
+                                <X size={15} color="#dc2626" />
+                              </button>
+                            </>
+                          )}
                           {e.IsDeleted ? (
                             <button
                               className="btn btn-outline-blue btn-sm"
