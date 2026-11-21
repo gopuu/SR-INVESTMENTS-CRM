@@ -344,6 +344,88 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
     );
   };
 
+  const renderAuditDetails = (item) => {
+    let historyList = [];
+    if (item.Approval_History) {
+      if (typeof item.Approval_History === 'string') {
+        try {
+          const parsed = JSON.parse(item.Approval_History);
+          if (Array.isArray(parsed)) historyList = parsed;
+        } catch (e) {
+          // ignore parsing error
+        }
+      } else if (Array.isArray(item.Approval_History)) {
+        historyList = item.Approval_History;
+      }
+    }
+
+    const createdAppBy = item.Created_Approved_By;
+    const createdAppAt = item.Created_Approved_At;
+    const updatedAppBy = item.Updated_Approved_By;
+    const updatedAppAt = item.Updated_Approved_At;
+    const deletedAppBy = item.Deleted_Approved_By;
+    const deletedAppAt = item.Deleted_Approved_At;
+    const legacyAppBy = item.Approved_By;
+
+    const historyTooltip = historyList.length > 0 
+      ? historyList.map(h => `• ${h.action || 'EVENT'}: ${h.status || ''} by ${h.approvedBy || h.submittedBy || h.user || 'Admin'} on ${h.approvedAt || h.submittedAt || h.date || ''}`).join('\n')
+      : '';
+
+    return (
+      <div style={{ fontSize: '0.725rem', color: '#64748b', lineHeight: 1.4 }}>
+        <div style={{ color: '#94a3b8' }}>
+          Created: {item.Created_At ? new Date(item.Created_At).toLocaleDateString() : '—'} ({item.Created_By || 'System'})
+        </div>
+
+        {createdAppBy && (
+          <div style={{ fontSize: '0.675rem', color: '#059669', fontWeight: '600', marginTop: '2px' }}>
+            ✓ Create Appr: {createdAppBy} {createdAppAt ? `(${new Date(createdAppAt).toLocaleDateString()})` : ''}
+          </div>
+        )}
+
+        {updatedAppBy && (
+          <div style={{ fontSize: '0.675rem', color: '#2563eb', fontWeight: '600', marginTop: '2px' }}>
+            ✎ Edit Appr: {updatedAppBy} {updatedAppAt ? `(${new Date(updatedAppAt).toLocaleDateString()})` : ''}
+          </div>
+        )}
+
+        {deletedAppBy && (
+          <div style={{ fontSize: '0.675rem', color: '#dc2626', fontWeight: '600', marginTop: '2px' }}>
+            ✕ Del Appr: {deletedAppBy} {deletedAppAt ? `(${new Date(deletedAppAt).toLocaleDateString()})` : ''}
+          </div>
+        )}
+
+        {!createdAppBy && !updatedAppBy && !deletedAppBy && legacyAppBy && (
+          <div style={{ fontSize: '0.675rem', color: '#059669', fontWeight: '600', marginTop: '2px' }}>
+            ✓ Approved by: {legacyAppBy}
+          </div>
+        )}
+
+        {historyList.length > 0 && (
+          <div 
+            title={historyTooltip}
+            style={{ 
+              cursor: 'pointer', 
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '3px',
+              fontSize: '0.65rem', 
+              backgroundColor: '#f1f5f9', 
+              color: '#334155', 
+              border: '1px solid #e2e8f0',
+              borderRadius: '4px', 
+              padding: '1px 6px', 
+              marginTop: '3px',
+              fontWeight: 500
+            }}
+          >
+            📋 {historyList.length} approval record{historyList.length > 1 ? 's' : ''}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Filter items by search keyword
   const filterList = (list, codeField, nameField) => {
     if (!search.trim()) return list;
@@ -704,13 +786,8 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                         <td>
                           {renderStatusBadge(dept.Status)}
                         </td>
-                        <td style={{ fontSize: '0.725rem', color: '#94a3b8' }}>
-                          <div>{dept.Created_At ? new Date(dept.Created_At).toLocaleDateString() : '—'} ({dept.Created_By || 'System'})</div>
-                          {dept.Approved_By && (
-                            <div style={{ fontSize: '0.675rem', color: '#059669', marginTop: '2px', fontWeight: '600' }}>
-                              ✓ Approved by: {dept.Approved_By}
-                            </div>
-                          )}
+                        <td>
+                          {renderAuditDetails(dept)}
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
@@ -829,13 +906,8 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                         <td>
                           {renderStatusBadge(desig.Status)}
                         </td>
-                        <td style={{ fontSize: '0.725rem', color: '#94a3b8' }}>
-                          <div>{desig.Created_At ? new Date(desig.Created_At).toLocaleDateString() : '—'} ({desig.Created_By || 'System'})</div>
-                          {desig.Approved_By && (
-                            <div style={{ fontSize: '0.675rem', color: '#059669', marginTop: '2px', fontWeight: '600' }}>
-                              ✓ Approved by: {desig.Approved_By}
-                            </div>
-                          )}
+                        <td>
+                          {renderAuditDetails(desig)}
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
@@ -948,13 +1020,8 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                         <td>
                           {renderStatusBadge(role.Status)}
                         </td>
-                        <td style={{ fontSize: '0.725rem', color: '#94a3b8' }}>
-                          <div>{role.Created_At ? new Date(role.Created_At).toLocaleDateString() : '—'} ({role.Created_By || 'System'})</div>
-                          {role.Approved_By && (
-                            <div style={{ fontSize: '0.675rem', color: '#059669', marginTop: '2px', fontWeight: '600' }}>
-                              ✓ Approved by: {role.Approved_By}
-                            </div>
-                          )}
+                        <td>
+                          {renderAuditDetails(role)}
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           <div style={{ display: 'inline-flex', gap: '0.35rem' }}>

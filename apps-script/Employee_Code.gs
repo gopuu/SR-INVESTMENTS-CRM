@@ -156,13 +156,59 @@ function saveEmployee_(data) {
   const needsApproval = !isAdmin && ((isNew && approval.onAdd) || (!isNew && approval.onEdit));
 
   let status = cleanStr_(data.Status || "Active");
-  let approvedBy = existingRecord ? (existingRecord.Approved_By || (isAdmin ? userEmail : "Direct")) : (isAdmin ? userEmail : "Direct");
-  let approvedAt = existingRecord ? (existingRecord.Approved_At || now) : now;
+  let createdAppBy = existingRecord ? (existingRecord.Created_Approved_By || "") : "";
+  let createdAppAt = existingRecord ? (existingRecord.Created_Approved_At || "") : "";
+  let updatedAppBy = existingRecord ? (existingRecord.Updated_Approved_By || "") : "";
+  let updatedAppAt = existingRecord ? (existingRecord.Updated_Approved_At || "") : "";
+  let deletedAppBy = existingRecord ? (existingRecord.Deleted_Approved_By || "") : "";
+  let deletedAppAt = existingRecord ? (existingRecord.Deleted_Approved_At || "") : "";
+  let approvalHistory = existingRecord ? (existingRecord.Approval_History || "") : "";
 
-  if (needsApproval) {
-    status = "Approval Pending";
-    approvedBy = "";
-    approvedAt = "";
+  if (isNew) {
+    if (needsApproval) {
+      status = "Approval Pending";
+      createdAppBy = "";
+      createdAppAt = "";
+      approvalHistory = appendApprovalHistory_("", {
+        action: "CREATE",
+        status: "Pending",
+        submittedBy: userEmail,
+        submittedAt: now
+      });
+    } else {
+      status = "Active";
+      createdAppBy = isAdmin ? userEmail : "Auto";
+      createdAppAt = now;
+      approvalHistory = appendApprovalHistory_("", {
+        action: "CREATE",
+        status: "Approved",
+        approvedBy: isAdmin ? userEmail : "Auto",
+        approvedAt: now
+      });
+    }
+  } else {
+    // Sequential multiple edits supported
+    if (needsApproval) {
+      status = "Approval Pending";
+      updatedAppBy = "";
+      updatedAppAt = "";
+      approvalHistory = appendApprovalHistory_(approvalHistory, {
+        action: "EDIT",
+        status: "Pending",
+        submittedBy: userEmail,
+        submittedAt: now
+      });
+    } else {
+      status = "Active";
+      updatedAppBy = isAdmin ? userEmail : "Auto";
+      updatedAppAt = now;
+      approvalHistory = appendApprovalHistory_(approvalHistory, {
+        action: "EDIT",
+        status: "Approved",
+        approvedBy: isAdmin ? userEmail : "Auto",
+        approvedAt: now
+      });
+    }
   }
 
   const isDeleted = existingRecord ? Boolean(existingRecord.IsDeleted === true || existingRecord.IsDeleted === "TRUE") : false;
@@ -197,8 +243,15 @@ function saveEmployee_(data) {
     Created_At: createdAt,
     Updated_By: updatedBy,
     Updated_At: updatedAt,
-    Approved_By: approvedBy,
-    Approved_At: approvedAt,
+    Created_Approved_By: createdAppBy,
+    Created_Approved_At: createdAppAt,
+    Updated_Approved_By: updatedAppBy,
+    Updated_Approved_At: updatedAppAt,
+    Deleted_Approved_By: deletedAppBy,
+    Deleted_Approved_At: deletedAppAt,
+    Approval_History: approvalHistory,
+    Approved_By: updatedAppBy || createdAppBy || (isAdmin ? userEmail : "Auto"),
+    Approved_At: updatedAppAt || createdAppAt || now,
     Deleted_By: deletedBy,
     Deleted_At: deletedAt
   };
@@ -246,15 +299,27 @@ function deleteEmployee_(payload) {
 
   const isAdmin = isCallerAdmin_(payload);
   const approval = getApprovalSettings_(tenantId);
+  let approvalHistory = rec.Approval_History || "";
 
   // If non-admin and delete approval required: do not delete, set Status = 'Approval Pending (Delete)'
   if (!isAdmin && approval.onDelete) {
     const colStatus = getHeaderColIndex_(sheet, "Status");
     const colUpdBy = getHeaderColIndex_(sheet, "Updated_By");
     const colUpdAt = getHeaderColIndex_(sheet, "Updated_At");
+    const colHist = getHeaderColIndex_(sheet, "Approval_History");
+
+    approvalHistory = appendApprovalHistory_(approvalHistory, {
+      action: "DELETE",
+      status: "Pending",
+      submittedBy: userEmail,
+      submittedAt: now
+    });
+
     if (colStatus > 0) sheet.getRange(rowNum, colStatus).setValue("Approval Pending (Delete)");
     if (colUpdBy > 0) sheet.getRange(rowNum, colUpdBy).setValue(userEmail);
     if (colUpdAt > 0) sheet.getRange(rowNum, colUpdAt).setValue(now);
+    if (colHist > 0) sheet.getRange(rowNum, colHist).setValue(approvalHistory);
+
     logAudit_(userEmail, "REQUEST_DELETE", "Staff", rec.EmployeeCode || employeeId, 
       "Delete request submitted for staff: " + (rec.FullName || "") + " (Pending Admin Approval)");
     return { success: true, message: "Staff deletion submitted. Admin approval pending.", pendingApproval: true };
@@ -263,10 +328,24 @@ function deleteEmployee_(payload) {
   const colIsDeleted = getHeaderColIndex_(sheet, "IsDeleted");
   const colDeletedBy = getHeaderColIndex_(sheet, "Deleted_By");
   const colDeletedAt = getHeaderColIndex_(sheet, "Deleted_At");
+  const colDelAppBy = getHeaderColIndex_(sheet, "Deleted_Approved_By");
+  const colDelAppAt = getHeaderColIndex_(sheet, "Deleted_Approved_At");
+  const colHist = getHeaderColIndex_(sheet, "Approval_History");
+  const delApprovedBy = isAdmin ? userEmail : "Auto";
+
+  approvalHistory = appendApprovalHistory_(approvalHistory, {
+    action: "DELETE",
+    status: "Approved",
+    approvedBy: delApprovedBy,
+    approvedAt: now
+  });
 
   if (colIsDeleted > 0) sheet.getRange(rowNum, colIsDeleted).setValue(true);
   if (colDeletedBy > 0) sheet.getRange(rowNum, colDeletedBy).setValue(userEmail);
   if (colDeletedAt > 0) sheet.getRange(rowNum, colDeletedAt).setValue(now);
+  if (colDelAppBy > 0) sheet.getRange(rowNum, colDelAppBy).setValue(delApprovedBy);
+  if (colDelAppAt > 0) sheet.getRange(rowNum, colDelAppAt).setValue(now);
+  if (colHist > 0) sheet.getRange(rowNum, colHist).setValue(approvalHistory);
 
   // Sync deactivation to central Tenant_User_Mapping
   syncEmployeeDeleteToUserMapping_(rec.Email, tenantId, userEmail);

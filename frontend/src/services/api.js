@@ -3453,10 +3453,10 @@ export const crmApi = {
       }
 
       case 'approveRecord': {
-        const mod = String(payload.module || '').toLowerCase();
+        const mod = String(payload.module || payload.type || '').toLowerCase();
         const id = payload.id;
         const now = new Date().toISOString();
-        const adminEmail = payload.userEmail || 'admin@srinvestments.com';
+        const adminEmail = payload.adminEmail || payload.userEmail || 'admin@srinvestments.com';
 
         let storageKey = '';
         let idField = '';
@@ -3471,14 +3471,35 @@ export const crmApi = {
           const idx = list.findIndex(r => String(r[idField] || '') === String(id));
           if (idx !== -1) {
             const isDelete = String(list[idx].Status || '').toLowerCase().includes('delete');
+            let hist = [];
+            try {
+              hist = Array.isArray(list[idx].Approval_History) ? list[idx].Approval_History : JSON.parse(list[idx].Approval_History || '[]');
+            } catch (e) {
+              hist = [];
+            }
+
             if (isDelete) {
               list[idx].IsDeleted = true;
               list[idx].Status = 'Deleted';
               list[idx].Deleted_By = adminEmail;
               list[idx].Deleted_At = now;
+              list[idx].Deleted_Approved_By = adminEmail;
+              list[idx].Deleted_Approved_At = now;
+              hist.push({ action: 'DELETE', status: 'Approved', approvedBy: adminEmail, approvedAt: now });
             } else {
               list[idx].Status = 'Active';
+              const isCreate = !list[idx].Created_Approved_By && !list[idx].Created_Approved_At;
+              if (isCreate) {
+                list[idx].Created_Approved_By = adminEmail;
+                list[idx].Created_Approved_At = now;
+                hist.push({ action: 'CREATE', status: 'Approved', approvedBy: adminEmail, approvedAt: now });
+              } else {
+                list[idx].Updated_Approved_By = adminEmail;
+                list[idx].Updated_Approved_At = now;
+                hist.push({ action: 'EDIT', status: 'Approved', approvedBy: adminEmail, approvedAt: now });
+              }
             }
+            list[idx].Approval_History = JSON.stringify(hist);
             list[idx].Approved_By = adminEmail;
             list[idx].Approved_At = now;
             list[idx].Updated_By = adminEmail;
@@ -3487,15 +3508,15 @@ export const crmApi = {
             broadcastCrmEvent({ type: 'DATA_CHANGED', module: mod });
           }
         }
-        return { success: true, message: `${payload.module} approved successfully.` };
+        return { success: true, message: `${payload.module || payload.type} approved successfully.` };
       }
 
       case 'rejectRecord': {
-        const mod = String(payload.module || '').toLowerCase();
+        const mod = String(payload.module || payload.type || '').toLowerCase();
         const id = payload.id;
         const reason = payload.reason ? (' - ' + payload.reason) : '';
         const now = new Date().toISOString();
-        const adminEmail = payload.userEmail || 'admin@srinvestments.com';
+        const adminEmail = payload.adminEmail || payload.userEmail || 'admin@srinvestments.com';
 
         let storageKey = '';
         let idField = '';
@@ -3510,11 +3531,22 @@ export const crmApi = {
           const idx = list.findIndex(r => String(r[idField] || '') === String(id));
           if (idx !== -1) {
             const isDelete = String(list[idx].Status || '').toLowerCase().includes('delete');
+            let hist = [];
+            try {
+              hist = Array.isArray(list[idx].Approval_History) ? list[idx].Approval_History : JSON.parse(list[idx].Approval_History || '[]');
+            } catch (e) {
+              hist = [];
+            }
+
             if (isDelete) {
               list[idx].Status = 'Active';
+              hist.push({ action: 'DELETE', status: 'Rejected', rejectedBy: adminEmail, rejectedAt: now, reason: payload.reason || '' });
             } else {
               list[idx].Status = 'Rejected';
+              const isCreate = !list[idx].Created_Approved_By && !list[idx].Created_Approved_At;
+              hist.push({ action: isCreate ? 'CREATE' : 'EDIT', status: 'Rejected', rejectedBy: adminEmail, rejectedAt: now, reason: payload.reason || '' });
             }
+            list[idx].Approval_History = JSON.stringify(hist);
             list[idx].Approved_By = adminEmail + ' (Rejected' + reason + ')';
             list[idx].Approved_At = now;
             list[idx].Updated_By = adminEmail;
@@ -3523,7 +3555,7 @@ export const crmApi = {
             broadcastCrmEvent({ type: 'DATA_CHANGED', module: mod });
           }
         }
-        return { success: true, message: `${payload.module} rejected.` };
+        return { success: true, message: `${payload.module || payload.type} rejected.` };
       }
 
       case 'updateUserProfile': {

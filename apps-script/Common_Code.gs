@@ -101,13 +101,21 @@ const CRM_SCHEMAS = {
     "AadhaarLast4", "KycStatus", "InvestorCategory", "DateOfBirth", "NomineeName",
     "NomineeRelation", "BankName", "AccountNumber", "IfscCode", "City", "State",
     "RiskProfile", "Notes", "Status",
-    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Approved_By", "Approved_At", "Deleted_By", "Deleted_At"
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At",
+    "Created_Approved_By", "Created_Approved_At",
+    "Updated_Approved_By", "Updated_Approved_At",
+    "Deleted_Approved_By", "Deleted_Approved_At",
+    "Approval_History", "Approved_By", "Approved_At"
   ],
   EMPLOYEES: [
     "EmployeeId", "EmployeeCode", "FullName", "Email", "GoogleEmails", "Mobile", "AlternateMobile",
     "Department", "Designation", "Role", "Password", "JoiningDate", "Status",
     "Address", "City", "State", "PhotoUrl", "DriveFileId",
-    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Approved_By", "Approved_At", "Deleted_By", "Deleted_At"
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At",
+    "Created_Approved_By", "Created_Approved_At",
+    "Updated_Approved_By", "Updated_Approved_At",
+    "Deleted_Approved_By", "Deleted_Approved_At",
+    "Approval_History", "Approved_By", "Approved_At"
   ],
   SETTINGS: [
     "Key", "Value", "Description",
@@ -129,15 +137,27 @@ const CRM_SCHEMAS = {
   ],
   DEPARTMENTS: [
     "DepartmentId", "DepartmentCode", "DepartmentName", "Description", "Status",
-    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Approved_By", "Approved_At", "Deleted_By", "Deleted_At"
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At",
+    "Created_Approved_By", "Created_Approved_At",
+    "Updated_Approved_By", "Updated_Approved_At",
+    "Deleted_Approved_By", "Deleted_Approved_At",
+    "Approval_History", "Approved_By", "Approved_At"
   ],
   DESIGNATIONS: [
     "DesignationId", "DesignationCode", "DesignationName", "Department", "Description", "Status",
-    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Approved_By", "Approved_At", "Deleted_By", "Deleted_At"
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At",
+    "Created_Approved_By", "Created_Approved_At",
+    "Updated_Approved_By", "Updated_Approved_At",
+    "Deleted_Approved_By", "Deleted_Approved_At",
+    "Approval_History", "Approved_By", "Approved_At"
   ],
   ROLES: [
     "RoleId", "RoleCode", "RoleName", "Description", "Status",
-    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Approved_By", "Approved_At", "Deleted_By", "Deleted_At"
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At",
+    "Created_Approved_By", "Created_Approved_At",
+    "Updated_Approved_By", "Updated_Approved_At",
+    "Deleted_Approved_By", "Deleted_Approved_At",
+    "Approval_History", "Approved_By", "Approved_At"
   ]
 };
 
@@ -1523,6 +1543,27 @@ function generateInitialsCode_(name) {
   return words.map(w => w.charAt(0).toUpperCase()).join("");
 }
 
+/**
+ * Helper to append an audit event into Approval_History JSON string
+ */
+function appendApprovalHistory_(existingHistory, eventObj) {
+  let list = [];
+  if (existingHistory) {
+    if (typeof existingHistory === "string") {
+      try {
+        const parsed = JSON.parse(existingHistory);
+        if (Array.isArray(parsed)) list = parsed;
+      } catch (e) {
+        list = [{ note: String(existingHistory) }];
+      }
+    } else if (Array.isArray(existingHistory)) {
+      list = existingHistory;
+    }
+  }
+  list.push(eventObj);
+  return JSON.stringify(list);
+}
+
 function saveMasterItem_(payload) {
   payload = payload || {};
   const tenantId = payload.tenantId || payload.activeTenantId || null;
@@ -1617,13 +1658,59 @@ function saveMasterItem_(payload) {
   const needsApproval = !isAdmin && ((isNew && approval.onAdd) || (!isNew && approval.onEdit));
 
   let statusVal = cleanStr_(data.Status || "Active");
-  let approvedBy = existingRecord ? (existingRecord.Approved_By || (isAdmin ? userEmail : "Direct")) : (isAdmin ? userEmail : "Direct");
-  let approvedAt = existingRecord ? (existingRecord.Approved_At || now) : now;
+  let createdAppBy = existingRecord ? (existingRecord.Created_Approved_By || "") : "";
+  let createdAppAt = existingRecord ? (existingRecord.Created_Approved_At || "") : "";
+  let updatedAppBy = existingRecord ? (existingRecord.Updated_Approved_By || "") : "";
+  let updatedAppAt = existingRecord ? (existingRecord.Updated_Approved_At || "") : "";
+  let deletedAppBy = existingRecord ? (existingRecord.Deleted_Approved_By || "") : "";
+  let deletedAppAt = existingRecord ? (existingRecord.Deleted_Approved_At || "") : "";
+  let approvalHistory = existingRecord ? (existingRecord.Approval_History || "") : "";
 
-  if (needsApproval) {
-    statusVal = "Approval Pending";
-    approvedBy = "";
-    approvedAt = "";
+  if (isNew) {
+    if (needsApproval) {
+      statusVal = "Approval Pending";
+      createdAppBy = "";
+      createdAppAt = "";
+      approvalHistory = appendApprovalHistory_("", {
+        action: "CREATE",
+        status: "Pending",
+        submittedBy: userEmail,
+        submittedAt: now
+      });
+    } else {
+      statusVal = "Active";
+      createdAppBy = isAdmin ? userEmail : "Auto";
+      createdAppAt = now;
+      approvalHistory = appendApprovalHistory_("", {
+        action: "CREATE",
+        status: "Approved",
+        approvedBy: isAdmin ? userEmail : "Auto",
+        approvedAt: now
+      });
+    }
+  } else {
+    // Edit existing record (supports multiple sequential edits)
+    if (needsApproval) {
+      statusVal = "Approval Pending";
+      updatedAppBy = "";
+      updatedAppAt = "";
+      approvalHistory = appendApprovalHistory_(approvalHistory, {
+        action: "EDIT",
+        status: "Pending",
+        submittedBy: userEmail,
+        submittedAt: now
+      });
+    } else {
+      statusVal = "Active";
+      updatedAppBy = isAdmin ? userEmail : "Auto";
+      updatedAppAt = now;
+      approvalHistory = appendApprovalHistory_(approvalHistory, {
+        action: "EDIT",
+        status: "Approved",
+        approvedBy: isAdmin ? userEmail : "Auto",
+        approvedAt: now
+      });
+    }
   }
 
   const recordObj = {
@@ -1638,8 +1725,15 @@ function saveMasterItem_(payload) {
     Created_At: existingRecord ? (existingRecord.Created_At || now) : now,
     Updated_By: userEmail,
     Updated_At: now,
-    Approved_By: approvedBy,
-    Approved_At: approvedAt,
+    Created_Approved_By: createdAppBy,
+    Created_Approved_At: createdAppAt,
+    Updated_Approved_By: updatedAppBy,
+    Updated_Approved_At: updatedAppAt,
+    Deleted_Approved_By: deletedAppBy,
+    Deleted_Approved_At: deletedAppAt,
+    Approval_History: approvalHistory,
+    Approved_By: updatedAppBy || createdAppBy || (isAdmin ? userEmail : "Auto"),
+    Approved_At: updatedAppAt || createdAppAt || now,
     Deleted_By: existingRecord ? (existingRecord.Deleted_By || "") : "",
     Deleted_At: existingRecord ? (existingRecord.Deleted_At || "") : ""
   };
@@ -1694,14 +1788,28 @@ function deleteMasterItem_(payload) {
   const isAdmin = isCallerAdmin_(payload);
   const approval = getApprovalSettings_(tenantId);
 
+  const rec = rows[index];
+  let approvalHistory = rec.Approval_History || "";
+
   // If non-admin and delete approval required: do not delete, set Status = 'Approval Pending (Delete)'
   if (!isAdmin && approval.onDelete) {
     const colStatus = getHeaderColIndex_(sheet, "Status");
     const colUpdBy = getHeaderColIndex_(sheet, "Updated_By");
     const colUpdAt = getHeaderColIndex_(sheet, "Updated_At");
+    const colHist = getHeaderColIndex_(sheet, "Approval_History");
+
+    approvalHistory = appendApprovalHistory_(approvalHistory, {
+      action: "DELETE",
+      status: "Pending",
+      submittedBy: userEmail,
+      submittedAt: now
+    });
+
     if (colStatus > 0) sheet.getRange(rowNum, colStatus).setValue("Approval Pending (Delete)");
     if (colUpdBy > 0) sheet.getRange(rowNum, colUpdBy).setValue(userEmail);
     if (colUpdAt > 0) sheet.getRange(rowNum, colUpdAt).setValue(now);
+    if (colHist > 0) sheet.getRange(rowNum, colHist).setValue(approvalHistory);
+
     logAudit_(userEmail, "REQUEST_DELETE", "MasterHub", id, `Delete request submitted for ${type}: ${id} (Pending Admin Approval)`);
     return { success: true, message: `${type} deletion submitted. Admin approval pending.`, pendingApproval: true };
   }
@@ -1709,10 +1817,24 @@ function deleteMasterItem_(payload) {
   const colIsDel = getHeaderColIndex_(sheet, "IsDeleted");
   const colDelBy = getHeaderColIndex_(sheet, "Deleted_By");
   const colDelAt = getHeaderColIndex_(sheet, "Deleted_At");
+  const colDelAppBy = getHeaderColIndex_(sheet, "Deleted_Approved_By");
+  const colDelAppAt = getHeaderColIndex_(sheet, "Deleted_Approved_At");
+  const colHist = getHeaderColIndex_(sheet, "Approval_History");
+  const delApprovedBy = isAdmin ? userEmail : "Auto";
+
+  approvalHistory = appendApprovalHistory_(approvalHistory, {
+    action: "DELETE",
+    status: "Approved",
+    approvedBy: delApprovedBy,
+    approvedAt: now
+  });
 
   if (colIsDel > 0) sheet.getRange(rowNum, colIsDel).setValue(true);
   if (colDelBy > 0) sheet.getRange(rowNum, colDelBy).setValue(userEmail);
   if (colDelAt > 0) sheet.getRange(rowNum, colDelAt).setValue(now);
+  if (colDelAppBy > 0) sheet.getRange(rowNum, colDelAppBy).setValue(delApprovedBy);
+  if (colDelAppAt > 0) sheet.getRange(rowNum, colDelAppAt).setValue(now);
+  if (colHist > 0) sheet.getRange(rowNum, colHist).setValue(approvalHistory);
 
   logAudit_(userEmail, "DELETE", "MasterHub", id, `Deleted ${type}: ${id}`);
   return { success: true, message: `${type} deleted.` };
@@ -1876,9 +1998,9 @@ function approveRecord_(payload) {
   payload = payload || {};
   verifyIsAdminOrSuperAdmin_(payload);
   const tenantId = payload.tenantId || payload.activeTenantId || null;
-  const module = String(payload.module || "").trim().toLowerCase();
+  const module = String(payload.module || payload.type || "").trim().toLowerCase();
   const id = payload.id;
-  const adminEmail = payload.userEmail || "admin@srinvestments.com";
+  const adminEmail = payload.userEmail || payload.adminEmail || "admin@srinvestments.com";
   const now = new Date().toISOString();
 
   let sheetName, schema, idField;
@@ -1914,6 +2036,7 @@ function approveRecord_(payload) {
   const rowNum = index + 2;
   const rec = rows[index];
   const isDeleteRequest = String(rec.Status || "").toLowerCase().includes("delete");
+  let approvalHistory = rec.Approval_History || "";
 
   const colStatus = getHeaderColIndex_(sheet, "Status");
   const colAppBy = getHeaderColIndex_(sheet, "Approved_By");
@@ -1923,16 +2046,52 @@ function approveRecord_(payload) {
   const colIsDel = getHeaderColIndex_(sheet, "IsDeleted");
   const colDelBy = getHeaderColIndex_(sheet, "Deleted_By");
   const colDelAt = getHeaderColIndex_(sheet, "Deleted_At");
+  const colCreatedAppBy = getHeaderColIndex_(sheet, "Created_Approved_By");
+  const colCreatedAppAt = getHeaderColIndex_(sheet, "Created_Approved_At");
+  const colUpdatedAppBy = getHeaderColIndex_(sheet, "Updated_Approved_By");
+  const colUpdatedAppAt = getHeaderColIndex_(sheet, "Updated_Approved_At");
+  const colDeletedAppBy = getHeaderColIndex_(sheet, "Deleted_Approved_By");
+  const colDeletedAppAt = getHeaderColIndex_(sheet, "Deleted_Approved_At");
+  const colHist = getHeaderColIndex_(sheet, "Approval_History");
 
   if (isDeleteRequest) {
     if (colIsDel > 0) sheet.getRange(rowNum, colIsDel).setValue(true);
     if (colStatus > 0) sheet.getRange(rowNum, colStatus).setValue("Deleted");
     if (colDelBy > 0) sheet.getRange(rowNum, colDelBy).setValue(adminEmail);
     if (colDelAt > 0) sheet.getRange(rowNum, colDelAt).setValue(now);
+    if (colDeletedAppBy > 0) sheet.getRange(rowNum, colDeletedAppBy).setValue(adminEmail);
+    if (colDeletedAppAt > 0) sheet.getRange(rowNum, colDeletedAppAt).setValue(now);
+    approvalHistory = appendApprovalHistory_(approvalHistory, {
+      action: "DELETE",
+      status: "Approved",
+      approvedBy: adminEmail,
+      approvedAt: now
+    });
   } else {
     if (colStatus > 0) sheet.getRange(rowNum, colStatus).setValue("Active");
+    const isCreate = !rec.Created_Approved_By && !rec.Created_Approved_At;
+    if (isCreate) {
+      if (colCreatedAppBy > 0) sheet.getRange(rowNum, colCreatedAppBy).setValue(adminEmail);
+      if (colCreatedAppAt > 0) sheet.getRange(rowNum, colCreatedAppAt).setValue(now);
+      approvalHistory = appendApprovalHistory_(approvalHistory, {
+        action: "CREATE",
+        status: "Approved",
+        approvedBy: adminEmail,
+        approvedAt: now
+      });
+    } else {
+      if (colUpdatedAppBy > 0) sheet.getRange(rowNum, colUpdatedAppBy).setValue(adminEmail);
+      if (colUpdatedAppAt > 0) sheet.getRange(rowNum, colUpdatedAppAt).setValue(now);
+      approvalHistory = appendApprovalHistory_(approvalHistory, {
+        action: "EDIT",
+        status: "Approved",
+        approvedBy: adminEmail,
+        approvedAt: now
+      });
+    }
   }
 
+  if (colHist > 0) sheet.getRange(rowNum, colHist).setValue(approvalHistory);
   if (colAppBy > 0) sheet.getRange(rowNum, colAppBy).setValue(adminEmail);
   if (colAppAt > 0) sheet.getRange(rowNum, colAppAt).setValue(now);
   if (colUpdBy > 0) sheet.getRange(rowNum, colUpdBy).setValue(adminEmail);
@@ -1946,10 +2105,10 @@ function rejectRecord_(payload) {
   payload = payload || {};
   verifyIsAdminOrSuperAdmin_(payload);
   const tenantId = payload.tenantId || payload.activeTenantId || null;
-  const module = String(payload.module || "").trim().toLowerCase();
+  const module = String(payload.module || payload.type || "").trim().toLowerCase();
   const id = payload.id;
   const reason = payload.reason ? (" - " + payload.reason) : "";
-  const adminEmail = payload.userEmail || "admin@srinvestments.com";
+  const adminEmail = payload.userEmail || payload.adminEmail || "admin@srinvestments.com";
   const now = new Date().toISOString();
 
   let sheetName, schema, idField;
@@ -1985,19 +2144,37 @@ function rejectRecord_(payload) {
   const rowNum = index + 2;
   const rec = rows[index];
   const isDeleteRequest = String(rec.Status || "").toLowerCase().includes("delete");
+  let approvalHistory = rec.Approval_History || "";
 
   const colStatus = getHeaderColIndex_(sheet, "Status");
   const colAppBy = getHeaderColIndex_(sheet, "Approved_By");
   const colAppAt = getHeaderColIndex_(sheet, "Approved_At");
   const colUpdBy = getHeaderColIndex_(sheet, "Updated_By");
   const colUpdAt = getHeaderColIndex_(sheet, "Updated_At");
+  const colHist = getHeaderColIndex_(sheet, "Approval_History");
 
   if (isDeleteRequest) {
     if (colStatus > 0) sheet.getRange(rowNum, colStatus).setValue("Active");
+    approvalHistory = appendApprovalHistory_(approvalHistory, {
+      action: "DELETE",
+      status: "Rejected",
+      rejectedBy: adminEmail,
+      rejectedAt: now,
+      reason: payload.reason || ""
+    });
   } else {
     if (colStatus > 0) sheet.getRange(rowNum, colStatus).setValue("Rejected");
+    const isCreate = !rec.Created_Approved_By && !rec.Created_Approved_At;
+    approvalHistory = appendApprovalHistory_(approvalHistory, {
+      action: isCreate ? "CREATE" : "EDIT",
+      status: "Rejected",
+      rejectedBy: adminEmail,
+      rejectedAt: now,
+      reason: payload.reason || ""
+    });
   }
 
+  if (colHist > 0) sheet.getRange(rowNum, colHist).setValue(approvalHistory);
   if (colAppBy > 0) sheet.getRange(rowNum, colAppBy).setValue(adminEmail + " (Rejected" + reason + ")");
   if (colAppAt > 0) sheet.getRange(rowNum, colAppAt).setValue(now);
   if (colUpdBy > 0) sheet.getRange(rowNum, colUpdBy).setValue(adminEmail);

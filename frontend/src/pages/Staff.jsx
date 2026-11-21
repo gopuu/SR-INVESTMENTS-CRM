@@ -339,6 +339,88 @@ export default function Staff({ onOpenBackup }) {
     }
   };
 
+  const renderAuditDetails = (item) => {
+    let historyList = [];
+    if (item.Approval_History) {
+      if (typeof item.Approval_History === 'string') {
+        try {
+          const parsed = JSON.parse(item.Approval_History);
+          if (Array.isArray(parsed)) historyList = parsed;
+        } catch (e) {
+          // ignore
+        }
+      } else if (Array.isArray(item.Approval_History)) {
+        historyList = item.Approval_History;
+      }
+    }
+
+    const createdAppBy = item.Created_Approved_By;
+    const createdAppAt = item.Created_Approved_At;
+    const updatedAppBy = item.Updated_Approved_By;
+    const updatedAppAt = item.Updated_Approved_At;
+    const deletedAppBy = item.Deleted_Approved_By;
+    const deletedAppAt = item.Deleted_Approved_At;
+    const legacyAppBy = item.Approved_By;
+
+    const historyTooltip = historyList.length > 0 
+      ? historyList.map(h => `• ${h.action || 'EVENT'}: ${h.status || ''} by ${h.approvedBy || h.submittedBy || h.user || 'Admin'} on ${h.approvedAt || h.submittedAt || h.date || ''}`).join('\n')
+      : '';
+
+    return (
+      <div style={{ fontSize: '0.675rem', color: '#64748b', lineHeight: 1.35, marginTop: '2px' }}>
+        <div style={{ color: '#94a3b8' }}>
+          Created: {item.Created_At ? new Date(item.Created_At).toLocaleDateString() : '—'} ({item.Created_By || 'System'})
+        </div>
+
+        {createdAppBy && (
+          <div style={{ color: '#059669', fontWeight: '600', marginTop: '1px' }}>
+            ✓ Create Appr: {createdAppBy} {createdAppAt ? `(${new Date(createdAppAt).toLocaleDateString()})` : ''}
+          </div>
+        )}
+
+        {updatedAppBy && (
+          <div style={{ color: '#2563eb', fontWeight: '600', marginTop: '1px' }}>
+            ✎ Edit Appr: {updatedAppBy} {updatedAppAt ? `(${new Date(updatedAppAt).toLocaleDateString()})` : ''}
+          </div>
+        )}
+
+        {deletedAppBy && (
+          <div style={{ color: '#dc2626', fontWeight: '600', marginTop: '1px' }}>
+            ✕ Del Appr: {deletedAppBy} {deletedAppAt ? `(${new Date(deletedAppAt).toLocaleDateString()})` : ''}
+          </div>
+        )}
+
+        {!createdAppBy && !updatedAppBy && !deletedAppBy && legacyAppBy && (
+          <div style={{ color: '#059669', fontWeight: '600', marginTop: '1px' }}>
+            ✓ Approved by: {legacyAppBy}
+          </div>
+        )}
+
+        {historyList.length > 0 && (
+          <div 
+            title={historyTooltip}
+            style={{ 
+              cursor: 'pointer', 
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '3px',
+              fontSize: '0.625rem', 
+              backgroundColor: '#f1f5f9', 
+              color: '#334155', 
+              border: '1px solid #e2e8f0',
+              borderRadius: '4px', 
+              padding: '1px 5px', 
+              marginTop: '2px',
+              fontWeight: 500
+            }}
+          >
+            📋 {historyList.length} approval record{historyList.length > 1 ? 's' : ''}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <Header 
@@ -462,14 +544,7 @@ export default function Staff({ onOpenBackup }) {
                           <div>
                             <div style={{ fontWeight: '600', color: e.IsDeleted ? '#64748b' : '#0f172a' }}>{e.FullName}</div>
                             <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{e.Role || 'Staff'}</div>
-                            <div style={{ fontSize: '0.675rem', color: '#94a3b8', marginTop: '2px' }}>
-                              Created: {e.Created_At ? new Date(e.Created_At).toLocaleDateString() : '—'} ({e.Created_By || 'System'})
-                            </div>
-                            {e.Approved_By && (
-                              <div style={{ fontSize: '0.675rem', color: '#059669', marginTop: '2px', fontWeight: '600' }}>
-                                ✓ Approved by: {e.Approved_By}
-                              </div>
-                            )}
+                            {renderAuditDetails(e)}
                           </div>
                         </div>
                       </td>
