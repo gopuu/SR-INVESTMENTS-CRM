@@ -700,8 +700,11 @@ function saveCompanySettings_(payload) {
 
   Object.keys(settings).forEach(rawKey => {
     if (rawKey === "tenantId" || rawKey === "activeTenantId" || rawKey === "userEmail" || rawKey === "userName") return;
-    const val = String(settings[rawKey] ?? "").trim();
+    let val = String(settings[rawKey] ?? "").trim();
     const cleanRaw = rawKey.replace(/_/g, "").toLowerCase();
+    if (cleanRaw === "contactphone" || cleanRaw === "phone") {
+      val = val.replace(/\D/g, "").slice(0, 10);
+    }
     const index = rows.findIndex(r => String(r.Key || "").replace(/_/g, "").toLowerCase() === cleanRaw);
 
     if (index >= 0) {

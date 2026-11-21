@@ -14,6 +14,7 @@ import { crmApi, subscribeCrmEvents } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
 import RolesRights from './RolesRights';
+import { showSuccess, showError, showWarning } from '../utils/swal';
 
 export default function Settings({ onOpenBackup }) {
   const { user, hasPermission } = useAuth();
@@ -29,7 +30,7 @@ export default function Settings({ onOpenBackup }) {
     EUIN_NUMBER: 'E345678',
     GSTIN: '27AAACR1234F1Z5',
     SUPPORT_EMAIL: 'support@srinvestments.com',
-    CONTACT_PHONE: '+91 98765 43210',
+    CONTACT_PHONE: '9876543210',
     OFFICE_ADDRESS: '101, Fortune Hub, Financial District, Bandra-Kurla Complex, Mumbai 400051'
   });
 
@@ -67,7 +68,13 @@ export default function Settings({ onOpenBackup }) {
         crmApi.call('getCompanySettings'),
         crmApi.call('getRolesRights')
       ]);
-      if (comp) setCompanySettings((prev) => ({ ...prev, ...comp }));
+      if (comp) {
+        setCompanySettings((prev) => ({ 
+          ...prev, 
+          ...comp,
+          CONTACT_PHONE: comp.CONTACT_PHONE ? String(comp.CONTACT_PHONE).replace(/\D/g, '').slice(-10) : prev.CONTACT_PHONE
+        }));
+      }
       if (rts) setRights(rts);
 
       // Dynamically fetch and sync Default-Config from Central DB sheet
@@ -84,13 +91,23 @@ export default function Settings({ onOpenBackup }) {
 
   const handleSaveCompany = async (e) => {
     e.preventDefault();
+    if (companySettings.CONTACT_PHONE) {
+      const cleanPhone = String(companySettings.CONTACT_PHONE).replace(/\D/g, '');
+      if (cleanPhone.length > 0 && cleanPhone.length !== 10) {
+        setMsg({ text: 'Helpdesk Contact Phone must be a valid 10-digit number.', type: 'error' });
+        showError('Validation Error', 'Helpdesk Contact Phone must be a valid 10-digit number.');
+        return;
+      }
+    }
     setSaving(true);
     setMsg({ text: '', type: '' });
     try {
       await crmApi.call('saveCompanySettings', companySettings);
       setMsg({ text: 'Company settings updated successfully!', type: 'success' });
+      showSuccess('Company settings updated successfully!');
     } catch (err) {
       setMsg({ text: err.message || 'Failed to save settings', type: 'error' });
+      showError(err.message || 'Failed to save settings');
     } finally {
       setSaving(false);
     }
@@ -342,13 +359,26 @@ export default function Settings({ onOpenBackup }) {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Helpdesk Contact Phone</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                    <label className="form-label" style={{ margin: 0 }}>Helpdesk Contact Phone</label>
+                    <span style={{ fontSize: '0.675rem', color: '#64748b' }}>
+                      {companySettings.CONTACT_PHONE ? `${companySettings.CONTACT_PHONE.length}/10` : '0/10'}
+                    </span>
+                  </div>
                   <input
                     type="tel"
                     className="form-input"
+                    placeholder="10-digit phone number (e.g. 9876543210)"
+                    maxLength={10}
                     value={companySettings.CONTACT_PHONE || ''}
-                    onChange={(e) => setCompanySettings({ ...companySettings, CONTACT_PHONE: e.target.value })}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setCompanySettings({ ...companySettings, CONTACT_PHONE: digits });
+                    }}
                   />
+                  <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
+                    Standard 10-digit contact / helpline number. Only digits allowed (max 10).
+                  </div>
                 </div>
               </div>
 
