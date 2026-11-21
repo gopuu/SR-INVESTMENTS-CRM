@@ -23,7 +23,6 @@ import { showError } from '../utils/swal';
 
 export default function Sidebar({ currentPage, onNavigate }) {
   const { user, tenant, hasPermission, isSuperAdmin } = useAuth();
-  const isDemo = crmApi.isDemoMode();
   const [navKey, setNavKey] = useState(0);
 
   // Subscribe to real-time role / permission updates to re-render navbar locks instantly
@@ -184,42 +183,6 @@ export default function Sidebar({ currentPage, onNavigate }) {
           <div style={{ fontSize: '0.725rem', color: '#93c5fd', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <TrendingUp size={12} color="#60a5fa" /> Mutual Fund CRM
           </div>
-        </div>
-      </div>
-
-      {/* Backend Status indicator */}
-      <div style={{ padding: '0.75rem 1.25rem', borderBottom: '1px solid #1e293b' }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          fontSize: '0.725rem',
-          padding: '0.4rem 0.65rem',
-          borderRadius: '6px',
-          backgroundColor: isDemo ? '#1e293b' : '#1e3a8a',
-          color: isDemo ? '#cbd5e1' : '#bfdbfe'
-        }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <span style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              backgroundColor: isDemo ? '#38bdf8' : '#60a5fa'
-            }}></span>
-            {isDemo ? 'Local Storage Mode' : 'GAS Live Backend'}
-          </span>
-          <button 
-            onClick={() => onNavigate('settings')}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'inherit',
-              cursor: 'pointer',
-              textDecoration: 'underline',
-              fontSize: '0.7rem'
-            }}>
-            Config
-          </button>
         </div>
       </div>
 
