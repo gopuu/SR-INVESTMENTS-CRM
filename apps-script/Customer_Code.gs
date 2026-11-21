@@ -225,7 +225,6 @@ function deleteCustomer_(payload) {
       "Delete request submitted for investor: " + (rec.FullName || "") + " (Pending Admin Approval)");
     return { success: true, message: "Investor deletion submitted. Admin approval pending.", pendingApproval: true };
   }
-  const rowNum = index + 2;
 
   const colIsDeleted = getHeaderColIndex_(sheet, "IsDeleted");
   const colDeletedBy = getHeaderColIndex_(sheet, "Deleted_By");
