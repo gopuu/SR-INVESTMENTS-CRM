@@ -92,29 +92,26 @@ function saveCustomer_(data) {
   const existingIndex = rows.findIndex(r => String(r.CustomerId || "").trim() === id);
   const existingRecord = existingIndex >= 0 ? rows[existingIndex] : null;
 
-  // Calculate next sequential numeric Sr.No / ID (last row + 1, numbers only)
-  let code = cleanStr_(data.CustomerCode);
-  if (!code || existingIndex < 0) {
-    if (!code) {
-      let maxNum = 0;
-      rows.forEach(r => {
-        const raw = String(r.CustomerCode || "").trim();
-        const num = parseInt(raw, 10);
-        if (!isNaN(num) && num > maxNum) {
-          maxNum = num;
-        } else {
-          const match = raw.match(/\d+/g);
-          if (match) {
-            const last = parseInt(match[match.length - 1], 10);
-            if (last > maxNum) maxNum = last;
-          }
-        }
-      });
-      const total = rows.length;
-      code = String(Math.max(maxNum, total) + 1);
+  // Customer Code: Alphanumeric, defaults to initials of FullName if empty, unique
+  let code = cleanStr_(data.CustomerCode || "").trim().toUpperCase();
+  if (!code) {
+    if (existingRecord && existingRecord.CustomerCode) {
+      code = existingRecord.CustomerCode;
+    } else {
+      code = generateInitialsCode_(data.FullName);
+      if (!code) code = "CUST" + (rows.length + 1);
     }
-  } else if (existingRecord && existingRecord.CustomerCode) {
-    code = existingRecord.CustomerCode;
+  }
+
+  // Strict Duplicate Customer Code check
+  const dupCode = rows.find(r => {
+    const isDel = r.IsDeleted === true || r.IsDeleted === "TRUE" || String(r.IsDeleted).toLowerCase() === "true";
+    if (isDel) return false;
+    if (String(r.CustomerId || "").trim() === id) return false;
+    return cleanStr_(r.CustomerCode).toLowerCase() === code.toLowerCase();
+  });
+  if (dupCode) {
+    throw new Error(`Duplicate Customer Code: '${code}' is already assigned to '${dupCode.FullName || dupCode.CustomerCode}'. Customer Code must be unique.`);
   }
 
   // Audit Fields Management

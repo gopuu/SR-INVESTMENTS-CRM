@@ -18,7 +18,7 @@ import {
   RefreshCw,
   CheckCircle2
 } from 'lucide-react';
-import { crmApi, getNextEmployeeCode, subscribeCrmEvents } from '../services/api';
+import { crmApi, getInitialsCode, subscribeCrmEvents } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
 import Modal from '../components/Modal';
@@ -67,6 +67,7 @@ export default function Staff({ onOpenBackup }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [isCodeManual, setIsCodeManual] = useState(false);
   const [imagePreview, setImagePreview] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
 
@@ -156,10 +157,11 @@ export default function Staff({ onOpenBackup }) {
 
   const openAddModal = () => {
     setEditingEmployee(null);
-    const nextCode = getNextEmployeeCode(employees);
+    setIsCodeManual(false);
     setFormData({
       ...initialFormState,
-      EmployeeCode: nextCode,
+      EmployeeCode: '',
+      FullName: '',
       Department: departments[0]?.DepartmentName || 'Wealth Management',
       Designation: designations[0]?.DesignationName || 'Senior Investment Advisor',
       Role: roles[0]?.RoleName || 'Staff',
@@ -172,6 +174,7 @@ export default function Staff({ onOpenBackup }) {
 
   const openEditModal = (emp) => {
     setEditingEmployee(emp);
+    setIsCodeManual(true);
     const safeStatus = String(emp.Status || '').trim().toLowerCase() === 'inactive' ? 'Inactive' : 'Active';
     setFormData({
       EmployeeId: emp.EmployeeId || '',
@@ -227,6 +230,22 @@ export default function Staff({ onOpenBackup }) {
     e.preventDefault();
     if (!formData.FullName || !formData.FullName.trim()) {
       showWarning('Staff Member Name is required.');
+      return;
+    }
+    const empCode = String(formData.EmployeeCode || '').trim().toUpperCase();
+    if (!empCode) {
+      showWarning('Employee Code is compulsory.');
+      return;
+    }
+
+    // Duplicate Employee Code validation
+    const dupCode = employees.find(emp => 
+      emp.EmployeeId !== formData.EmployeeId &&
+      !emp.IsDeleted &&
+      String(emp.EmployeeCode || '').trim().toLowerCase() === empCode.toLowerCase()
+    );
+    if (dupCode) {
+      showError('Duplicate Employee Code', `"${empCode}" is already assigned to "${dupCode.FullName}". Employee Code must be unique.`);
       return;
     }
     if (!formData.Email || !formData.Email.trim()) {
@@ -361,7 +380,7 @@ export default function Staff({ onOpenBackup }) {
               <thead>
                 <tr>
                   <th>Staff Profile & Audit</th>
-                  <th>Sr.No / ID</th>
+                  <th>Employee Code</th>
                   <th>Designation & Role</th>
                   <th>Department</th>
                   <th>Official & Google Emails</th>
@@ -593,27 +612,7 @@ export default function Staff({ onOpenBackup }) {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              {/* Sr.No / ID - Autoincrement & Non-Editable */}
-              <div className="form-group">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                  <label className="form-label" style={{ margin: 0 }}>
-                    Sr.No / ID <span style={{ color: '#2563eb', fontSize: '0.75rem' }}>(Auto-generated)</span>
-                  </label>
-                  <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Auto-increment</span>
-                </div>
-                <input
-                  type="text"
-                  className="form-input"
-                  style={{ backgroundColor: '#f1f5f9', fontWeight: '700', color: '#1e40af', cursor: 'not-allowed' }}
-                  value={formData.EmployeeCode || 'Auto-generated on save'}
-                  disabled
-                  readOnly
-                />
-                <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
-                  Auto-fetched sequential number from sheet (last row + 1). Only numeric IDs allowed.
-                </div>
-              </div>
-
+              {/* 1st Input: Full Name */}
               <div className="form-group">
                 <label className="form-label">Full Name <span style={{ color: '#ef4444' }}>*</span></label>
                 <input
@@ -621,11 +620,41 @@ export default function Staff({ onOpenBackup }) {
                   className="form-input"
                   placeholder="e.g. Rajesh Sharma"
                   value={formData.FullName}
-                  onChange={(e) => setFormData({ ...formData, FullName: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const updated = { ...formData, FullName: val };
+                    if (!isCodeManual) {
+                      updated.EmployeeCode = getInitialsCode(val);
+                    }
+                    setFormData(updated);
+                  }}
                   required
                 />
               </div>
 
+              {/* 2nd Input: Employee Code (Enabled Alphanumeric, defaults to initials of Name) */}
+              <div className="form-group">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <label className="form-label" style={{ margin: 0 }}>
+                    Employee Code <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Alphanumeric</span>
+                </div>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. RS, EMP01"
+                  value={formData.EmployeeCode}
+                  onChange={(e) => {
+                    setIsCodeManual(true);
+                    setFormData({ ...formData, EmployeeCode: e.target.value.toUpperCase() });
+                  }}
+                  required
+                />
+                <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
+                  Alphanumeric staff code (defaults to name initials, editable). Must be unique.
+                </div>
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>

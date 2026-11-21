@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import Header from '../components/Header';
 import Modal from '../components/Modal';
-import { crmApi, subscribeCrmEvents } from '../services/api';
+import { crmApi, subscribeCrmEvents, getInitialsCode } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { showSuccess, showError, showWarning, showConfirm } from '../utils/swal';
 
@@ -52,6 +52,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
   const [modalType, setModalType] = useState('department'); // 'department' | 'designation' | 'role'
   const [editingItem, setEditingItem] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [isCodeManual, setIsCodeManual] = useState(false);
 
   // Form State
   const initialForm = {
@@ -117,14 +118,11 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
   const openAddModal = (type) => {
     setModalType(type);
     setEditingItem(null);
-    let defaultCode = '1';
-    if (type === 'department') defaultCode = getNextSerial(departments, 'DepartmentCode');
-    if (type === 'designation') defaultCode = getNextSerial(designations, 'DesignationCode');
-    if (type === 'role') defaultCode = getNextSerial(roles, 'RoleCode');
-
+    setIsCodeManual(false);
     setFormData({
       ...initialForm,
-      code: defaultCode,
+      code: '',
+      name: '',
       department: departments[0]?.DepartmentName || 'Wealth Management'
     });
     setIsModalOpen(true);
@@ -133,6 +131,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
   const openEditModal = (type, item) => {
     setModalType(type);
     setEditingItem(item);
+    setIsCodeManual(true);
     if (type === 'department') {
       setFormData({
         id: item.DepartmentId,
@@ -166,15 +165,15 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
 
   const handleSave = async (e) => {
     e.preventDefault();
-    const codeVal = String(formData.code || '').trim();
+    const codeVal = String(formData.code || '').trim().toUpperCase();
     const nameVal = String(formData.name || '').trim();
 
-    if (!codeVal) {
-      showError('Validation Error', 'Please enter a valid Sr.No / ID.');
-      return;
-    }
     if (!nameVal) {
       showError('Validation Error', 'Please enter a valid title/name.');
+      return;
+    }
+    if (!codeVal) {
+      showError('Validation Error', 'Please enter a valid Code.');
       return;
     }
 
@@ -184,7 +183,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
     const codeKey = modalType === 'department' ? 'DepartmentCode' : modalType === 'designation' ? 'DesignationCode' : 'RoleCode';
     const nameKey = modalType === 'department' ? 'DepartmentName' : modalType === 'designation' ? 'DesignationName' : 'RoleName';
 
-    // 1. Check duplicate Code / Sr.No (case-insensitive)
+    // 1. Check duplicate Code (case-insensitive)
     const dupCode = currentList.find(item => 
       item[idKey] !== formData.id &&
       !item.IsDeleted &&
@@ -192,8 +191,8 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
     );
     if (dupCode) {
       showError(
-        'Duplicate Sr.No / ID Found',
-        `"${codeVal}" is already assigned to "${dupCode[nameKey]}". Duplicate serial numbers or IDs are not allowed.`
+        'Duplicate Code Found',
+        `"${codeVal}" is already assigned to "${dupCode[nameKey]}". Code must be unique.`
       );
       return;
     }
@@ -596,7 +595,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
               <table className="crm-table">
                 <thead>
                   <tr>
-                    <th>Sr.No / ID</th>
+                    <th>Department Code</th>
                     <th>Department Name</th>
                     <th>Description</th>
                     <th>Status</th>
@@ -692,7 +691,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
               <table className="crm-table">
                 <thead>
                   <tr>
-                    <th>Sr.No / ID</th>
+                    <th>Designation Code</th>
                     <th>Designation Name</th>
                     <th>Mapped Department</th>
                     <th>Description</th>
@@ -794,7 +793,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
               <table className="crm-table">
                 <thead>
                   <tr>
-                    <th>Sr.No / ID</th>
+                    <th>Role Code</th>
                     <th>CRM System Role</th>
                     <th>Description & Permissions</th>
                     <th>Status</th>
@@ -944,26 +943,7 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
       >
         <form onSubmit={handleSave}>
           <div className="modal-body">
-            <div className="form-group">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                <label className="form-label" style={{ margin: 0 }}>
-                  Sr.No / ID <span style={{ color: '#2563eb', fontSize: '0.75rem' }}>(Auto-generated)</span>
-                </label>
-                <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Auto-increment</span>
-              </div>
-              <input
-                type="text"
-                className="form-input"
-                value={formData.code}
-                disabled
-                readOnly
-                style={{ backgroundColor: '#f1f5f9', fontWeight: '700', color: '#1e40af', cursor: 'not-allowed' }}
-              />
-              <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
-                Auto-fetched sequential number from sheet (last row + 1). Only numeric IDs allowed.
-              </div>
-            </div>
-
+            {/* 1st Input: Name */}
             <div className="form-group">
               <label className="form-label">
                 {modalType === 'department' ? 'Department Name' : modalType === 'designation' ? 'Designation Name' : 'Role Title'} <span style={{ color: '#ef4444' }}>*</span>
@@ -972,7 +952,14 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                 type="text"
                 className="form-input"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const updated = { ...formData, name: val };
+                  if (!isCodeManual) {
+                    updated.code = getInitialsCode(val);
+                  }
+                  setFormData(updated);
+                }}
                 placeholder={
                   modalType === 'department' 
                     ? 'e.g. Wealth Management' 
@@ -982,6 +969,30 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
                 }
                 required
               />
+            </div>
+
+            {/* 2nd Input: Code (Enabled Alphanumeric, defaults to initials of Name) */}
+            <div className="form-group">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                <label className="form-label" style={{ margin: 0 }}>
+                  {modalType === 'department' ? 'Department Code' : modalType === 'designation' ? 'Designation Code' : 'Role Code'} <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Alphanumeric</span>
+              </div>
+              <input
+                type="text"
+                className="form-input"
+                value={formData.code}
+                onChange={(e) => {
+                  setIsCodeManual(true);
+                  setFormData({ ...formData, code: e.target.value.toUpperCase() });
+                }}
+                placeholder="e.g. HW, SIA, RM..."
+                required
+              />
+              <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
+                Alphanumeric unique code (auto-derived from initials, editable). Must be unique.
+              </div>
             </div>
 
             {/* Mapped Department for Designations */}

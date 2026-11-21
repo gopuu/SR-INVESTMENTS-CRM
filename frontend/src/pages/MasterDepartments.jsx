@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import Header from '../components/Header';
 import Modal from '../components/Modal';
-import { crmApi, subscribeCrmEvents } from '../services/api';
+import { crmApi, subscribeCrmEvents, getInitialsCode } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { showSuccess, showError, showConfirm } from '../utils/swal';
 
@@ -30,6 +30,7 @@ export default function MasterDepartments({ onOpenBackup }) {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [isCodeManual, setIsCodeManual] = useState(false);
   const [formData, setFormData] = useState({
     DepartmentId: '',
     DepartmentCode: '',
@@ -85,9 +86,10 @@ export default function MasterDepartments({ onOpenBackup }) {
 
   const openAddModal = () => {
     setEditingItem(null);
+    setIsCodeManual(false);
     setFormData({
       DepartmentId: '',
-      DepartmentCode: getNextSerial(departments),
+      DepartmentCode: '',
       DepartmentName: '',
       Description: '',
       Status: 'Active'
@@ -97,6 +99,7 @@ export default function MasterDepartments({ onOpenBackup }) {
 
   const openEditModal = (item) => {
     setEditingItem(item);
+    setIsCodeManual(true);
     setFormData({
       DepartmentId: item.DepartmentId || '',
       DepartmentCode: item.DepartmentCode || '',
@@ -109,26 +112,26 @@ export default function MasterDepartments({ onOpenBackup }) {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    const codeVal = String(formData.DepartmentCode || '').trim();
+    const codeVal = String(formData.DepartmentCode || '').trim().toUpperCase();
     const nameVal = String(formData.DepartmentName || '').trim();
 
-    if (!codeVal) {
-      showError('Validation Error', 'Sr.No / ID is required.');
-      return;
-    }
     if (!nameVal) {
       showError('Validation Error', 'Department Name is required.');
       return;
     }
+    if (!codeVal) {
+      showError('Validation Error', 'Department Code is required.');
+      return;
+    }
 
-    // Duplicate Sr.No / ID check
+    // Duplicate Department Code check
     const dupCode = departments.find(d => 
       d.DepartmentId !== formData.DepartmentId &&
       !d.IsDeleted &&
       String(d.DepartmentCode || '').trim().toLowerCase() === codeVal.toLowerCase()
     );
     if (dupCode) {
-      showError('Duplicate Sr.No / ID', `"${codeVal}" is already assigned to "${dupCode.DepartmentName}".`);
+      showError('Duplicate Department Code', `"${codeVal}" is already assigned to "${dupCode.DepartmentName}". Department Code must be unique.`);
       return;
     }
 
@@ -321,7 +324,7 @@ export default function MasterDepartments({ onOpenBackup }) {
             <table className="crm-table">
               <thead>
                 <tr>
-                  <th>Sr.No / ID</th>
+                  <th>Department Code</th>
                   <th>Department Name</th>
                   <th>Description</th>
                   <th>Status</th>
@@ -419,36 +422,48 @@ export default function MasterDepartments({ onOpenBackup }) {
         title={editingItem ? 'Edit Department' : 'Add New Department'}
       >
         <form onSubmit={handleSave}>
+          {/* 1st Input: Department Name */}
+          <div className="form-group">
+            <label className="form-label">Department Name <span style={{ color: '#ef4444' }}>*</span></label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="e.g. Wealth Management"
+              value={formData.DepartmentName}
+              onChange={(e) => {
+                const val = e.target.value;
+                const updated = { ...formData, DepartmentName: val };
+                if (!isCodeManual) {
+                  updated.DepartmentCode = getInitialsCode(val);
+                }
+                setFormData(updated);
+              }}
+              required
+            />
+          </div>
+
+          {/* 2nd Input: Department Code (Enabled Alphanumeric, defaults to initials of Name) */}
           <div className="form-group">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
               <label className="form-label" style={{ margin: 0 }}>
-                Sr.No / ID <span style={{ color: '#2563eb', fontSize: '0.75rem' }}>(Auto-generated)</span>
+                Department Code <span style={{ color: '#ef4444' }}>*</span>
               </label>
-              <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Auto-increment</span>
+              <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Alphanumeric</span>
             </div>
             <input
               type="text"
               className="form-input"
               value={formData.DepartmentCode}
-              disabled
-              readOnly
-              style={{ backgroundColor: '#f1f5f9', fontWeight: '700', color: '#1e40af', cursor: 'not-allowed' }}
-            />
-            <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
-              Auto-fetched sequential number from sheet (last row + 1). Only numeric IDs allowed.
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Department Name *</label>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="e.g. Wealth Advisory, Mutual Funds"
-              value={formData.DepartmentName}
-              onChange={(e) => setFormData({ ...formData, DepartmentName: e.target.value })}
+              onChange={(e) => {
+                setIsCodeManual(true);
+                setFormData({ ...formData, DepartmentCode: e.target.value.toUpperCase() });
+              }}
+              placeholder="e.g. WM, OPS..."
               required
             />
+            <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
+              Alphanumeric unique code (auto-derived from initials, editable). Must be unique.
+            </div>
           </div>
 
           <div className="form-group">

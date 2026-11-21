@@ -18,7 +18,7 @@ import {
   Clock,
   RefreshCw
 } from 'lucide-react';
-import { crmApi, subscribeCrmEvents, getNextCustomerCode } from '../services/api';
+import { crmApi, subscribeCrmEvents, getInitialsCode } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Header from '../components/Header';
 import Modal from '../components/Modal';
@@ -62,6 +62,7 @@ export default function Customers({ onOpenBackup }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [isCodeManual, setIsCodeManual] = useState(false);
 
   // Form State
   const initialFormState = {
@@ -129,16 +130,18 @@ export default function Customers({ onOpenBackup }) {
 
   const openAddModal = () => {
     setEditingCustomer(null);
-    const nextCode = getNextCustomerCode(customers);
+    setIsCodeManual(false);
     setFormData({
       ...initialFormState,
-      CustomerCode: nextCode
+      CustomerCode: '',
+      FullName: ''
     });
     setIsModalOpen(true);
   };
 
   const openEditModal = (cust) => {
     setEditingCustomer(cust);
+    setIsCodeManual(true);
     setFormData({
       CustomerId: cust.CustomerId || '',
       CustomerCode: cust.CustomerCode || '',
@@ -165,6 +168,24 @@ export default function Customers({ onOpenBackup }) {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (!formData.FullName || !formData.FullName.trim()) {
+      showError('Validation Error', 'Customer Full Name is required.');
+      return;
+    }
+    const custCode = String(formData.CustomerCode || '').trim().toUpperCase();
+    if (!custCode) {
+      showError('Validation Error', 'Customer Code is required.');
+      return;
+    }
+    const dupCode = customers.find(c => 
+      c.CustomerId !== formData.CustomerId &&
+      !c.IsDeleted &&
+      String(c.CustomerCode || '').trim().toLowerCase() === custCode.toLowerCase()
+    );
+    if (dupCode) {
+      showError('Duplicate Customer Code', `"${custCode}" is already assigned to "${dupCode.FullName}". Customer Code must be unique.`);
+      return;
+    }
     setSaving(true);
     try {
       await crmApi.call('saveCustomer', formData);
@@ -329,7 +350,7 @@ export default function Customers({ onOpenBackup }) {
             <table className="crm-table">
               <thead>
                 <tr>
-                  <th>Sr.No / ID</th>
+                  <th>Customer Code</th>
                   <th>Full Name & Audit</th>
                   <th>PAN & Aadhaar</th>
                   <th>Contact Details</th>
@@ -528,26 +549,7 @@ export default function Customers({ onOpenBackup }) {
             </div>
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div className="form-group">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                  <label className="form-label" style={{ margin: 0 }}>
-                    Sr.No / ID <span style={{ color: '#2563eb', fontSize: '0.75rem' }}>(Auto-generated)</span>
-                  </label>
-                  <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Auto-increment</span>
-                </div>
-                <input
-                  type="text"
-                  className="form-input"
-                  style={{ backgroundColor: '#f1f5f9', fontWeight: '700', color: '#1e40af', cursor: 'not-allowed' }}
-                  value={formData.CustomerCode || 'Auto-generated on save'}
-                  disabled
-                  readOnly
-                />
-                <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
-                  Auto-fetched sequential number from sheet (last row + 1). Only numeric IDs allowed.
-                </div>
-              </div>
-
+              {/* 1st Input: Full Name */}
               <div className="form-group">
                 <label className="form-label">Full Name <span style={{ color: '#ef4444' }}>*</span></label>
                 <input
@@ -555,9 +557,40 @@ export default function Customers({ onOpenBackup }) {
                   className="form-input"
                   placeholder="e.g. Ramesh Kumar Sharma"
                   value={formData.FullName}
-                  onChange={(e) => setFormData({ ...formData, FullName: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const updated = { ...formData, FullName: val };
+                    if (!isCodeManual) {
+                      updated.CustomerCode = getInitialsCode(val);
+                    }
+                    setFormData(updated);
+                  }}
                   required
                 />
+              </div>
+
+              {/* 2nd Input: Customer Code (Enabled Alphanumeric, defaults to initials of Name) */}
+              <div className="form-group">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <label className="form-label" style={{ margin: 0 }}>
+                    Customer Code <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Alphanumeric</span>
+                </div>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. RKS, CUST01"
+                  value={formData.CustomerCode}
+                  onChange={(e) => {
+                    setIsCodeManual(true);
+                    setFormData({ ...formData, CustomerCode: e.target.value.toUpperCase() });
+                  }}
+                  required
+                />
+                <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
+                  Alphanumeric customer code (defaults to name initials, editable). Must be unique.
+                </div>
               </div>
 
               <div className="form-group">

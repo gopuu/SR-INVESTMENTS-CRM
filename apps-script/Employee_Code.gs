@@ -110,12 +110,26 @@ function saveEmployee_(data) {
     });
   });
 
-  // Backend Autoincrement: If new staff, generate next SR-EMP sequence (scans all rows including archived)
-  let code = "";
-  if (existingRecord) {
-    code = existingRecord.EmployeeCode;
-  } else {
-    code = calculateNextEmployeeCode_(rows);
+  // Employee Code: Alphanumeric, defaults to initials of FullName if empty, unique
+  let code = cleanStr_(data.EmployeeCode || "").trim().toUpperCase();
+  if (!code) {
+    if (existingRecord && existingRecord.EmployeeCode) {
+      code = existingRecord.EmployeeCode;
+    } else {
+      code = generateInitialsCode_(data.FullName);
+      if (!code) code = "EMP" + (rows.length + 1);
+    }
+  }
+
+  // Strict Duplicate Employee Code check
+  const dupCode = rows.find(r => {
+    const isDel = r.IsDeleted === true || r.IsDeleted === "TRUE" || String(r.IsDeleted).toLowerCase() === "true";
+    if (isDel) return false;
+    if (String(r.EmployeeId || "").trim() === id) return false;
+    return cleanStr_(r.EmployeeCode).toLowerCase() === code.toLowerCase();
+  });
+  if (dupCode) {
+    throw new Error(`Duplicate Employee Code: '${code}' is already assigned to '${dupCode.FullName || dupCode.EmployeeCode}'. Employee Code must be unique.`);
   }
 
   let photoUrl = cleanStr_(data.PhotoUrl);
@@ -270,7 +284,7 @@ function restoreEmployee_(payload) {
 }
 
 /**
- * Calculates next numeric Sr.No / ID sequence number automatically from DB rows (last row + 1, numbers only)
+ * Calculates next fallback sequence number automatically from DB rows
  */
 function calculateNextEmployeeCode_(rows) {
   let maxNum = 0;

@@ -1001,6 +1001,22 @@ export function logAuditLocal(userEmail, action, module, recordId, details) {
   // Master record audit fields are updated directly on the entity
 }
 
+/**
+ * Helper to generate default alphanumeric Code from Name initials:
+ * e.g. "Hello World" -> "HW", "Hello" -> "H", "Wealth Management" -> "WM"
+ */
+export function getInitialsCode(name = '') {
+  if (!name || typeof name !== 'string') return '';
+  const trimmed = name.trim();
+  if (!trimmed) return '';
+  const words = trimmed.split(/[\s\-_&/]+/).map(w => w.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '')).filter(Boolean);
+  if (words.length === 0) return '';
+  if (words.length === 1) {
+    return words[0].charAt(0).toUpperCase();
+  }
+  return words.map(w => w.charAt(0).toUpperCase()).join('');
+}
+
 // Next autoincrement serial number / ID generator (pure numeric integer: last row + 1)
 export function getNextEmployeeCode(employees = []) {
   let maxNum = 0;

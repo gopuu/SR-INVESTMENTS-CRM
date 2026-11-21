@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import Header from '../components/Header';
 import Modal from '../components/Modal';
-import { crmApi, subscribeCrmEvents } from '../services/api';
+import { crmApi, subscribeCrmEvents, getInitialsCode } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { showSuccess, showError, showConfirm } from '../utils/swal';
 
@@ -29,6 +29,7 @@ export default function MasterRoles({ onOpenBackup }) {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [isCodeManual, setIsCodeManual] = useState(false);
   const [formData, setFormData] = useState({
     RoleId: '',
     RoleCode: '',
@@ -84,9 +85,10 @@ export default function MasterRoles({ onOpenBackup }) {
 
   const openAddModal = () => {
     setEditingItem(null);
+    setIsCodeManual(false);
     setFormData({
       RoleId: '',
-      RoleCode: getNextSerial(roles),
+      RoleCode: '',
       RoleName: '',
       Description: '',
       Status: 'Active'
@@ -96,6 +98,7 @@ export default function MasterRoles({ onOpenBackup }) {
 
   const openEditModal = (item) => {
     setEditingItem(item);
+    setIsCodeManual(true);
     setFormData({
       RoleId: item.RoleId || '',
       RoleCode: item.RoleCode || '',
@@ -108,15 +111,15 @@ export default function MasterRoles({ onOpenBackup }) {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    const codeVal = String(formData.RoleCode || '').trim();
+    const codeVal = String(formData.RoleCode || '').trim().toUpperCase();
     const nameVal = String(formData.RoleName || '').trim();
 
-    if (!codeVal) {
-      showError('Validation Error', 'Sr.No / ID is required.');
-      return;
-    }
     if (!nameVal) {
       showError('Validation Error', 'Role Name is required.');
+      return;
+    }
+    if (!codeVal) {
+      showError('Validation Error', 'Role Code is required.');
       return;
     }
 
@@ -127,7 +130,7 @@ export default function MasterRoles({ onOpenBackup }) {
       String(r.RoleCode || '').trim().toLowerCase() === codeVal.toLowerCase()
     );
     if (dupCode) {
-      showError('Duplicate Sr.No / ID', `"${codeVal}" is already assigned to "${dupCode.RoleName}".`);
+      showError('Duplicate Role Code', `"${codeVal}" is already assigned to "${dupCode.RoleName}". Role Code must be unique.`);
       return;
     }
 
@@ -325,7 +328,7 @@ export default function MasterRoles({ onOpenBackup }) {
             <table className="crm-table">
               <thead>
                 <tr>
-                  <th>Sr.No / ID</th>
+                  <th>Role Code</th>
                   <th>Role Name</th>
                   <th>Description</th>
                   <th>Status</th>
@@ -423,36 +426,48 @@ export default function MasterRoles({ onOpenBackup }) {
         title={editingItem ? 'Edit Role' : 'Add New Role'}
       >
         <form onSubmit={handleSave}>
+          {/* 1st Input: Role Name */}
+          <div className="form-group">
+            <label className="form-label">Role Name <span style={{ color: '#ef4444' }}>*</span></label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="e.g. Relationship Manager, Backoffice Staff"
+              value={formData.RoleName}
+              onChange={(e) => {
+                const val = e.target.value;
+                const updated = { ...formData, RoleName: val };
+                if (!isCodeManual) {
+                  updated.RoleCode = getInitialsCode(val);
+                }
+                setFormData(updated);
+              }}
+              required
+            />
+          </div>
+
+          {/* 2nd Input: Role Code (Enabled Alphanumeric, defaults to initials of Name) */}
           <div className="form-group">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
               <label className="form-label" style={{ margin: 0 }}>
-                Sr.No / ID <span style={{ color: '#2563eb', fontSize: '0.75rem' }}>(Auto-generated)</span>
+                Role Code <span style={{ color: '#ef4444' }}>*</span>
               </label>
-              <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Auto-increment</span>
+              <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Alphanumeric</span>
             </div>
             <input
               type="text"
               className="form-input"
               value={formData.RoleCode}
-              disabled
-              readOnly
-              style={{ backgroundColor: '#f1f5f9', fontWeight: '700', color: '#1e40af', cursor: 'not-allowed' }}
-            />
-            <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
-              Auto-fetched sequential number from sheet (last row + 1). Only numeric IDs allowed.
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Role Name *</label>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="e.g. Operations Manager, Advisor"
-              value={formData.RoleName}
-              onChange={(e) => setFormData({ ...formData, RoleName: e.target.value })}
+              onChange={(e) => {
+                setIsCodeManual(true);
+                setFormData({ ...formData, RoleCode: e.target.value.toUpperCase() });
+              }}
+              placeholder="e.g. ADMIN, RM, BO..."
               required
             />
+            <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
+              Alphanumeric unique code (auto-derived from initials, editable). Must be unique.
+            </div>
           </div>
 
           <div className="form-group">

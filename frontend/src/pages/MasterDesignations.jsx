@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import Header from '../components/Header';
 import Modal from '../components/Modal';
-import { crmApi, subscribeCrmEvents } from '../services/api';
+import { crmApi, subscribeCrmEvents, getInitialsCode } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { showSuccess, showError, showConfirm } from '../utils/swal';
 
@@ -31,6 +31,7 @@ export default function MasterDesignations({ onOpenBackup }) {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [isCodeManual, setIsCodeManual] = useState(false);
   const [formData, setFormData] = useState({
     DesignationId: '',
     DesignationCode: '',
@@ -91,9 +92,10 @@ export default function MasterDesignations({ onOpenBackup }) {
 
   const openAddModal = () => {
     setEditingItem(null);
+    setIsCodeManual(false);
     setFormData({
       DesignationId: '',
-      DesignationCode: getNextSerial(designations),
+      DesignationCode: '',
       DesignationName: '',
       Department: departments[0]?.DepartmentName || '',
       Description: '',
@@ -104,6 +106,7 @@ export default function MasterDesignations({ onOpenBackup }) {
 
   const openEditModal = (item) => {
     setEditingItem(item);
+    setIsCodeManual(true);
     setFormData({
       DesignationId: item.DesignationId || '',
       DesignationCode: item.DesignationCode || '',
@@ -117,15 +120,15 @@ export default function MasterDesignations({ onOpenBackup }) {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    const codeVal = String(formData.DesignationCode || '').trim();
+    const codeVal = String(formData.DesignationCode || '').trim().toUpperCase();
     const nameVal = String(formData.DesignationName || '').trim();
 
-    if (!codeVal) {
-      showError('Validation Error', 'Sr.No / ID is required.');
-      return;
-    }
     if (!nameVal) {
       showError('Validation Error', 'Designation Name is required.');
+      return;
+    }
+    if (!codeVal) {
+      showError('Validation Error', 'Designation Code is required.');
       return;
     }
 
@@ -136,7 +139,7 @@ export default function MasterDesignations({ onOpenBackup }) {
       String(d.DesignationCode || '').trim().toLowerCase() === codeVal.toLowerCase()
     );
     if (dupCode) {
-      showError('Duplicate Sr.No / ID', `"${codeVal}" is already assigned to "${dupCode.DesignationName}".`);
+      showError('Duplicate Designation Code', `"${codeVal}" is already assigned to "${dupCode.DesignationName}". Designation Code must be unique.`);
       return;
     }
 
@@ -347,7 +350,7 @@ export default function MasterDesignations({ onOpenBackup }) {
             <table className="crm-table">
               <thead>
                 <tr>
-                  <th>Sr.No / ID</th>
+                  <th>Designation Code</th>
                   <th>Designation Name</th>
                   <th>Department</th>
                   <th>Description</th>
@@ -451,36 +454,48 @@ export default function MasterDesignations({ onOpenBackup }) {
         title={editingItem ? 'Edit Designation' : 'Add New Designation'}
       >
         <form onSubmit={handleSave}>
+          {/* 1st Input: Designation Name */}
+          <div className="form-group">
+            <label className="form-label">Designation Name <span style={{ color: '#ef4444' }}>*</span></label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="e.g. Senior Investment Advisor"
+              value={formData.DesignationName}
+              onChange={(e) => {
+                const val = e.target.value;
+                const updated = { ...formData, DesignationName: val };
+                if (!isCodeManual) {
+                  updated.DesignationCode = getInitialsCode(val);
+                }
+                setFormData(updated);
+              }}
+              required
+            />
+          </div>
+
+          {/* 2nd Input: Designation Code (Enabled Alphanumeric, defaults to initials of Name) */}
           <div className="form-group">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
               <label className="form-label" style={{ margin: 0 }}>
-                Sr.No / ID <span style={{ color: '#2563eb', fontSize: '0.75rem' }}>(Auto-generated)</span>
+                Designation Code <span style={{ color: '#ef4444' }}>*</span>
               </label>
-              <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Auto-increment</span>
+              <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Alphanumeric</span>
             </div>
             <input
               type="text"
               className="form-input"
               value={formData.DesignationCode}
-              disabled
-              readOnly
-              style={{ backgroundColor: '#f1f5f9', fontWeight: '700', color: '#1e40af', cursor: 'not-allowed' }}
-            />
-            <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
-              Auto-fetched sequential number from sheet (last row + 1). Only numeric IDs allowed.
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Designation Name *</label>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="e.g. Senior Wealth Manager, Operations Executive"
-              value={formData.DesignationName}
-              onChange={(e) => setFormData({ ...formData, DesignationName: e.target.value })}
+              onChange={(e) => {
+                setIsCodeManual(true);
+                setFormData({ ...formData, DesignationCode: e.target.value.toUpperCase() });
+              }}
+              placeholder="e.g. SIA, RM..."
               required
             />
+            <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
+              Alphanumeric unique code (auto-derived from initials, editable). Must be unique.
+            </div>
           </div>
 
           <div className="form-group">

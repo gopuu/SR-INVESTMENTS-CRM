@@ -1375,6 +1375,18 @@ function getRoles_(filters) {
   return rows;
 }
 
+/**
+ * Helper to generate default alphanumeric Code from Name initials:
+ * e.g. "Hello World" -> "HW", "Hello" -> "H", "Wealth Management" -> "WM"
+ */
+function generateInitialsCode_(name) {
+  if (!name) return "";
+  const words = String(name).trim().split(/[\s\-_&/]+/).map(w => w.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '')).filter(Boolean);
+  if (words.length === 0) return "";
+  if (words.length === 1) return words[0].charAt(0).toUpperCase();
+  return words.map(w => w.charAt(0).toUpperCase()).join("");
+}
+
 function saveMasterItem_(payload) {
   payload = payload || {};
   const tenantId = payload.tenantId || payload.activeTenantId || null;
@@ -1415,27 +1427,20 @@ function saveMasterItem_(payload) {
   const existingIndex = rows.findIndex(r => r[idField] === id);
   const existingRecord = existingIndex >= 0 ? rows[existingIndex] : null;
 
-  // 1. Determine Serial Number / ID (auto-fetch next sequence number: last row + 1, numbers only)
-  let code = cleanStr_(data[codeField] || "").trim();
-  if (existingIndex < 0 || !code) {
-    let maxNum = 0;
-    rows.forEach(r => {
-      const c = String(r[codeField] || "").trim();
-      const n = parseInt(c, 10);
-      if (!isNaN(n) && n > maxNum) maxNum = n;
-      const match = c.match(/\d+/g);
-      if (match) {
-        const m = parseInt(match[match.length - 1], 10);
-        if (m > maxNum) maxNum = m;
-      }
-    });
-    const total = rows.length;
-    code = String(Math.max(maxNum, total) + 1);
-  }
-
   const name = cleanStr_(data[nameField] || "").trim();
   if (!name) {
     throw new Error(`Master title/name is required for ${type}.`);
+  }
+
+  // 1. Determine Code (alphanumeric, enabled from client, defaults to initials of Name)
+  let code = cleanStr_(data[codeField] || "").trim().toUpperCase();
+  if (!code) {
+    if (existingRecord && existingRecord[codeField]) {
+      code = existingRecord[codeField];
+    } else {
+      code = generateInitialsCode_(name);
+      if (!code) code = prefix + "_" + (rows.length + 1);
+    }
   }
 
   // 2. Strict Duplicate ID Check (if creating new record)
@@ -1446,7 +1451,7 @@ function saveMasterItem_(payload) {
     }
   }
 
-  // 3. Strict Duplicate Code / Sr.No Check (case-insensitive among non-deleted records)
+  // 3. Strict Duplicate Code Check (case-insensitive among non-deleted records)
   const dupCodeRow = rows.find(r => {
     const isDel = r.IsDeleted === true || r.IsDeleted === "TRUE" || String(r.IsDeleted).toLowerCase() === "true";
     if (isDel) return false;
@@ -1455,7 +1460,7 @@ function saveMasterItem_(payload) {
     return existingCode.toLowerCase() === code.toLowerCase();
   });
   if (dupCodeRow) {
-    throw new Error(`Duplicate Sr.No / ID: '${code}' is already assigned to '${dupCodeRow[nameField] || dupCodeRow[codeField]}'. Each ${type} master record must have a unique numeric ID.`);
+    throw new Error(`Duplicate Code: '${code}' is already assigned to '${dupCodeRow[nameField] || dupCodeRow[codeField]}'. Each ${type} master record must have a unique Code.`);
   }
 
   // 4. Strict Duplicate Name / Title Check (case-insensitive among non-deleted records)
