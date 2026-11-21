@@ -121,14 +121,13 @@ const STORAGE_KEYS = {
 
 const SEED_DATA = {
   settings: {
-    COMPANY_NAME: 'SR Investments',
-    CompanyName: 'SR Investments',
-    ARN_NUMBER: 'ARN-189241',
-    EUIN_NUMBER: 'E345678',
+    CompanyName: 'SR GROWW',
+    ArnNumber: 'ARN-189241',
+    EuinNumber: 'E345678',
     GSTIN: '27AAACR1234F1Z5',
-    SUPPORT_EMAIL: 'support@srinvestments.com',
-    CONTACT_PHONE: '+91 98765 43210',
-    OFFICE_ADDRESS: '101, Fortune Hub, Financial District, Bandra-Kurla Complex, Mumbai 400051'
+    SupportEmail: 'support@srinvestments.com',
+    ContactPhone: '9876543210',
+    OfficeAddress: '101, Fortune Hub, Financial District, Bandra-Kurla Complex, Mumbai 400051'
   },
   employees: [
     {

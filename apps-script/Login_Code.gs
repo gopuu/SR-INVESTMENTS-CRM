@@ -770,15 +770,15 @@ function getCompanySettings_(payload) {
       const k = String(r.Key || "").trim();
       const val = r.Value !== undefined && r.Value !== null ? String(r.Value).trim() : "";
       settingsObj[k] = val;
-      settingsObj[k.toUpperCase()] = val;
-      const snake = k.replace(/([a-z])([A-Z])/g, "$1_$2").toUpperCase();
-      settingsObj[snake] = val;
     }
   });
 
-  if (!settingsObj.CompanyName && !settingsObj.COMPANY_NAME) {
-    settingsObj.CompanyName = "SR Investments";
-    settingsObj.COMPANY_NAME = "SR Investments";
+  // Fallback to Tenant_Master if CompanyName is missing or still default
+  if (!settingsObj.CompanyName || settingsObj.CompanyName === "SR Investments") {
+    const liveName = getTenantCompanyName_(tenantId, "SR GROWW");
+    if (liveName) {
+      settingsObj.CompanyName = liveName;
+    }
   }
 
   return settingsObj;
@@ -790,29 +790,65 @@ function saveCompanySettings_(payload) {
   const settings = payload.settings || payload;
   const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.SETTINGS, CRM_SCHEMAS.SETTINGS, tenantId);
   const now = new Date().toISOString();
+
+  // Canonical mapping for CompanySettings keys
+  const CANONICAL_MAP = {
+    companyname: "CompanyName",
+    arnnumber: "ArnNumber",
+    arn: "ArnNumber",
+    euinnumber: "EuinNumber",
+    euin: "EuinNumber",
+    gstin: "GSTIN",
+    supportemail: "SupportEmail",
+    email: "SupportEmail",
+    contactphone: "ContactPhone",
+    phone: "ContactPhone",
+    mobile: "ContactPhone",
+    officeaddress: "OfficeAddress",
+    address: "OfficeAddress",
+    kycautoverify: "KycAutoVerify"
+  };
+
+  // 1. Resolve into a single deduplicated canonical dictionary
+  const canonicalUpdates = {};
+  Object.keys(settings).forEach(rawKey => {
+    const cleanRaw = rawKey.replace(/_/g, "").toLowerCase();
+    if (CANONICAL_MAP[cleanRaw]) {
+      const canonicalKey = CANONICAL_MAP[cleanRaw];
+      let val = String(settings[rawKey] ?? "").trim();
+      if (canonicalKey === "ContactPhone") {
+        val = val.replace(/\D/g, "").slice(0, 10);
+      }
+      if (val !== "" || canonicalUpdates[canonicalKey] === undefined) {
+        canonicalUpdates[canonicalKey] = val;
+      }
+    }
+  });
+
+  // 2. Fetch existing rows to update or insert
   const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.SETTINGS);
 
-  Object.keys(settings).forEach(rawKey => {
-    if (rawKey === "tenantId" || rawKey === "activeTenantId" || rawKey === "userEmail" || rawKey === "userName") return;
-    let val = String(settings[rawKey] ?? "").trim();
-    const cleanRaw = rawKey.replace(/_/g, "").toLowerCase();
-    if (cleanRaw === "contactphone" || cleanRaw === "phone") {
-      val = val.replace(/\D/g, "").slice(0, 10);
-    }
-    const index = rows.findIndex(r => String(r.Key || "").replace(/_/g, "").toLowerCase() === cleanRaw);
+  Object.keys(canonicalUpdates).forEach(canonicalKey => {
+    const val = canonicalUpdates[canonicalKey];
+    const cleanKey = canonicalKey.toLowerCase();
+    const index = rows.findIndex(r => String(r.Key || "").replace(/_/g, "").toLowerCase() === cleanKey);
+
+    // Single quote prefix prevents Google Sheets formula evaluation errors (e.g. #ERROR!)
+    const safeVal = (canonicalKey === "ContactPhone" && val) ? "'" + val : val;
 
     if (index >= 0) {
-      sheet.getRange(index + 2, 2).setValue(val);
+      sheet.getRange(index + 2, 2).setValue(safeVal);
       if (CRM_SCHEMAS.SETTINGS.includes("Updated_At")) {
         sheet.getRange(index + 2, CRM_SCHEMAS.SETTINGS.indexOf("Updated_At") + 1).setValue(now);
       }
+      if (CRM_SCHEMAS.SETTINGS.includes("Updated_By")) {
+        sheet.getRange(index + 2, CRM_SCHEMAS.SETTINGS.indexOf("Updated_By") + 1).setValue(payload.userEmail || "System");
+      }
+      rows[index].Value = val;
     } else {
-      const canonicalKey = rawKey.includes("_") 
-        ? rawKey.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join("")
-        : rawKey;
       writeRowByHeaders_(sheet, 0, {
         Key: canonicalKey,
-        Value: val,
+        Value: safeVal,
         Description: "Company profile configuration",
         IsDeleted: false,
         Created_By: payload.userEmail || "System",
@@ -825,8 +861,63 @@ function saveCompanySettings_(payload) {
     }
   });
 
+  // 3. Remove non-company settings rows (e.g. userId, isSuperAdmin) if previously appended
+  try {
+    const allCurrentRows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.SETTINGS);
+    for (let i = allCurrentRows.length - 1; i >= 0; i--) {
+      const k = String(allCurrentRows[i].Key || "").replace(/_/g, "").toLowerCase();
+      if (k === "userid" || k === "issuperadmin" || k === "target" || k === "caller" || k === "role") {
+        sheet.deleteRow(i + 2);
+      }
+    }
+  } catch (cleanErr) {
+    Logger.log("Row cleanup notice: " + cleanErr.message);
+  }
+
+  // 4. Live two-way sync with Central SaaS Tenant_Master
+  try {
+    const effectiveTenantId = tenantId || payload.tenantId || payload.activeTenantId || "TEN001";
+    const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+    const tenants = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.TENANT_MASTER);
+    const tIndex = tenants.findIndex(t => 
+      String(t.TenantId || "").trim().toUpperCase() === String(effectiveTenantId).trim().toUpperCase() &&
+      (!t.IsDeleted || String(t.IsDeleted).toLowerCase() !== "true")
+    );
+    if (tIndex >= 0) {
+      const rowNum = tIndex + 2;
+      const headers = CRM_SCHEMAS.TENANT_MASTER;
+      if (canonicalUpdates.CompanyName) {
+        const cCol = headers.indexOf("CompanyName") + 1;
+        if (cCol > 0) centralSheet.getRange(rowNum, cCol).setValue(canonicalUpdates.CompanyName);
+      }
+      if (canonicalUpdates.ArnNumber) {
+        const aCol = headers.indexOf("ArnNumber") + 1;
+        if (aCol > 0) centralSheet.getRange(rowNum, aCol).setValue(canonicalUpdates.ArnNumber);
+      }
+      if (canonicalUpdates.SupportEmail) {
+        const sCol = headers.indexOf("SupportEmail") + 1;
+        if (sCol > 0) centralSheet.getRange(rowNum, sCol).setValue(canonicalUpdates.SupportEmail);
+      }
+      if (canonicalUpdates.ContactPhone) {
+        const pCol = headers.indexOf("ContactPhone") + 1;
+        if (pCol > 0) centralSheet.getRange(rowNum, pCol).setValue("'" + canonicalUpdates.ContactPhone);
+      }
+      if (canonicalUpdates.OfficeAddress) {
+        const oCol = headers.indexOf("OfficeAddress") + 1;
+        if (oCol > 0) centralSheet.getRange(rowNum, oCol).setValue(canonicalUpdates.OfficeAddress);
+      }
+      const uCol = headers.indexOf("Updated_At") + 1;
+      if (uCol > 0) centralSheet.getRange(rowNum, uCol).setValue(now);
+      const ubCol = headers.indexOf("Updated_By") + 1;
+      if (ubCol > 0) centralSheet.getRange(rowNum, ubCol).setValue(payload.userEmail || "System");
+      Logger.log("[TENANT_SYNC] Synchronized Tenant_Master in Central DB for " + effectiveTenantId);
+    }
+  } catch (err) {
+    Logger.log("Tenant_Master sync error: " + err.message);
+  }
+
   logAudit_(payload.userEmail || "SYSTEM", "UPDATE_SETTINGS", "CompanySettings", "Company settings updated");
-  return { success: true, message: "Settings updated successfully." };
+  return { success: true, message: "Settings updated successfully.", settings: canonicalUpdates };
 }
 
 function getRolesRights_(payload) {

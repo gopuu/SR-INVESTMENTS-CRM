@@ -25,13 +25,13 @@ export default function Settings({ onOpenBackup }) {
 
   // Company Settings State
   const [companySettings, setCompanySettings] = useState({
-    COMPANY_NAME: 'SR INVESTMENTS',
-    ARN_NUMBER: 'ARN-189241',
-    EUIN_NUMBER: 'E345678',
+    CompanyName: 'SR GROWW',
+    ArnNumber: 'ARN-189241',
+    EuinNumber: 'E345678',
     GSTIN: '27AAACR1234F1Z5',
-    SUPPORT_EMAIL: 'support@srinvestments.com',
-    CONTACT_PHONE: '9876543210',
-    OFFICE_ADDRESS: '101, Fortune Hub, Financial District, Bandra-Kurla Complex, Mumbai 400051'
+    SupportEmail: 'support@srinvestments.com',
+    ContactPhone: '9876543210',
+    OfficeAddress: '101, Fortune Hub, Financial District, Bandra-Kurla Complex, Mumbai 400051'
   });
 
   // User Rights Matrix State
@@ -69,11 +69,17 @@ export default function Settings({ onOpenBackup }) {
         crmApi.call('getRolesRights')
       ]);
       if (comp) {
-        setCompanySettings((prev) => ({ 
-          ...prev, 
-          ...comp,
-          CONTACT_PHONE: comp.CONTACT_PHONE ? String(comp.CONTACT_PHONE).replace(/\D/g, '').slice(-10) : prev.CONTACT_PHONE
-        }));
+        setCompanySettings({
+          CompanyName: comp.CompanyName || comp.COMPANY_NAME || comp.companyName || 'SR GROWW',
+          ArnNumber: comp.ArnNumber || comp.ARN_NUMBER || comp.arnNumber || '',
+          EuinNumber: comp.EuinNumber || comp.EUIN_NUMBER || comp.euinNumber || '',
+          GSTIN: comp.GSTIN || comp.Gstin || comp.gstin || '',
+          SupportEmail: comp.SupportEmail || comp.SUPPORT_EMAIL || comp.supportEmail || '',
+          ContactPhone: (comp.ContactPhone || comp.CONTACT_PHONE || comp.contactPhone) 
+            ? String(comp.ContactPhone || comp.CONTACT_PHONE || comp.contactPhone).replace(/\D/g, '').slice(-10) 
+            : '',
+          OfficeAddress: comp.OfficeAddress || comp.OFFICE_ADDRESS || comp.officeAddress || ''
+        });
       }
       if (rts) setRights(rts);
 
@@ -91,20 +97,33 @@ export default function Settings({ onOpenBackup }) {
 
   const handleSaveCompany = async (e) => {
     e.preventDefault();
-    if (companySettings.CONTACT_PHONE) {
-      const cleanPhone = String(companySettings.CONTACT_PHONE).replace(/\D/g, '');
-      if (cleanPhone.length > 0 && cleanPhone.length !== 10) {
-        setMsg({ text: 'Helpdesk Contact Phone must be a valid 10-digit number.', type: 'error' });
-        showError('Validation Error', 'Helpdesk Contact Phone must be a valid 10-digit number.');
-        return;
-      }
+    const cleanPhone = companySettings.ContactPhone ? String(companySettings.ContactPhone).replace(/\D/g, '') : '';
+    if (cleanPhone.length > 0 && cleanPhone.length !== 10) {
+      setMsg({ text: 'Helpdesk Contact Phone must be a valid 10-digit number.', type: 'error' });
+      showError('Validation Error', 'Helpdesk Contact Phone must be a valid 10-digit number.');
+      return;
     }
     setSaving(true);
     setMsg({ text: '', type: '' });
     try {
-      await crmApi.call('saveCompanySettings', companySettings);
+      const payload = {
+        CompanyName: (companySettings.CompanyName || '').trim(),
+        ArnNumber: (companySettings.ArnNumber || '').trim(),
+        EuinNumber: (companySettings.EuinNumber || '').trim(),
+        GSTIN: (companySettings.GSTIN || '').trim(),
+        SupportEmail: (companySettings.SupportEmail || '').trim(),
+        ContactPhone: cleanPhone,
+        OfficeAddress: (companySettings.OfficeAddress || '').trim()
+      };
+      await crmApi.call('saveCompanySettings', payload);
       setMsg({ text: 'Company settings updated successfully!', type: 'success' });
       showSuccess('Company settings updated successfully!');
+
+      // Publish event so Sidebar & Header update company name live
+      crmApi.publishEvent({ type: 'DATA_CHANGED', module: 'Settings', companyName: payload.CompanyName });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('CRM_NAVBAR_REFRESH'));
+      }
     } catch (err) {
       setMsg({ text: err.message || 'Failed to save settings', type: 'error' });
       showError(err.message || 'Failed to save settings');
@@ -308,8 +327,8 @@ export default function Settings({ onOpenBackup }) {
                   <input
                     type="text"
                     className="form-input"
-                    value={companySettings.COMPANY_NAME || companySettings.CompanyName || ''}
-                    onChange={(e) => setCompanySettings({ ...companySettings, COMPANY_NAME: e.target.value, CompanyName: e.target.value })}
+                    value={companySettings.CompanyName || ''}
+                    onChange={(e) => setCompanySettings({ ...companySettings, CompanyName: e.target.value })}
                     required
                   />
                 </div>
@@ -320,8 +339,8 @@ export default function Settings({ onOpenBackup }) {
                     type="text"
                     className="form-input"
                     placeholder="ARN-189241"
-                    value={companySettings.ARN_NUMBER || ''}
-                    onChange={(e) => setCompanySettings({ ...companySettings, ARN_NUMBER: e.target.value })}
+                    value={companySettings.ArnNumber || ''}
+                    onChange={(e) => setCompanySettings({ ...companySettings, ArnNumber: e.target.value })}
                     required
                   />
                 </div>
@@ -332,8 +351,8 @@ export default function Settings({ onOpenBackup }) {
                     type="text"
                     className="form-input"
                     placeholder="E345678"
-                    value={companySettings.EUIN_NUMBER || ''}
-                    onChange={(e) => setCompanySettings({ ...companySettings, EUIN_NUMBER: e.target.value })}
+                    value={companySettings.EuinNumber || ''}
+                    onChange={(e) => setCompanySettings({ ...companySettings, EuinNumber: e.target.value })}
                   />
                 </div>
 
@@ -353,8 +372,8 @@ export default function Settings({ onOpenBackup }) {
                   <input
                     type="email"
                     className="form-input"
-                    value={companySettings.SUPPORT_EMAIL || ''}
-                    onChange={(e) => setCompanySettings({ ...companySettings, SUPPORT_EMAIL: e.target.value })}
+                    value={companySettings.SupportEmail || ''}
+                    onChange={(e) => setCompanySettings({ ...companySettings, SupportEmail: e.target.value })}
                   />
                 </div>
 
@@ -362,7 +381,7 @@ export default function Settings({ onOpenBackup }) {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
                     <label className="form-label" style={{ margin: 0 }}>Helpdesk Contact Phone</label>
                     <span style={{ fontSize: '0.675rem', color: '#64748b' }}>
-                      {companySettings.CONTACT_PHONE ? `${companySettings.CONTACT_PHONE.length}/10` : '0/10'}
+                      {companySettings.ContactPhone ? `${companySettings.ContactPhone.length}/10` : '0/10'}
                     </span>
                   </div>
                   <input
@@ -370,10 +389,10 @@ export default function Settings({ onOpenBackup }) {
                     className="form-input"
                     placeholder="10-digit phone number (e.g. 9876543210)"
                     maxLength={10}
-                    value={companySettings.CONTACT_PHONE || ''}
+                    value={companySettings.ContactPhone || ''}
                     onChange={(e) => {
                       const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
-                      setCompanySettings({ ...companySettings, CONTACT_PHONE: digits });
+                      setCompanySettings({ ...companySettings, ContactPhone: digits });
                     }}
                   />
                   <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
@@ -387,8 +406,8 @@ export default function Settings({ onOpenBackup }) {
                 <textarea
                   className="form-textarea"
                   rows={2}
-                  value={companySettings.OFFICE_ADDRESS || ''}
-                  onChange={(e) => setCompanySettings({ ...companySettings, OFFICE_ADDRESS: e.target.value })}
+                  value={companySettings.OfficeAddress || ''}
+                  onChange={(e) => setCompanySettings({ ...companySettings, OfficeAddress: e.target.value })}
                 />
               </div>
 
