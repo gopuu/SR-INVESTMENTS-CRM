@@ -14,18 +14,12 @@ import MasterHub from './pages/MasterHub';
 import SuperAdminPortal from './pages/SuperAdminPortal';
 import SubscriptionPlans from './pages/SubscriptionPlans';
 import TenantUserMapping from './pages/TenantUserMapping';
-import MasterDepartments from './pages/MasterDepartments';
-import MasterDesignations from './pages/MasterDesignations';
-import MasterRoles from './pages/MasterRoles';
 import RolesRights from './pages/RolesRights';
 
 const PAGE_MODULE_MAP = {
   'home': 'Dashboard',
   'customers': 'Customers',
   'staff': 'Staff',
-  'departments': 'MasterDepartments',
-  'designations': 'MasterDesignations',
-  'roles': 'MasterRoles',
   'user-rights': 'RolesRights',
   'masters': 'MasterHub',
   'settings': 'Settings'
@@ -92,11 +86,16 @@ export default function App() {
         {currentPage === 'home' && <Home onNavigate={setCurrentPage} onOpenBackup={openBackup} />}
         {currentPage === 'customers' && <Customers onOpenBackup={openBackup} />}
         {currentPage === 'staff' && <Staff onOpenBackup={openBackup} />}
-        {currentPage === 'departments' && <MasterDepartments onOpenBackup={openBackup} />}
-        {currentPage === 'designations' && <MasterDesignations onOpenBackup={openBackup} />}
-        {currentPage === 'roles' && <MasterRoles onOpenBackup={openBackup} />}
         {currentPage === 'user-rights' && <RolesRights onOpenBackup={openBackup} />}
-        {currentPage === 'masters' && <MasterHub onOpenBackup={openBackup} />}
+        {(currentPage === 'masters' || currentPage === 'departments' || currentPage === 'designations' || currentPage === 'roles') && (
+          <MasterHub 
+            initialTab={
+              currentPage === 'designations' ? 'designations' : 
+              currentPage === 'roles' ? 'roles' : 'departments'
+            } 
+            onOpenBackup={openBackup} 
+          />
+        )}
         {currentPage === 'sip' && <SipCalculator onOpenBackup={openBackup} />}
         {currentPage === 'settings' && <Settings onOpenBackup={openBackup} />}
         {currentPage === 'profile' && <UserProfile onOpenBackup={openBackup} />}

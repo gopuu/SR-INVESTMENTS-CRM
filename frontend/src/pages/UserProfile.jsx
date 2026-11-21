@@ -296,11 +296,8 @@ export default function UserProfile({ onOpenBackup }) {
                   { key: 'Dashboard', label: 'Dashboard' },
                   { key: 'Customers', label: 'Customers' },
                   { key: 'Staff', label: 'Staff' },
-                  { key: 'MasterDepartments', label: 'Department Master' },
-                  { key: 'MasterDesignations', label: 'Designation Master' },
-                  { key: 'MasterRoles', label: 'Role Master' },
-                  { key: 'RolesRights', label: 'User Rights (RolesRights)' },
-                  { key: 'MasterHub', label: 'MasterHub' },
+                  { key: 'RolesRights', label: 'User Rights' },
+                  { key: 'MasterHub', label: 'Master HUB' },
                   { key: 'Settings', label: 'Settings' },
                   { key: 'DriveBackup', label: 'DriveBackup' }
                 ].map((mod) => {

@@ -19,9 +19,13 @@ import Modal from '../components/Modal';
 import { crmApi, subscribeCrmEvents } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-export default function MasterHub({ onOpenBackup }) {
+export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) {
   const { user, isSuperAdmin } = useAuth();
-  const [activeTab, setActiveTab] = useState('departments'); // 'departments' | 'designations' | 'roles'
+  const [activeTab, setActiveTab] = useState(initialTab); // 'departments' | 'designations' | 'roles'
+
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
   const [loading, setLoading] = useState(true);
   const [showDeleted, setShowDeleted] = useState(() => crmApi.getShowDeletedGlobally());
   const [search, setSearch] = useState('');
