@@ -123,6 +123,7 @@ export default function SuperAdminPortal({ onOpenBackup }) {
   const [tenantFormData, setTenantFormData] = useState({
     TenantId: '',
     CompanyName: '',
+    TagLine: '',
     ArnNumber: '',
     SpreadsheetId: '',
     DriveRootFolderId: '',
@@ -285,6 +286,7 @@ export default function SuperAdminPortal({ onOpenBackup }) {
     setTenantFormData({
       TenantId: nextId,
       CompanyName: '',
+      TagLine: 'Mutual Fund CRM',
       ArnNumber: '',
       SpreadsheetId: '',
       DriveRootFolderId: '',
@@ -308,6 +310,7 @@ export default function SuperAdminPortal({ onOpenBackup }) {
     setTenantFormData({
       TenantId: t.TenantId || '',
       CompanyName: t.CompanyName || '',
+      TagLine: t.TagLine || '',
       ArnNumber: t.ArnNumber || '',
       SpreadsheetId: t.SpreadsheetId || '',
       DriveRootFolderId: t.DriveRootFolderId || '',
@@ -826,6 +829,7 @@ export default function SuperAdminPortal({ onOpenBackup }) {
                               </div>
                               <div style={{ fontSize: '0.725rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '2px' }}>
                                 <span style={{ fontFamily: 'monospace', fontWeight: '700', color: '#2563eb' }}>{t.TenantId}</span>
+                                {t.TagLine && <span style={{ color: '#059669', fontWeight: '500' }}>· {t.TagLine}</span>}
                                 {t.SupportEmail && <span>· {t.SupportEmail}</span>}
                               </div>
                             </div>
@@ -1015,7 +1019,7 @@ export default function SuperAdminPortal({ onOpenBackup }) {
                   <span>1. Organization Profile & Credentials</span>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                   <div className="form-group" style={{ margin: 0 }}>
                     <label className="form-label" style={{ fontWeight: '600' }}>
                       Organization Legal Trade Name *
@@ -1029,6 +1033,19 @@ export default function SuperAdminPortal({ onOpenBackup }) {
                       required
                       autoFocus
                       style={{ fontWeight: '600', fontSize: '0.9rem' }}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontWeight: '600' }}>
+                      Brand TagLine / Slogan
+                    </label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. Mutual Fund CRM, Grow Your Wealth"
+                      value={tenantFormData.TagLine || ''}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, TagLine: e.target.value })}
                     />
                   </div>
 

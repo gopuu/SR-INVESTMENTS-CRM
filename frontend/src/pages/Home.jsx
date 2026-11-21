@@ -16,7 +16,7 @@ import Header from '../components/Header';
 
 export default function Home({ onNavigate, onOpenBackup }) {
   const { tenant, user } = useAuth();
-  const companyName = tenant?.CompanyName || tenant?.companyName || user?.companyName || 'SR Investments';
+  const companyName = tenant?.CompanyName || tenant?.companyName || user?.companyName || 'SR GROWW';
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

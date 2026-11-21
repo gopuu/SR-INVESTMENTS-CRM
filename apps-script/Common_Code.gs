@@ -68,7 +68,7 @@ const CRM_SCHEMAS = {
   ],
   // Central SaaS Registries with 7 audit fields
   TENANT_MASTER: [
-    "TenantId", "CompanyName", "ArnNumber", "SpreadsheetId", "DriveRootFolderId",
+    "TenantId", "CompanyName", "TagLine", "ArnNumber", "SpreadsheetId", "DriveRootFolderId",
     "SupportEmail", "ContactPhone", "OfficeAddress", "Status",
     "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
   ],
@@ -325,6 +325,32 @@ function ensureSheetAndColumns_(ss, sheetName, schema) {
       const hasPaymentMode = existingLower.indexOf("paymentmode") !== -1;
       if (!hasPaymentMode) {
         return modifyTenantLicensingColumns_(sheet);
+      }
+    }
+
+    // Automatic column migration for Tenant_Master to insert TagLine column if missing
+    if (sheetName === "Tenant_Master" || sheetName === CRM_CONFIG.SHEETS.TENANT_MASTER) {
+      const hasTagLine = existingLower.indexOf("tagline") !== -1;
+      if (!hasTagLine) {
+        const cNameIdx = existingLower.indexOf("companyname");
+        if (cNameIdx !== -1) {
+          sheet.insertColumnAfter(cNameIdx + 1);
+          const tagCol = cNameIdx + 2;
+          sheet.getRange(1, tagCol).setValue("TagLine")
+            .setFontWeight("bold")
+            .setBackground("#1e40af")
+            .setFontColor("#ffffff");
+          const numRows = sheet.getLastRow();
+          if (numRows > 1) {
+            for (let r = 2; r <= numRows; r++) {
+              const cur = sheet.getRange(r, tagCol).getValue();
+              if (!cur) sheet.getRange(r, tagCol).setValue("Mutual Fund CRM");
+            }
+          }
+          existingHeaders.splice(cNameIdx + 1, 0, "TagLine");
+          existingLower.splice(cNameIdx + 1, 0, "tagline");
+          Logger.log("[COLUMN_MIGRATION] Tenant_Master: Inserted 'TagLine' column after 'CompanyName' at column " + tagCol);
+        }
       }
     }
 
@@ -1852,6 +1878,7 @@ function saveTenant_(payload) {
   const tenantRecord = {
     TenantId: tenantId,
     CompanyName: cleanStr_(payload.CompanyName) || "New Client Organization",
+    TagLine: cleanStr_(payload.TagLine) || "Mutual Fund CRM",
     ArnNumber: cleanStr_(payload.ArnNumber) || "",
     SpreadsheetId: cleanStr_(payload.SpreadsheetId) || "",
     DriveRootFolderId: cleanStr_(payload.DriveRootFolderId) || "",

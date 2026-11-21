@@ -197,6 +197,9 @@ function executeAction_(action, payload) {
     case "selectTenant":
       return selectTenant_(payload);
 
+    case "getTenantBranding":
+      return getTenantBranding_(payload);
+
     case "getTenants":
       verifyIsSuperAdmin_(payload);
       return getTenants_(payload);

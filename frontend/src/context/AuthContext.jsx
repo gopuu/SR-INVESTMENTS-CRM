@@ -219,6 +219,66 @@ export function AuthProvider({ children }) {
     }
   }, [user, isSuperAdmin, workspaces, tenant]);
 
+  // Synchronize active tenant branding (CompanyName & TagLine) live from Central SaaS Tenant_Master
+  useEffect(() => {
+    if (!user) return;
+    const activeTenantId = tenant?.TenantId || tenant?.tenantId || user?.activeTenantId || 'TEN001';
+    crmApi.call('getTenantBranding', { tenantId: activeTenantId })
+      .then(res => {
+        if (res && res.companyName) {
+          const newCompName = res.companyName;
+          const newTagLine = res.tagLine || 'Mutual Fund CRM';
+
+          setTenant(prev => {
+            if (prev?.CompanyName === newCompName && prev?.TagLine === newTagLine) return prev;
+            const updated = {
+              ...(prev || {}),
+              TenantId: activeTenantId,
+              tenantId: activeTenantId,
+              CompanyName: newCompName,
+              companyName: newCompName,
+              TagLine: newTagLine,
+              tagLine: newTagLine,
+              arnNumber: res.arnNumber || prev?.arnNumber || '',
+              ArnNumber: res.arnNumber || prev?.ArnNumber || ''
+            };
+            localStorage.setItem('sr_crm_auth_tenant', JSON.stringify(updated));
+            return updated;
+          });
+
+          setUser(prev => {
+            if (!prev) return prev;
+            if (prev?.companyName === newCompName && prev?.tagLine === newTagLine) return prev;
+            const updated = {
+              ...prev,
+              companyName: newCompName,
+              CompanyName: newCompName,
+              tagLine: newTagLine,
+              TagLine: newTagLine
+            };
+            localStorage.setItem('sr_crm_auth_user', JSON.stringify(updated));
+            return updated;
+          });
+
+          crmApi.setActiveTenant({
+            TenantId: activeTenantId,
+            tenantId: activeTenantId,
+            CompanyName: newCompName,
+            companyName: newCompName,
+            TagLine: newTagLine,
+            tagLine: newTagLine
+          });
+
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('CRM_NAVBAR_REFRESH'));
+          }
+        }
+      })
+      .catch(err => {
+        console.warn('Failed to sync tenant branding:', err);
+      });
+  }, [user?.userId, user?.activeTenantId, tenant?.TenantId]);
+
   const hasPermission = (moduleName, action = 'CanView') => {
     if (!user) return false;
 

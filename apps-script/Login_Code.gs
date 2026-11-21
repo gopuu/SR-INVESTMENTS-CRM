@@ -34,13 +34,16 @@ function resolveTenantMemberships_(userId, userEmail) {
         String(x.TenantId || "").trim().toUpperCase() === String(m.TenantId || "").trim().toUpperCase() && 
         (!x.IsDeleted || String(x.IsDeleted).toLowerCase() !== "true")
       );
-      // Fetch company name from Tenant_Master. If no data exists, fallback to default "SR Investments"
-      const cName = (t && String(t.CompanyName || "").trim()) || "SR Investments";
+      // Fetch company name and tagline from Tenant_Master. If no data exists, fallback to defaults
+      const cName = (t && String(t.CompanyName || "").trim()) || "SR GROWW";
+      const tLine = (t && String(t.TagLine || "").trim()) || "Mutual Fund CRM";
       const tId = (t && t.TenantId) || m.TenantId || "TEN001";
       activeWorkspaces.push({
         tenantId: tId,
         companyName: cName,
         CompanyName: cName,
+        tagLine: tLine,
+        TagLine: tLine,
         arnNumber: (t && t.ArnNumber) || "",
         role: m.Role || "Staff",
         status: (t && t.Status) || "Active"
@@ -55,9 +58,25 @@ function resolveTenantMemberships_(userId, userEmail) {
 }
 
 /**
- * Reads the actual live CompanyName from the tenant or template sheet's CompanySettings tab
+ * Reads the actual live CompanyName from the tenant or central Tenant_Master
  */
 function getTenantCompanyName_(tenantId, fallbackName) {
+  try {
+    if (tenantId) {
+      const tenantSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+      const tenants = getSheetRowsAsObjects_(tenantSheet, CRM_SCHEMAS.TENANT_MASTER);
+      const t = tenants.find(x => 
+        String(x.TenantId || "").trim().toUpperCase() === String(tenantId).trim().toUpperCase() && 
+        (!x.IsDeleted || String(x.IsDeleted).toLowerCase() !== "true")
+      );
+      if (t && t.CompanyName && String(t.CompanyName).trim()) {
+        return String(t.CompanyName).trim();
+      }
+    }
+  } catch (e) {
+    Logger.log("getTenantCompanyName_ Central lookup error: " + e.message);
+  }
+
   try {
     const setSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.SETTINGS, CRM_SCHEMAS.SETTINGS, tenantId);
     const rows = getSheetRowsAsObjects_(setSheet, CRM_SCHEMAS.SETTINGS);
@@ -71,7 +90,62 @@ function getTenantCompanyName_(tenantId, fallbackName) {
   } catch (e) {
     Logger.log("getTenantCompanyName_ notice: " + e.message);
   }
-  return fallbackName || "SR Investments";
+  return fallbackName || "SR GROWW";
+}
+
+/**
+ * Reads the actual live TagLine from central Tenant_Master
+ */
+function getTenantTagLine_(tenantId, fallbackTagLine) {
+  try {
+    if (tenantId) {
+      const tenantSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+      const tenants = getSheetRowsAsObjects_(tenantSheet, CRM_SCHEMAS.TENANT_MASTER);
+      const t = tenants.find(x => 
+        String(x.TenantId || "").trim().toUpperCase() === String(tenantId).trim().toUpperCase() && 
+        (!x.IsDeleted || String(x.IsDeleted).toLowerCase() !== "true")
+      );
+      if (t && t.TagLine && String(t.TagLine).trim()) {
+        return String(t.TagLine).trim();
+      }
+    }
+  } catch (e) {
+    Logger.log("getTenantTagLine_ Central lookup error: " + e.message);
+  }
+  return fallbackTagLine || "Mutual Fund CRM";
+}
+
+/**
+ * Public/Session API to fetch active tenant's latest company name, tag line and info from Tenant_Master
+ */
+function getTenantBranding_(payload) {
+  payload = payload || {};
+  let tenantId = (payload.tenantId || payload.TenantId || "").trim();
+  if (!tenantId) {
+    tenantId = "TEN001";
+  }
+
+  const tenantSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+  const tenants = getSheetRowsAsObjects_(tenantSheet, CRM_SCHEMAS.TENANT_MASTER);
+  const t = tenants.find(x => 
+    String(x.TenantId || "").trim().toUpperCase() === String(tenantId).trim().toUpperCase() && 
+    (!x.IsDeleted || String(x.IsDeleted).toLowerCase() !== "true")
+  ) || tenants.find(x => !x.IsDeleted && String(x.IsDeleted).toLowerCase() !== "true") || tenants[0];
+
+  const companyName = (t && String(t.CompanyName || "").trim()) || getTenantCompanyName_(tenantId, "SR GROWW");
+  const tagLine = (t && String(t.TagLine || "").trim()) || getTenantTagLine_(tenantId, "Mutual Fund CRM");
+
+  return {
+    success: true,
+    tenantId: (t && t.TenantId) || tenantId,
+    companyName: companyName,
+    CompanyName: companyName,
+    tagLine: tagLine,
+    TagLine: tagLine,
+    arnNumber: (t && t.ArnNumber) || "",
+    supportEmail: (t && t.SupportEmail) || "",
+    contactPhone: (t && t.ContactPhone) || ""
+  };
 }
 
 /**
@@ -198,11 +272,14 @@ function loginUser_(username, password) {
       const tenants = getSheetRowsAsObjects_(tenantSheet, CRM_SCHEMAS.TENANT_MASTER);
       const firstTenant = tenants.find(t => !t.IsDeleted && String(t.IsDeleted).toLowerCase() !== "true");
       const defaultName = (firstTenant && String(firstTenant.CompanyName || "").trim()) || "SR Investments";
+      const defaultTagLine = (firstTenant && String(firstTenant.TagLine || "").trim()) || "Mutual Fund CRM";
       const defaultId = (firstTenant && String(firstTenant.TenantId || "").trim()) || "TEN001";
       primaryTenant = {
         tenantId: defaultId,
         companyName: defaultName,
         CompanyName: defaultName,
+        tagLine: defaultTagLine,
+        TagLine: defaultTagLine,
         role: isSuperAdmin ? "Admin" : "Staff"
       };
     }
@@ -224,6 +301,7 @@ function loginUser_(username, password) {
         isSuperAdmin: isSuperAdmin,
         activeTenantId: primaryTenant.tenantId,
         companyName: primaryTenant.companyName,
+        tagLine: primaryTenant.tagLine || "Mutual Fund CRM",
         status: userMasterMatched.Status,
         workspaces: workspaces,
         lastLogin: new Date().toISOString()
@@ -274,7 +352,10 @@ function loginUser_(username, password) {
 
     const primaryTenant = workspaces[0] || {
       tenantId: "TEN001",
-      companyName: "SR Investments",
+      companyName: getTenantCompanyName_("TEN001", "SR GROWW"),
+      CompanyName: getTenantCompanyName_("TEN001", "SR GROWW"),
+      tagLine: getTenantTagLine_("TEN001", "Mutual Fund CRM"),
+      TagLine: getTenantTagLine_("TEN001", "Mutual Fund CRM"),
       role: "Admin"
     };
 
@@ -342,7 +423,10 @@ function loginUser_(username, password) {
   const workspaces = resolveTenantMemberships_(staff.EmployeeId, staff.Email);
   const primaryTenant = workspaces[0] || {
     tenantId: "TEN001",
-    companyName: "SR Investments",
+    companyName: getTenantCompanyName_("TEN001", "SR GROWW"),
+    CompanyName: getTenantCompanyName_("TEN001", "SR GROWW"),
+    tagLine: getTenantTagLine_("TEN001", "Mutual Fund CRM"),
+    TagLine: getTenantTagLine_("TEN001", "Mutual Fund CRM"),
     role: staff.Role || "Staff"
   };
 
@@ -487,12 +571,15 @@ function googleLogin_(googleEmail, googleName) {
     const tenantSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
     const tenants = getSheetRowsAsObjects_(tenantSheet, CRM_SCHEMAS.TENANT_MASTER);
     const firstTenant = tenants.find(t => !t.IsDeleted && String(t.IsDeleted).toLowerCase() !== "true");
-    const defaultName = (firstTenant && String(firstTenant.CompanyName || "").trim()) || "SR Investments";
+    const defaultName = (firstTenant && String(firstTenant.CompanyName || "").trim()) || getTenantCompanyName_("TEN001", "SR GROWW");
+    const defaultTagLine = (firstTenant && String(firstTenant.TagLine || "").trim()) || getTenantTagLine_("TEN001", "Mutual Fund CRM");
     const defaultId = (firstTenant && String(firstTenant.TenantId || "").trim()) || "TEN001";
     primaryTenant = {
       tenantId: defaultId,
       companyName: defaultName,
       CompanyName: defaultName,
+      tagLine: defaultTagLine,
+      TagLine: defaultTagLine,
       role: isSuperAdmin ? "Admin" : (userRole || "Staff")
     };
   }
@@ -516,8 +603,11 @@ function googleLogin_(googleEmail, googleName) {
       isSuperAdmin: isSuperAdmin,
       activeTenantId: primaryTenant.tenantId,
       companyName: primaryTenant.companyName,
+      CompanyName: primaryTenant.companyName,
+      tagLine: primaryTenant.tagLine || "Mutual Fund CRM",
+      TagLine: primaryTenant.tagLine || "Mutual Fund CRM",
       status: "Active",
-      workspaces: workspaces,
+      workspaces: workspaces.length ? workspaces : [primaryTenant],
       lastLogin: new Date().toISOString()
     },
     tenant: primaryTenant,
@@ -545,7 +635,8 @@ function selectTenant_(payload) {
   const targetWorkspace = allWorkspaces.find(w => String(w.tenantId).toUpperCase() === tenantId.toUpperCase());
   const isSuperAdmin = Boolean(payload.isSuperAdmin);
   const role = targetWorkspace ? targetWorkspace.role : (isSuperAdmin ? "Admin" : (payload.role || "Staff"));
-  const resolvedCompName = (tenant && String(tenant.CompanyName || "").trim()) || (targetWorkspace && targetWorkspace.companyName) || "SR Investments";
+  const resolvedCompName = (tenant && String(tenant.CompanyName || "").trim()) || (targetWorkspace && targetWorkspace.companyName) || getTenantCompanyName_(tenantId, "SR GROWW");
+  const resolvedTagLine = (tenant && String(tenant.TagLine || "").trim()) || (targetWorkspace && targetWorkspace.tagLine) || getTenantTagLine_(tenantId, "Mutual Fund CRM");
   const licCheck = checkTenantLicenseActive_(tenantId, isSuperAdmin);
   if (!licCheck.valid) {
     throw new Error(licCheck.error);
@@ -562,17 +653,20 @@ function selectTenant_(payload) {
       status: "Active",
       activeTenantId: tenantId,
       companyName: resolvedCompName,
+      tagLine: resolvedTagLine,
       workspaces: allWorkspaces,
       lastLogin: new Date().toISOString()
     },
     tenant: {
-      tenantId: tenant.TenantId,
+      tenantId: tenant ? tenant.TenantId : tenantId,
       companyName: resolvedCompName,
       CompanyName: resolvedCompName,
-      arnNumber: tenant.ArnNumber,
-      supportEmail: tenant.SupportEmail,
+      tagLine: resolvedTagLine,
+      TagLine: resolvedTagLine,
+      arnNumber: tenant ? tenant.ArnNumber : "",
+      supportEmail: tenant ? tenant.SupportEmail : "",
       role: role,
-      status: tenant.Status
+      status: tenant ? tenant.Status : "Active"
     },
     rights: getRolePermissions_(role, tenantId),
     token: "SR_TEN_" + Utilities.getUuid()

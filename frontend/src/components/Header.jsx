@@ -561,7 +561,7 @@ export default function Header({ title, subtitle, onRefresh, refreshing, onOpenB
                   }}>
                     <Building2 size={12} color="#2563eb" />
                     <span style={{ fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {tenant.CompanyName || tenant.companyName || tenant.tenantId || 'SR Investments'}
+                      {tenant.CompanyName || tenant.companyName || tenant.tenantId || 'SR GROWW'}
                     </span>
                     <span style={{ fontSize: '0.65rem', color: '#64748b' }}>({tenant.tenantId})</span>
                   </div>

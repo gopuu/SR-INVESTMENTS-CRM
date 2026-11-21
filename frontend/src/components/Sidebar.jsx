@@ -48,10 +48,11 @@ export default function Sidebar({ currentPage, onNavigate }) {
     };
   }, []);
 
-  const currentCompanyName = tenant?.CompanyName || tenant?.companyName || user?.companyName || 'SR Investments';
+  const currentCompanyName = tenant?.CompanyName || tenant?.companyName || user?.companyName || 'SR GROWW';
+  const currentTagLine = tenant?.TagLine || tenant?.tagLine || user?.tagLine || user?.TagLine || 'Mutual Fund CRM';
   const companyInitials = (() => {
     const words = currentCompanyName.split(' ').filter(Boolean);
-    return words.length >= 2 ? (words[0][0] + words[1][0]).toUpperCase() : (words[0]?.slice(0, 2).toUpperCase() || 'SR');
+    return words.length >= 2 ? (words[0][0] + words[1][0]).toUpperCase() : (words[0]?.slice(0, 2).toUpperCase() || 'SG');
   })();
 
   const moduleNavItems = [
@@ -181,7 +182,7 @@ export default function Sidebar({ currentPage, onNavigate }) {
             {currentCompanyName}
           </div>
           <div style={{ fontSize: '0.725rem', color: '#93c5fd', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <TrendingUp size={12} color="#60a5fa" /> Mutual Fund CRM
+            <TrendingUp size={12} color="#60a5fa" /> {currentTagLine}
           </div>
         </div>
       </div>

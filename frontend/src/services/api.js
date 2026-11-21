@@ -343,7 +343,8 @@ const SEED_DATA = {
   tenants: [
     {
       TenantId: 'TEN001',
-      CompanyName: 'ABC Investments',
+      CompanyName: 'SR GROWW',
+      TagLine: 'Mutual Fund CRM',
       ArnNumber: 'ARN-189241',
       SpreadsheetId: '1Bll7386rIJD2CIl1VX--0Okcn-jxXOpII0OHh9FSKSM',
       DriveRootFolderId: '1IxulBQJTKrxYAyYMUhz5bllvaMZUYvy',
@@ -1721,8 +1722,10 @@ export const crmApi = {
           const defaultTenant = tenants.find(t => !t.IsDeleted);
           const primaryTenant = userWorkspaces[0] || {
             tenantId: defaultTenant?.TenantId || 'TEN001',
-            companyName: defaultTenant?.CompanyName || 'SR Investments',
-            CompanyName: defaultTenant?.CompanyName || 'SR Investments',
+            companyName: defaultTenant?.CompanyName || 'SR GROWW',
+            CompanyName: defaultTenant?.CompanyName || 'SR GROWW',
+            tagLine: defaultTenant?.TagLine || 'Mutual Fund CRM',
+            TagLine: defaultTenant?.TagLine || 'Mutual Fund CRM',
             role: matchedUser.IsSuperAdmin ? 'Admin' : 'Staff'
           };
 
@@ -1918,8 +1921,10 @@ export const crmApi = {
         const defaultTenant = tenants.find(t => !t.IsDeleted);
         const primaryTenant = userWorkspaces[0] || {
           tenantId: defaultTenant?.TenantId || 'TEN001',
-          companyName: defaultTenant?.CompanyName || 'SR Investments',
-          CompanyName: defaultTenant?.CompanyName || 'SR Investments',
+          companyName: defaultTenant?.CompanyName || 'SR GROWW',
+          CompanyName: defaultTenant?.CompanyName || 'SR GROWW',
+          tagLine: defaultTenant?.TagLine || 'Mutual Fund CRM',
+          TagLine: defaultTenant?.TagLine || 'Mutual Fund CRM',
           role: isSuperAdmin ? 'Admin' : 'Staff'
         };
 
@@ -2134,6 +2139,25 @@ export const crmApi = {
       // ==========================================
       // SUPERADMIN CLIENT & LICENSING SAAS ACTIONS
       // ==========================================
+      case 'getTenantBranding': {
+        const tenants = JSON.parse(localStorage.getItem(STORAGE_KEYS.TENANTS) || '[]');
+        const tId = payload.tenantId || payload.TenantId || 'TEN001';
+        const t = tenants.find(x => String(x.TenantId || '').toUpperCase() === String(tId).toUpperCase() && !x.IsDeleted) || tenants[0];
+        const cName = t?.CompanyName || 'SR GROWW';
+        const tLine = t?.TagLine || 'Mutual Fund CRM';
+        return {
+          success: true,
+          tenantId: t?.TenantId || tId,
+          companyName: cName,
+          CompanyName: cName,
+          tagLine: tLine,
+          TagLine: tLine,
+          arnNumber: t?.ArnNumber || '',
+          supportEmail: t?.SupportEmail || '',
+          contactPhone: t?.ContactPhone || ''
+        };
+      }
+
       case 'getTenants': {
         assertSuperAdminDemo(payload);
         const tenants = JSON.parse(localStorage.getItem(STORAGE_KEYS.TENANTS) || '[]');
