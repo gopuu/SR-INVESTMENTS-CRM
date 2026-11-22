@@ -23,6 +23,9 @@ const CRM_CONFIG = {
   SHEETS: {
     EMPLOYEES: "Employees",
     CUSTOMERS: "Customers",
+    CUSTOMER_BANK: "Customer_Bank",
+    CUSTOMER_NOMINEE: "Customer_Nominee",
+    CUSTOMER_DRAFT: "Customer_Draft",
     USERS: "Users",
     SETTINGS: "CompanySettings",
     RIGHTS: "RolesRights",
@@ -96,15 +99,30 @@ const CRM_SCHEMAS = {
     "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
   ],
   CUSTOMERS: [
-    "CustomerId", "CustomerCode", "FullName", "Email", "Mobile", "PanNumber",
-    "AadhaarLast4", "KycStatus", "InvestorCategory", "DateOfBirth", "NomineeName",
-    "NomineeRelation", "BankName", "AccountNumber", "IfscCode", "City", "State",
-    "RiskProfile", "Notes", "Status",
+    "CustomerId", "CustomerCode", "Title", "FirstName", "MiddleName", "LastName", "FullName",
+    "Gender", "DateOfBirth", "Occupation", "AnnualIncome",
+    "Mobile", "Email", "PanNumber", "AadharNo", "AadhaarLast4",
+    "Address", "Pincode", "Area", "City", "State",
+    "BseUcc", "SkCustId", "SkDpId", "SkClientId",
+    "PanDocUrl", "AadharDocUrl", "BankStatementDocUrl", "BankChequeDocUrl", "NomineeProofDocUrl", "SignDocUrl",
+    "KycStatus", "InvestorCategory", "RiskProfile", "Notes", "Status",
     "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At",
     "Created_Approved_By", "Created_Approved_At",
     "Updated_Approved_By", "Updated_Approved_At",
     "Deleted_Approved_By", "Deleted_Approved_At",
     "Approval_History", "Approved_By", "Approved_At"
+  ],
+  CUSTOMER_BANK: [
+    "BankId", "CustomerId", "CustomerCode", "BankIndex", "IfscCode", "BankName", "AccountNumber", "AccountType", "MicrCode", "IsPrimary",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
+  ],
+  CUSTOMER_NOMINEE: [
+    "NomineeId", "CustomerId", "CustomerCode", "NomineeIndex", "NomineeName", "Relation", "RelationOther", "DateOfBirth", "Occupation", "IdProofType", "DocumentNo", "Mobile", "Email", "Address", "SharePercentage",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
+  ],
+  CUSTOMER_DRAFT: [
+    "DraftId", "DraftKey", "CustomerName", "CurrentStep", "TotalSteps", "DraftDataJson", "Status",
+    "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
   ],
   EMPLOYEES: [
     "EmployeeId", "EmployeeCode", "FullName", "Username", "Email", "AlternateEmails", "Mobile", "AlternateMobile",
@@ -299,6 +317,15 @@ function ensureSheetAndColumns_(ss, sheetName, schema) {
   }
   if (!sheet && (sheetName === "Default-Config" || sheetName === "Default_Config")) {
     sheet = ss.getSheetByName("Default-Config") || ss.getSheetByName("Default_Config");
+  }
+  if (!sheet && (sheetName === "Customer_Draft" || sheetName === "CustomerDraft")) {
+    sheet = ss.getSheetByName("Customer_Draft") || ss.getSheetByName("CustomerDraft");
+  }
+  if (!sheet && (sheetName === "Customer_Nominee" || sheetName === "CustomerNominee" || sheetName === "Customer_Nominees")) {
+    sheet = ss.getSheetByName("Customer_Nominee") || ss.getSheetByName("CustomerNominee") || ss.getSheetByName("Customer_Nominees");
+  }
+  if (!sheet && (sheetName === "Customer_Bank" || sheetName === "CustomerBank" || sheetName === "Customer_Banks")) {
+    sheet = ss.getSheetByName("Customer_Bank") || ss.getSheetByName("CustomerBank") || ss.getSheetByName("Customer_Banks");
   }
 
   // 1. IF TAB DOES NOT EXIST, CREATE IT
@@ -1279,6 +1306,9 @@ function setupTenantTemplateDatabase(spreadsheetId) {
 
   const tenantSchemas = [
     { name: CRM_CONFIG.SHEETS.CUSTOMERS, schema: CRM_SCHEMAS.CUSTOMERS },
+    { name: CRM_CONFIG.SHEETS.CUSTOMER_BANK, schema: CRM_SCHEMAS.CUSTOMER_BANK },
+    { name: CRM_CONFIG.SHEETS.CUSTOMER_NOMINEE, schema: CRM_SCHEMAS.CUSTOMER_NOMINEE },
+    { name: CRM_CONFIG.SHEETS.CUSTOMER_DRAFT, schema: CRM_SCHEMAS.CUSTOMER_DRAFT },
     { name: CRM_CONFIG.SHEETS.EMPLOYEES, schema: CRM_SCHEMAS.EMPLOYEES },
     { name: CRM_CONFIG.SHEETS.NOTIFICATIONS, schema: CRM_SCHEMAS.NOTIFICATIONS },
     { name: CRM_CONFIG.SHEETS.SETTINGS, schema: CRM_SCHEMAS.SETTINGS },

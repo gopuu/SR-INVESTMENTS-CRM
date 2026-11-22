@@ -99,6 +99,9 @@ const STORAGE_KEYS = {
   CONFIG_URL: 'sr_crm_gas_url',
   DEMO_MODE: 'sr_crm_demo_mode',
   CUSTOMERS: 'sr_crm_demo_customers',
+  CUSTOMER_BANK: 'sr_crm_demo_customer_bank',
+  CUSTOMER_NOMINEE: 'sr_crm_demo_customer_nominee',
+  CUSTOMER_DRAFT: 'sr_crm_demo_customer_draft',
   EMPLOYEES: 'sr_crm_demo_employees',
   SETTINGS: 'sr_crm_demo_settings',
   RIGHTS: 'sr_crm_demo_rights',
@@ -2747,10 +2750,109 @@ export const crmApi = {
         return list;
       }
 
+      case 'getCustomerById': {
+        const id = payload.id || payload.customerId || payload.CustomerId;
+        const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMERS) || '[]');
+        const cust = list.find(c => String(c.CustomerId || '').toLowerCase() === String(id || '').toLowerCase() || String(c.CustomerCode || '').toLowerCase() === String(id || '').toLowerCase());
+        if (!cust) return null;
+        
+        const allBanks = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMER_BANK) || '[]');
+        const allNoms = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMER_NOMINEE) || '[]');
+        const banks = allBanks.filter(b => String(b.CustomerId || '').toLowerCase() === String(cust.CustomerId || '').toLowerCase() && !b.IsDeleted);
+        const nominees = allNoms.filter(n => String(n.CustomerId || '').toLowerCase() === String(cust.CustomerId || '').toLowerCase() && !n.IsDeleted);
+
+        return { ...cust, banks, nominees };
+      }
+
+      case 'getCustomerDrafts': {
+        const allDrafts = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMER_DRAFT) || '[]');
+        const active = allDrafts.filter(d => !d.IsDeleted);
+        return active.map((d, idx) => ({
+          Id: d.DraftId || (idx + 1),
+          DraftKey: d.DraftKey,
+          CustomerName: d.CustomerName || (d.DraftData && (d.DraftData.FullName || [d.DraftData.FirstName, d.DraftData.LastName].filter(Boolean).join(' '))) || 'Draft',
+          StepNo: Number(d.CurrentStep || 1),
+          TotalSteps: Number(d.TotalSteps || 7),
+          LastModifiedBy: d.Updated_By || d.Created_By || 'System',
+          LastModifiedOn: d.Updated_At || d.Created_At || '',
+          DraftData: d.DraftData || {}
+        }));
+      }
+
+      case 'saveCustomerDraft': {
+        const allDrafts = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMER_DRAFT) || '[]');
+        const now = new Date().toISOString();
+        const userEmail = payload.userEmail || payload.ActionBy || 'admin@srinvestments.com';
+        let draftKey = payload.DraftKey || payload.draftKey;
+        const step = Number(payload.CurrentStep || payload.StepNo || 1);
+        const total = Number(payload.TotalSteps || 7);
+
+        let custName = payload.CustomerName || '';
+        if (!custName && payload.DraftData) {
+          custName = payload.DraftData.FullName || [payload.DraftData.FirstName, payload.DraftData.LastName].filter(Boolean).join(' ');
+        }
+        if (!custName && (payload.FirstName || payload.LastName)) {
+          custName = [payload.FirstName, payload.LastName].filter(Boolean).join(' ');
+        }
+        if (!custName) custName = 'Draft (' + (payload.PAN || payload.Mobile || 'New') + ')';
+
+        let existingIdx = -1;
+        if (draftKey) {
+          existingIdx = allDrafts.findIndex(d => d.DraftKey === draftKey);
+        }
+
+        let draftId = '';
+        if (existingIdx >= 0) {
+          const ex = allDrafts[existingIdx];
+          draftId = ex.DraftId || ('DRF_' + Date.now());
+          allDrafts[existingIdx] = {
+            ...ex,
+            CustomerName: custName,
+            CurrentStep: step,
+            TotalSteps: total,
+            DraftData: payload.DraftData || payload,
+            Updated_By: userEmail,
+            Updated_At: now
+          };
+        } else {
+          draftId = 'DRF_' + Date.now();
+          if (!draftKey) draftKey = 'DKEY_' + Math.random().toString(36).substring(2, 9).toUpperCase();
+          allDrafts.push({
+            DraftId: draftId,
+            DraftKey: draftKey,
+            CustomerName: custName,
+            CurrentStep: step,
+            TotalSteps: total,
+            DraftData: payload.DraftData || payload,
+            Status: 'DRAFT',
+            IsDeleted: false,
+            Created_By: userEmail,
+            Created_At: now,
+            Updated_By: userEmail,
+            Updated_At: now
+          });
+        }
+        localStorage.setItem(STORAGE_KEYS.CUSTOMER_DRAFT, JSON.stringify(allDrafts));
+        return { status: 'Success', success: true, data: { DraftId: draftId, DraftKey: draftKey } };
+      }
+
+      case 'deleteCustomerDraft': {
+        const key = payload.draftKey || payload.DraftKey || payload.id || payload.draftId;
+        const allDrafts = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMER_DRAFT) || '[]');
+        const idx = allDrafts.findIndex(d => d.DraftKey === key || d.DraftId === key);
+        if (idx >= 0) {
+          allDrafts[idx].IsDeleted = true;
+          allDrafts[idx].Deleted_By = payload.userEmail || 'admin@srinvestments.com';
+          allDrafts[idx].Deleted_At = new Date().toISOString();
+          localStorage.setItem(STORAGE_KEYS.CUSTOMER_DRAFT, JSON.stringify(allDrafts));
+        }
+        return { status: 'Success', success: true, message: 'Draft deleted.' };
+      }
+
       case 'saveCustomer': {
         const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMERS) || '[]');
         const id = payload.CustomerId || ('CUST_' + Date.now());
-        const code = payload.CustomerCode || ('SR' + Math.floor(10000 + Math.random() * 90000));
+        const code = payload.CustomerCode || payload.SR_UniqueId || ('SR' + Math.floor(10000 + Math.random() * 90000));
         const userEmail = payload.userEmail || 'admin@srinvestments.com';
         const now = new Date().toISOString();
         const index = list.findIndex(c => c.CustomerId === id);
@@ -2764,10 +2866,17 @@ export const crmApi = {
         const deletedBy = existing ? (existing.Deleted_By || '') : '';
         const deletedAt = existing ? (existing.Deleted_At || '') : '';
 
+        // Determine FullName
+        let fullName = payload.FullName || '';
+        if (!fullName && (payload.FirstName || payload.LastName)) {
+          fullName = [payload.FirstName, payload.MiddleName, payload.LastName].filter(Boolean).join(' ');
+        }
+
         const record = {
           ...payload,
           CustomerId: id,
           CustomerCode: code,
+          FullName: fullName,
           IsDeleted: isDeleted,
           Created_By: createdBy,
           Created_At: createdAt,
@@ -2802,8 +2911,87 @@ export const crmApi = {
         }
 
         localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(list));
+
+        // Save Banks
+        let banksList = payload.banks || payload.Banks;
+        if (typeof banksList === 'string') { try { banksList = JSON.parse(banksList); } catch (e) { banksList = []; } }
+        if (Array.isArray(banksList) && banksList.length > 0) {
+          const allBanks = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMER_BANK) || '[]');
+          allBanks.forEach(b => {
+            if (b.CustomerId === id) b.IsDeleted = true;
+          });
+          banksList.slice(0, 3).forEach((b, bIdx) => {
+            allBanks.push({
+              BankId: b.BankId || ('BNK_' + Date.now() + '_' + (bIdx + 1)),
+              CustomerId: id,
+              CustomerCode: code,
+              BankIndex: bIdx + 1,
+              IfscCode: (b.IfscCode || b.IFSCCode || '').toUpperCase(),
+              BankName: b.BankName || b.bank_name,
+              AccountNumber: b.AccountNumber || b.AccountNo,
+              AccountType: b.AccountType || b.AccountTypeId || 'Saving',
+              MicrCode: b.MicrCode || b.MICRCode || '',
+              IsPrimary: bIdx === 0,
+              IsDeleted: false,
+              Created_By: userEmail,
+              Created_At: now,
+              Updated_By: userEmail,
+              Updated_At: now
+            });
+          });
+          localStorage.setItem(STORAGE_KEYS.CUSTOMER_BANK, JSON.stringify(allBanks));
+        }
+
+        // Save Nominees
+        let nomineeList = payload.nominees || payload.Nominees;
+        if (typeof nomineeList === 'string') { try { nomineeList = JSON.parse(nomineeList); } catch (e) { nomineeList = []; } }
+        if (Array.isArray(nomineeList) && nomineeList.length > 0) {
+          const allNoms = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMER_NOMINEE) || '[]');
+          allNoms.forEach(n => {
+            if (n.CustomerId === id) n.IsDeleted = true;
+          });
+          nomineeList.slice(0, 3).forEach((n, nIdx) => {
+            allNoms.push({
+              NomineeId: n.NomineeId || ('NOM_' + Date.now() + '_' + (nIdx + 1)),
+              CustomerId: id,
+              CustomerCode: code,
+              NomineeIndex: nIdx + 1,
+              NomineeName: n.NomineeName || n.GuardianName || n.Name,
+              Relation: n.Relation || n.RelationId,
+              RelationOther: n.RelationOther || '',
+              DateOfBirth: n.DateOfBirth || n.DOB || '',
+              Occupation: n.Occupation || n.OccupationId,
+              IdProofType: n.IdProofType || n.ProofTypeId,
+              DocumentNo: n.DocumentNo || n.ProofNumber || '',
+              Mobile: n.Mobile || n.MobileNo || '',
+              Email: n.Email || n.EmailId || '',
+              Address: n.Address || '',
+              SharePercentage: n.SharePercentage || n.Share || (nIdx === 0 ? '100' : '0'),
+              IsDeleted: false,
+              Created_By: userEmail,
+              Created_At: now,
+              Updated_By: userEmail,
+              Updated_At: now
+            });
+          });
+          localStorage.setItem(STORAGE_KEYS.CUSTOMER_NOMINEE, JSON.stringify(allNoms));
+        }
+
+        // Soft delete draft if submitted from draft
+        const draftKey = payload.draftKey || payload.DraftKey || payload.draftId;
+        if (draftKey) {
+          const allDrafts = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMER_DRAFT) || '[]');
+          const dIdx = allDrafts.findIndex(d => d.DraftKey === draftKey || d.DraftId === draftKey);
+          if (dIdx >= 0) {
+            allDrafts[dIdx].IsDeleted = true;
+            allDrafts[dIdx].Deleted_By = userEmail;
+            allDrafts[dIdx].Deleted_At = now;
+            localStorage.setItem(STORAGE_KEYS.CUSTOMER_DRAFT, JSON.stringify(allDrafts));
+          }
+        }
+
         broadcastCrmEvent({ type: 'DATA_CHANGED', module: 'Customers', recordId: code });
-        return { customerId: id, customerCode: code, message: 'Investor saved successfully.' };
+        return { status: 'Success', success: true, customerId: id, customerCode: code, message: 'Investor saved successfully.' };
       }
 
       // Delete Customer Always
@@ -2818,6 +3006,16 @@ export const crmApi = {
           rec.Deleted_By = userEmail;
           rec.Deleted_At = new Date().toISOString();
           localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(list));
+
+          // Soft delete banks and nominees
+          const allBanks = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMER_BANK) || '[]');
+          allBanks.forEach(b => { if (b.CustomerId === customerId) b.IsDeleted = true; });
+          localStorage.setItem(STORAGE_KEYS.CUSTOMER_BANK, JSON.stringify(allBanks));
+
+          const allNoms = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMER_NOMINEE) || '[]');
+          allNoms.forEach(n => { if (n.CustomerId === customerId) n.IsDeleted = true; });
+          localStorage.setItem(STORAGE_KEYS.CUSTOMER_NOMINEE, JSON.stringify(allNoms));
+
           logAuditLocal(userEmail, 'DELETE', 'Customers', rec.CustomerCode, `Deleted investor: ${rec.FullName} (${rec.CustomerCode})`);
           dispatchNotification({
             action: 'DELETE',

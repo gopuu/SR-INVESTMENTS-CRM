@@ -295,6 +295,9 @@ function executeAction_(action, payload) {
     case "getCustomers":
       return getCustomers_(payload);
 
+    case "getCustomerById":
+      return getCustomerById_(payload.id || payload.customerId || payload.CustomerId, payload.tenantId || payload.activeTenantId);
+
     case "saveCustomer":
       return saveCustomer_(payload);
 
@@ -303,6 +306,15 @@ function executeAction_(action, payload) {
 
     case "restoreCustomer":
       return restoreCustomer_(payload);
+
+    case "getCustomerDrafts":
+      return getCustomerDrafts_(payload);
+
+    case "saveCustomerDraft":
+      return saveCustomerDraft_(payload);
+
+    case "deleteCustomerDraft":
+      return deleteCustomerDraft_(payload.draftKey || payload.DraftKey || payload.id || payload.draftId, payload.userEmail || payload.actionBy, payload.tenantId || payload.activeTenantId);
 
     // Staff / Employees
     case "getEmployees":
@@ -437,6 +449,8 @@ function recordActionSyncIfMutating_(action, payload) {
       case "saveCustomer":
       case "deleteCustomer":
       case "restoreCustomer":
+      case "saveCustomerDraft":
+      case "deleteCustomerDraft":
         module = "Customers";
         break;
 
