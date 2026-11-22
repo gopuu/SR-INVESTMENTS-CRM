@@ -3679,6 +3679,10 @@ function getDefaultConfig_() {
   ensureConfigKey("EmailMaxLimitPerDay", "200", "Maximum OTP Emails allowed to be sent per day (Default: 200)");
   ensureConfigKey("SmsMaxLimitPerDay", "100", "Maximum OTP SMS allowed to be sent per day (configured manually per SMS plan)");
 
+  // 5. SuperAdmin Global Company Name & TagLine (Default-Config)
+  ensureConfigKey("CompanyName", "SR TECHNO", "Global SuperAdmin Platform Company Name");
+  ensureConfigKey("CompanyTagLine", "SuperAdmin App", "Global SuperAdmin Platform Tagline");
+
   return config;
 }
 
@@ -3877,6 +3881,16 @@ function seedDefaultConfig_(sheet) {
       Key: "SmsMaxLimitPerDay",
       Value: "100",
       Description: "Maximum OTP SMS allowed to be sent per day (configured manually per SMS plan)"
+    },
+    {
+      Key: "CompanyName",
+      Value: "SR TECHNO",
+      Description: "Global SuperAdmin Platform Company Name"
+    },
+    {
+      Key: "CompanyTagLine",
+      Value: "SuperAdmin App",
+      Description: "Global SuperAdmin Platform Tagline"
     }
   ];
 

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  LayoutDashboard, 
-  Users, 
-  UserCheck, 
-  Settings, 
-  TrendingUp, 
-  ShieldCheck, 
+import {
+  LayoutDashboard,
+  Users,
+  UserCheck,
+  Settings,
+  TrendingUp,
+  ShieldCheck,
   Calculator,
   ChevronRight,
   Boxes,
@@ -32,9 +32,9 @@ export default function Sidebar({ currentPage, onNavigate }) {
 
     const unsub = subscribeCrmEvents((evt) => {
       if (
-        evt.module === 'Auth' || 
-        evt.module === 'TenantUserMapping' || 
-        evt.module === 'TenantMaster' || 
+        evt.module === 'Auth' ||
+        evt.module === 'TenantUserMapping' ||
+        evt.module === 'TenantMaster' ||
         evt.action === 'roleChanged' ||
         evt.subType === 'ROLE_MAPPING_UPDATED'
       ) {
@@ -48,8 +48,8 @@ export default function Sidebar({ currentPage, onNavigate }) {
     };
   }, []);
 
-  const currentCompanyName = tenant?.CompanyName || tenant?.companyName || user?.companyName || 'SR GROWW';
-  const currentTagLine = tenant?.TagLine || tenant?.tagLine || user?.tagLine || user?.TagLine || 'Mutual Fund CRM';
+  const currentCompanyName = tenant?.CompanyName || tenant?.companyName || user?.companyName || (isSuperAdmin ? 'SR TECHNO' : 'SR GROWW');
+  const currentTagLine = tenant?.TagLine || tenant?.tagLine || user?.tagLine || user?.TagLine || (isSuperAdmin ? 'SuperAdmin App' : 'Mutual Fund CRM');
   const companyInitials = (() => {
     const words = currentCompanyName.split(' ').filter(Boolean);
     return words.length >= 2 ? (words[0][0] + words[1][0]).toUpperCase() : (words[0]?.slice(0, 2).toUpperCase() || 'SG');
@@ -230,10 +230,10 @@ export default function Sidebar({ currentPage, onNavigate }) {
             {currentCompanyName} CRM
           </span>
         </div>
-        <span style={{ 
-          backgroundColor: '#1e293b', 
-          color: '#93c5fd', 
-          padding: '2px 7px', 
+        <span style={{
+          backgroundColor: '#1e293b',
+          color: '#93c5fd',
+          padding: '2px 7px',
           borderRadius: '4px',
           fontWeight: '700',
           fontSize: '0.675rem',

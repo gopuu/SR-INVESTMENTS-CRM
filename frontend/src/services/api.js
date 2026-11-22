@@ -1990,9 +1990,23 @@ export const crmApi = {
         const mapEntry = mappings.find(m => m.TenantId === tenantId && (m.UserId === userId || m.UserId === userEmail));
         const role = mapEntry ? mapEntry.Role : (payload.role || 'Staff');
 
+        let resolvedCompName = '';
+        let resolvedTagLine = '';
+        if (isSuperAdmin) {
+          const defCfg = JSON.parse(localStorage.getItem(STORAGE_KEYS.DEFAULT_CONFIG) || '{}');
+          resolvedCompName = defCfg.CompanyName || defCfg.LoginCompanyName || 'SR TECHNO';
+          resolvedTagLine = defCfg.CompanyTagLine || defCfg.TagLine || 'SuperAdmin App';
+        } else {
+          resolvedCompName = t.CompanyName || 'SR Groww';
+          resolvedTagLine = t.TagLine || 'Mutual Fund CRM';
+        }
+
         const selectedTenant = {
           tenantId: t.TenantId,
-          companyName: t.CompanyName,
+          companyName: resolvedCompName,
+          CompanyName: resolvedCompName,
+          tagLine: resolvedTagLine,
+          TagLine: resolvedTagLine,
           arnNumber: t.ArnNumber || '',
           role,
           status: t.Status
@@ -2007,7 +2021,10 @@ export const crmApi = {
           isSuperAdmin: Boolean(isSuperAdmin),
           status: 'Active',
           activeTenantId: t.TenantId,
-          companyName: t.CompanyName,
+          companyName: resolvedCompName,
+          CompanyName: resolvedCompName,
+          tagLine: resolvedTagLine,
+          TagLine: resolvedTagLine,
           workspaces: userWorkspaces.length ? userWorkspaces : [selectedTenant],
           lastLogin: new Date().toISOString()
         };
@@ -2147,13 +2164,40 @@ export const crmApi = {
       // SUPERADMIN CLIENT & LICENSING SAAS ACTIONS
       // ==========================================
       case 'getTenantBranding': {
+        const isSuperAdmin = Boolean(payload.isSuperAdmin === true || String(payload.isSuperAdmin).toLowerCase() === 'true');
+        if (isSuperAdmin) {
+          const defCfg = JSON.parse(localStorage.getItem(STORAGE_KEYS.DEFAULT_CONFIG) || '{}');
+          const cName = defCfg.CompanyName || defCfg.LoginCompanyName || 'SR TECHNO';
+          const tLine = defCfg.CompanyTagLine || defCfg.TagLine || 'SuperAdmin App';
+          return {
+            success: true,
+            isSuperAdmin: true,
+            tenantId: 'CENTRAL',
+            companyName: cName,
+            CompanyName: cName,
+            tagLine: tLine,
+            TagLine: tLine,
+            arnNumber: '',
+            supportEmail: defCfg.SupportEmail || '',
+            contactPhone: ''
+          };
+        }
+
         const tenants = JSON.parse(localStorage.getItem(STORAGE_KEYS.TENANTS) || '[]');
-        const tId = payload.tenantId || payload.TenantId || 'TEN001';
+        let tId = payload.tenantId || payload.TenantId;
+        if ((!tId || tId === 'CENTRAL') && payload.userId) {
+          const mappings = JSON.parse(localStorage.getItem(STORAGE_KEYS.TENANT_USER_MAPPINGS) || '[]');
+          const userMap = mappings.find(m => !m.IsDeleted && String(m.Status).toLowerCase() === 'active' && String(m.UserId).toLowerCase() === String(payload.userId).toLowerCase());
+          if (userMap) tId = userMap.TenantId;
+        }
+        if (!tId || tId === 'CENTRAL') tId = 'TEN001';
+
         const t = tenants.find(x => String(x.TenantId || '').toUpperCase() === String(tId).toUpperCase() && !x.IsDeleted) || tenants[0];
-        const cName = t?.CompanyName || 'SR GROWW';
+        const cName = t?.CompanyName || 'SR Groww';
         const tLine = t?.TagLine || 'Mutual Fund CRM';
         return {
           success: true,
+          isSuperAdmin: false,
           tenantId: t?.TenantId || tId,
           companyName: cName,
           CompanyName: cName,

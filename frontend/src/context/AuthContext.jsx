@@ -219,22 +219,29 @@ export function AuthProvider({ children }) {
     }
   }, [user, isSuperAdmin, workspaces, tenant]);
 
-  // Synchronize active tenant branding (CompanyName & TagLine) live from Central SaaS Tenant_Master
+  // Synchronize branding (CompanyName & TagLine):
+  // 1. if User is SuperAdmin=TRUE: from Default-Config
+  // 2. if User is SuperAdmin=FALSE: get UserId, TenantId from Selected Workspace (Tenant User Mapping),
+  //    then using TenantId, fetch CompanyName & Tagline from CENTRAL DB (Tenant_Master tab)
   useEffect(() => {
     if (!user) return;
     const activeTenantId = tenant?.TenantId || tenant?.tenantId || user?.activeTenantId || 'TEN001';
-    crmApi.call('getTenantBranding', { tenantId: activeTenantId })
+    crmApi.call('getTenantBranding', { 
+      tenantId: activeTenantId,
+      userId: user?.userId,
+      isSuperAdmin: Boolean(isSuperAdmin)
+    })
       .then(res => {
         if (res && res.companyName) {
           const newCompName = res.companyName;
-          const newTagLine = res.tagLine || 'Mutual Fund CRM';
+          const newTagLine = res.tagLine || (isSuperAdmin ? 'SuperAdmin App' : 'Mutual Fund CRM');
 
           setTenant(prev => {
             if (prev?.CompanyName === newCompName && prev?.TagLine === newTagLine) return prev;
             const updated = {
               ...(prev || {}),
-              TenantId: activeTenantId,
-              tenantId: activeTenantId,
+              TenantId: res.tenantId || activeTenantId,
+              tenantId: res.tenantId || activeTenantId,
               CompanyName: newCompName,
               companyName: newCompName,
               TagLine: newTagLine,
@@ -261,8 +268,8 @@ export function AuthProvider({ children }) {
           });
 
           crmApi.setActiveTenant({
-            TenantId: activeTenantId,
-            tenantId: activeTenantId,
+            TenantId: res.tenantId || activeTenantId,
+            tenantId: res.tenantId || activeTenantId,
             CompanyName: newCompName,
             companyName: newCompName,
             TagLine: newTagLine,
@@ -277,7 +284,7 @@ export function AuthProvider({ children }) {
       .catch(err => {
         console.warn('Failed to sync tenant branding:', err);
       });
-  }, [user?.userId, user?.activeTenantId, tenant?.TenantId]);
+  }, [user?.userId, user?.activeTenantId, tenant?.TenantId, isSuperAdmin]);
 
   const hasPermission = (moduleName, action = 'CanView') => {
     if (!user) return false;

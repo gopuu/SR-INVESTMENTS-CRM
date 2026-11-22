@@ -116,27 +116,84 @@ function getTenantTagLine_(tenantId, fallbackTagLine) {
 }
 
 /**
- * Public/Session API to fetch active tenant's latest company name, tag line and info from Tenant_Master
+ * Public/Session API to fetch active branding:
+ * 1. if User is SuperAdmin=TRUE: fetch CompanyName & tagline from Default-Config
+ * 2. if User is SuperAdmin=FALSE: get UserId, TenantId from Selected Workspace (Tenant User Mapping),
+ *    then using TenantId, fetch CompanyName & Tagline from CENTRAL DB (Tenant_Master tab)
  */
 function getTenantBranding_(payload) {
   payload = payload || {};
-  let tenantId = (payload.tenantId || payload.TenantId || "").trim();
-  if (!tenantId) {
+  let isSuperAdmin = Boolean(payload.isSuperAdmin === true || String(payload.isSuperAdmin).toLowerCase() === "true");
+  const userId = String(payload.userId || payload.UserId || "").trim();
+
+  // If isSuperAdmin not explicitly passed but userId provided, verify against Central User_Master
+  if (!isSuperAdmin && userId) {
+    try {
+      const uSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USER_MASTER, CRM_SCHEMAS.USER_MASTER);
+      const uRows = getSheetRowsAsObjects_(uSheet, CRM_SCHEMAS.USER_MASTER);
+      const matchU = uRows.find(u => String(u.UserId || "").trim().toLowerCase() === userId.toLowerCase());
+      if (matchU && (matchU.IsSuperAdmin === true || String(matchU.IsSuperAdmin).toLowerCase() === "true")) {
+        isSuperAdmin = true;
+      }
+    } catch (e) {
+      Logger.log("User_Master check error in getTenantBranding: " + e.message);
+    }
+  }
+
+  // 1. If SuperAdmin = TRUE -> Fetch CompanyName & tagline from Default-Config
+  if (isSuperAdmin) {
+    const defaultConfig = getDefaultConfig_();
+    const companyName = defaultConfig.CompanyName || defaultConfig.companyname || defaultConfig.LoginCompanyName || "SR TECHNO";
+    const tagLine = defaultConfig.CompanyTagLine || defaultConfig.companytagline || defaultConfig.TagLine || defaultConfig.tagline || "SuperAdmin App";
+
+    return {
+      success: true,
+      isSuperAdmin: true,
+      tenantId: "CENTRAL",
+      companyName: companyName,
+      CompanyName: companyName,
+      tagLine: tagLine,
+      TagLine: tagLine,
+      arnNumber: "",
+      supportEmail: defaultConfig.SupportEmail || "",
+      contactPhone: ""
+    };
+  }
+
+  // 2. If SuperAdmin = FALSE -> get UserId, TenantId from Selected Workspace (Tenant User Mapping),
+  //    then using TenantId, fetch CompanyName & Tagline from CENTRAL DB (Tenant_Master tab)
+  let tenantId = String(payload.tenantId || payload.TenantId || "").trim();
+
+  if ((!tenantId || tenantId === "CENTRAL") && userId) {
+    const mapSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_USER_MAPPING, CRM_SCHEMAS.TENANT_USER_MAPPING);
+    const mappings = getSheetRowsAsObjects_(mapSheet, CRM_SCHEMAS.TENANT_USER_MAPPING);
+    const userMap = mappings.find(m => 
+      (!m.IsDeleted || String(m.IsDeleted).toLowerCase() !== "true") &&
+      String(m.Status || "Active").toLowerCase() === "active" &&
+      String(m.UserId || "").trim().toLowerCase() === userId.toLowerCase()
+    );
+    if (userMap && userMap.TenantId) {
+      tenantId = String(userMap.TenantId).trim();
+    }
+  }
+
+  if (!tenantId || tenantId === "CENTRAL") {
     tenantId = "TEN001";
   }
 
   const tenantSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
   const tenants = getSheetRowsAsObjects_(tenantSheet, CRM_SCHEMAS.TENANT_MASTER);
   const t = tenants.find(x => 
-    String(x.TenantId || "").trim().toUpperCase() === String(tenantId).trim().toUpperCase() && 
+    String(x.TenantId || "").trim().toUpperCase() === tenantId.toUpperCase() && 
     (!x.IsDeleted || String(x.IsDeleted).toLowerCase() !== "true")
   ) || tenants.find(x => !x.IsDeleted && String(x.IsDeleted).toLowerCase() !== "true") || tenants[0];
 
-  const companyName = (t && String(t.CompanyName || "").trim()) || getTenantCompanyName_(tenantId, "SR GROWW");
-  const tagLine = (t && String(t.TagLine || "").trim()) || getTenantTagLine_(tenantId, "Mutual Fund CRM");
+  const companyName = (t && String(t.CompanyName || "").trim()) || "SR Groww";
+  const tagLine = (t && String(t.TagLine || "").trim()) || "Mutual Fund CRM";
 
   return {
     success: true,
+    isSuperAdmin: false,
     tenantId: (t && t.TenantId) || tenantId,
     companyName: companyName,
     CompanyName: companyName,
@@ -291,6 +348,19 @@ function loginUser_(username, password) {
 
     const activeRole = primaryTenant.role || (isSuperAdmin ? "Admin" : "Staff");
 
+    let resolvedCompName = "";
+    let resolvedTagLine = "";
+    if (isSuperAdmin) {
+      // 1. if User is SuperAdmin=TRUE, then fetch CompanyName & tagline from Default-Config
+      const defCfg = getDefaultConfig_();
+      resolvedCompName = defCfg.CompanyName || defCfg.companyname || defCfg.LoginCompanyName || "SR TECHNO";
+      resolvedTagLine = defCfg.CompanyTagLine || defCfg.companytagline || defCfg.TagLine || defCfg.tagline || "SuperAdmin App";
+    } else {
+      // 2. if User is SuperAdmin=FALSE, then get UserId, TenantId from Selected Workspace (Tenant User Mapping), then Using TenantId, fetch CompanyName & Tagline from CENTRAL DB (Tenant_Master tab)
+      resolvedCompName = primaryTenant.companyName || "SR Groww";
+      resolvedTagLine = primaryTenant.tagLine || "Mutual Fund CRM";
+    }
+
     return {
       user: {
         userId: userMasterMatched.UserId,
@@ -300,13 +370,21 @@ function loginUser_(username, password) {
         role: activeRole,
         isSuperAdmin: isSuperAdmin,
         activeTenantId: primaryTenant.tenantId,
-        companyName: primaryTenant.companyName,
-        tagLine: primaryTenant.tagLine || "Mutual Fund CRM",
+        companyName: resolvedCompName,
+        CompanyName: resolvedCompName,
+        tagLine: resolvedTagLine,
+        TagLine: resolvedTagLine,
         status: userMasterMatched.Status,
         workspaces: workspaces,
         lastLogin: new Date().toISOString()
       },
-      tenant: primaryTenant,
+      tenant: {
+        ...primaryTenant,
+        companyName: resolvedCompName,
+        CompanyName: resolvedCompName,
+        tagLine: resolvedTagLine,
+        TagLine: resolvedTagLine
+      },
       rights: getRolePermissions_(activeRole),
       token: "SR_" + Utilities.getUuid()
     };
@@ -496,6 +574,19 @@ function googleLogin_(googleEmail, googleName) {
 
   const activeGoogleRole = primaryTenant.role || (isSuperAdmin ? "Admin" : (userRole || "Staff"));
 
+  let resolvedCompName = "";
+  let resolvedTagLine = "";
+  if (isSuperAdmin) {
+    // 1. if User is SuperAdmin=TRUE: fetch CompanyName & tagline from Default-Config
+    const defCfg = getDefaultConfig_();
+    resolvedCompName = defCfg.CompanyName || defCfg.companyname || defCfg.LoginCompanyName || "SR TECHNO";
+    resolvedTagLine = defCfg.CompanyTagLine || defCfg.companytagline || defCfg.TagLine || defCfg.tagline || "SuperAdmin App";
+  } else {
+    // 2. if User is SuperAdmin=FALSE: fetch from Tenant_Master
+    resolvedCompName = primaryTenant.companyName || "SR GROWW";
+    resolvedTagLine = primaryTenant.tagLine || "Mutual Fund CRM";
+  }
+
   logAudit_(cleanEmail, "GOOGLE_LOGIN_SUCCESS", "Auth", "Google Sign-In successful for user " + userId + " (" + cleanEmail + ")");
 
   return {
@@ -507,15 +598,21 @@ function googleLogin_(googleEmail, googleName) {
       role: activeGoogleRole,
       isSuperAdmin: isSuperAdmin,
       activeTenantId: primaryTenant.tenantId,
-      companyName: primaryTenant.companyName,
-      CompanyName: primaryTenant.companyName,
-      tagLine: primaryTenant.tagLine || "Mutual Fund CRM",
-      TagLine: primaryTenant.tagLine || "Mutual Fund CRM",
+      companyName: resolvedCompName,
+      CompanyName: resolvedCompName,
+      tagLine: resolvedTagLine,
+      TagLine: resolvedTagLine,
       status: "Active",
       workspaces: workspaces.length ? workspaces : [primaryTenant],
       lastLogin: new Date().toISOString()
     },
-    tenant: primaryTenant,
+    tenant: {
+      ...primaryTenant,
+      companyName: resolvedCompName,
+      CompanyName: resolvedCompName,
+      tagLine: resolvedTagLine,
+      TagLine: resolvedTagLine
+    },
     rights: getRolePermissions_(activeGoogleRole),
     token: "GOOGLE_" + Utilities.getUuid()
   };
@@ -532,16 +629,46 @@ function selectTenant_(payload) {
 
   if (!tenantId) throw new Error("Tenant ID is required.");
 
+  let isSuperAdmin = Boolean(payload.isSuperAdmin === true || String(payload.isSuperAdmin).toLowerCase() === "true");
+  if (!isSuperAdmin && (userId || userEmail)) {
+    try {
+      const uSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USER_MASTER, CRM_SCHEMAS.USER_MASTER);
+      const uRows = getSheetRowsAsObjects_(uSheet, CRM_SCHEMAS.USER_MASTER);
+      const matchU = uRows.find(u => 
+        (userId && String(u.UserId).toLowerCase() === userId.toLowerCase()) ||
+        (userEmail && String(u.Email).toLowerCase() === userEmail.toLowerCase())
+      );
+      if (matchU && (matchU.IsSuperAdmin === true || String(matchU.IsSuperAdmin).toLowerCase() === "true")) {
+        isSuperAdmin = true;
+      }
+    } catch (e) {
+      Logger.log("User_Master check error in selectTenant_: " + e.message);
+    }
+  }
+
   const tenantSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
   const tenants = getSheetRowsAsObjects_(tenantSheet, CRM_SCHEMAS.TENANT_MASTER);
   const tenant = tenants.find(t => String(t.TenantId || "").trim().toUpperCase() === tenantId.toUpperCase() && (!t.IsDeleted || String(t.IsDeleted).toLowerCase() !== "true"));
 
   const allWorkspaces = resolveTenantMemberships_(userId, userEmail);
   const targetWorkspace = allWorkspaces.find(w => String(w.tenantId).toUpperCase() === tenantId.toUpperCase());
-  const isSuperAdmin = Boolean(payload.isSuperAdmin);
   const role = targetWorkspace ? targetWorkspace.role : (isSuperAdmin ? "Admin" : (payload.role || "Staff"));
-  const resolvedCompName = (tenant && String(tenant.CompanyName || "").trim()) || (targetWorkspace && targetWorkspace.companyName) || getTenantCompanyName_(tenantId, "SR GROWW");
-  const resolvedTagLine = (tenant && String(tenant.TagLine || "").trim()) || (targetWorkspace && targetWorkspace.tagLine) || getTenantTagLine_(tenantId, "Mutual Fund CRM");
+
+  let resolvedCompName = "";
+  let resolvedTagLine = "";
+
+  if (isSuperAdmin) {
+    // 1. if User is SuperAdmin=TRUE: fetch CompanyName & tagline from Default-Config
+    const defCfg = getDefaultConfig_();
+    resolvedCompName = defCfg.CompanyName || defCfg.companyname || defCfg.LoginCompanyName || "SR TECHNO";
+    resolvedTagLine = defCfg.CompanyTagLine || defCfg.companytagline || defCfg.TagLine || defCfg.tagline || "SuperAdmin App";
+  } else {
+    // 2. if User is SuperAdmin=FALSE: get UserId, TenantId from Selected Workspace (Tenant User Mapping),
+    //    then using TenantId, fetch CompanyName & Tagline from CENTRAL DB (Tenant_Master tab)
+    resolvedCompName = (tenant && String(tenant.CompanyName || "").trim()) || (targetWorkspace && targetWorkspace.companyName) || "SR Groww";
+    resolvedTagLine = (tenant && String(tenant.TagLine || "").trim()) || (targetWorkspace && targetWorkspace.tagLine) || "Mutual Fund CRM";
+  }
+
   const licCheck = checkTenantLicenseActive_(tenantId, isSuperAdmin);
   if (!licCheck.valid) {
     throw new Error(licCheck.error);
@@ -554,11 +681,13 @@ function selectTenant_(payload) {
       name: payload.userName || "User",
       email: userEmail,
       role: role,
-      isSuperAdmin: Boolean(payload.isSuperAdmin),
+      isSuperAdmin: isSuperAdmin,
       status: "Active",
       activeTenantId: tenantId,
       companyName: resolvedCompName,
+      CompanyName: resolvedCompName,
       tagLine: resolvedTagLine,
+      TagLine: resolvedTagLine,
       workspaces: allWorkspaces,
       lastLogin: new Date().toISOString()
     },
