@@ -18,7 +18,9 @@ import {
   RefreshCw,
   CheckCircle2,
   Check,
-  X
+  X,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { crmApi, getInitialsCode, subscribeCrmEvents } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -73,11 +75,14 @@ export default function Staff({ onOpenBackup }) {
   const [isCodeManual, setIsCodeManual] = useState(false);
   const [imagePreview, setImagePreview] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [isUsernameManual, setIsUsernameManual] = useState(false);
 
   const initialFormState = {
     EmployeeId: '',
     EmployeeCode: '',
     FullName: '',
+    Username: '',
     Email: '',
     AlternateEmails: '',
     GoogleEmails: '', // Multiple Google IDs / Alternate Emails
@@ -87,7 +92,11 @@ export default function Staff({ onOpenBackup }) {
     Designation: '',
     Role: '',
     Password: 'password123',
+    BirthDate: '',
     JoiningDate: '',
+    BloodGroup: '',
+    EmergencyContact: '',
+    AadharNo: '',
     Status: 'Active',
     Address: '',
     City: '',
@@ -162,10 +171,17 @@ export default function Staff({ onOpenBackup }) {
   const openAddModal = () => {
     setEditingEmployee(null);
     setIsCodeManual(false);
+    setIsUsernameManual(false);
+    setShowPassword(false);
     setFormData({
       ...initialFormState,
       EmployeeCode: '',
       FullName: '',
+      Username: '',
+      BirthDate: '',
+      BloodGroup: '',
+      EmergencyContact: '',
+      AadharNo: '',
       Department: departments[0]?.DepartmentName || 'Wealth Management',
       Designation: designations[0]?.DesignationName || 'Senior Investment Advisor',
       Role: roles[0]?.RoleName || 'Staff',
@@ -179,11 +195,14 @@ export default function Staff({ onOpenBackup }) {
   const openEditModal = (emp) => {
     setEditingEmployee(emp);
     setIsCodeManual(true);
+    setIsUsernameManual(true);
+    setShowPassword(false);
     const safeStatus = String(emp.Status || '').trim().toLowerCase() === 'inactive' ? 'Inactive' : 'Active';
     setFormData({
       EmployeeId: emp.EmployeeId || '',
       EmployeeCode: emp.EmployeeCode || '',
       FullName: emp.FullName || '',
+      Username: emp.Username || emp.username || emp.EmployeeCode || '',
       Email: emp.Email || '',
       AlternateEmails: emp.AlternateEmails || emp.GoogleEmails || '',
       GoogleEmails: emp.AlternateEmails || emp.GoogleEmails || '',
@@ -193,7 +212,11 @@ export default function Staff({ onOpenBackup }) {
       Designation: emp.Designation || designations[0]?.DesignationName || 'Senior Investment Advisor',
       Role: emp.Role || roles[0]?.RoleName || 'Staff',
       Password: emp.Password || 'password123',
-      JoiningDate: emp.JoiningDate || '',
+      BirthDate: emp.BirthDate || emp.birthDate || '',
+      JoiningDate: emp.JoiningDate || emp.joiningDate || '',
+      BloodGroup: emp.BloodGroup || emp.bloodGroup || '',
+      EmergencyContact: emp.EmergencyContact || emp.emergencyContact || '',
+      AadharNo: emp.AadharNo || emp.aadharNo || '',
       Status: safeStatus,
       Address: emp.Address || '',
       City: emp.City || '',
@@ -777,6 +800,9 @@ export default function Staff({ onOpenBackup }) {
                     if (!isCodeManual) {
                       updated.EmployeeCode = getInitialsCode(val);
                     }
+                    if (!isUsernameManual) {
+                      updated.Username = val.trim().toLowerCase().replace(/[^a-z0-9]/g, '.');
+                    }
                     setFormData(updated);
                   }}
                   required
@@ -805,23 +831,8 @@ export default function Staff({ onOpenBackup }) {
               </div>
             </div>
 
+            {/* ROW 2: Mobile Numbers (Same type together!) */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
-              {/* Primary Email */}
-              <div className="form-group">
-                <label className="form-label">
-                  Primary Official Email <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <input
-                  type="email"
-                  className="form-input"
-                  placeholder="rajesh@srinvestments.com"
-                  value={formData.Email}
-                  onChange={(e) => setFormData({ ...formData, Email: e.target.value })}
-                  required
-                />
-              </div>
-
-              {/* Primary Mobile */}
               <div className="form-group">
                 <label className="form-label">
                   Primary Mobile Number <span style={{ color: '#ef4444' }}>*</span>
@@ -836,10 +847,7 @@ export default function Staff({ onOpenBackup }) {
                   required
                 />
               </div>
-            </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem', marginBottom: '1.25rem' }}>
-              {/* Alternate Mobile Numbers */}
               <div className="form-group">
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
                   <label className="form-label" style={{ margin: 0 }}>
@@ -858,8 +866,24 @@ export default function Staff({ onOpenBackup }) {
                   Alternate phone numbers can also be used to sign in.
                 </div>
               </div>
+            </div>
 
-              {/* Multiple Google IDs Field */}
+            {/* ROW 3: Email Addresses (Same type together!) */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+              <div className="form-group">
+                <label className="form-label">
+                  Primary Official Email <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="email"
+                  className="form-input"
+                  placeholder="rajesh@srinvestments.com"
+                  value={formData.Email}
+                  onChange={(e) => setFormData({ ...formData, Email: e.target.value })}
+                  required
+                />
+              </div>
+
               <div className="form-group">
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
                   <label className="form-label" style={{ margin: 0 }}>
@@ -880,8 +904,127 @@ export default function Staff({ onOpenBackup }) {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              {/* Department (Loaded from Department Master) */}
+            {/* ROW 4: Username & Password with show/hide toggle */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+              <div className="form-group">
+                <label className="form-label">Username</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. rajesh.sharma or RS01"
+                  value={formData.Username || ''}
+                  onChange={(e) => {
+                    setIsUsernameManual(true);
+                    setFormData({ ...formData, Username: e.target.value });
+                  }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Account Password</label>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    className="form-input"
+                    placeholder="password123"
+                    value={formData.Password}
+                    onChange={(e) => setFormData({ ...formData, Password: e.target.value })}
+                    style={{ paddingRight: '2.5rem' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '10px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#64748b',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0
+                    }}
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* ROW 5: Birthdate, Joining Date, Blood Group */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+              <div className="form-group">
+                <label className="form-label">Birthdate</label>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={formData.BirthDate || ''}
+                  onChange={(e) => setFormData({ ...formData, BirthDate: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Joining Date</label>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={formData.JoiningDate || ''}
+                  onChange={(e) => setFormData({ ...formData, JoiningDate: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Blood Group</label>
+                <select
+                  className="form-select"
+                  value={formData.BloodGroup || ''}
+                  onChange={(e) => setFormData({ ...formData, BloodGroup: e.target.value })}
+                >
+                  <option value="">-- Select Blood Group --</option>
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
+                </select>
+              </div>
+            </div>
+
+            {/* ROW 6: Emergency Contact & Aadhaar Number */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+              <div className="form-group">
+                <label className="form-label">Emergency Contact</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. 9820099999 (Father / Spouse)"
+                  value={formData.EmergencyContact || ''}
+                  onChange={(e) => setFormData({ ...formData, EmergencyContact: e.target.value })}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Aadhaar Number (UID)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="12-digit Aadhaar Number"
+                  maxLength={14}
+                  value={formData.AadharNo || ''}
+                  onChange={(e) => setFormData({ ...formData, AadharNo: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {/* ROW 7: Department, Designation, Role, Status */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+              {/* Department */}
               <div className="form-group">
                 <label className="form-label">Department</label>
                 <select
@@ -907,7 +1050,7 @@ export default function Staff({ onOpenBackup }) {
                 </select>
               </div>
 
-              {/* Designation (Loaded from Designation Master) */}
+              {/* Designation */}
               <div className="form-group">
                 <label className="form-label">Designation</label>
                 <select
@@ -933,7 +1076,7 @@ export default function Staff({ onOpenBackup }) {
                 </select>
               </div>
 
-              {/* CRM System Role (Loaded from Role Master) */}
+              {/* CRM System Role */}
               <div className="form-group">
                 <label className="form-label">CRM System Role</label>
                 <select
@@ -959,27 +1102,7 @@ export default function Staff({ onOpenBackup }) {
                 </select>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Account Password</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="password123"
-                  value={formData.Password}
-                  onChange={(e) => setFormData({ ...formData, Password: e.target.value })}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Joining Date</label>
-                <input
-                  type="date"
-                  className="form-input"
-                  value={formData.JoiningDate}
-                  onChange={(e) => setFormData({ ...formData, JoiningDate: e.target.value })}
-                />
-              </div>
-
+              {/* Status */}
               <div className="form-group">
                 <label className="form-label">Status</label>
                 <select
@@ -993,7 +1116,8 @@ export default function Staff({ onOpenBackup }) {
               </div>
             </div>
 
-            <div className="form-group">
+            {/* ROW 8: Address */}
+            <div className="form-group" style={{ marginTop: '1rem' }}>
               <label className="form-label">Residential Address</label>
               <textarea
                 className="form-textarea"

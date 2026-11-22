@@ -107,8 +107,8 @@ const CRM_SCHEMAS = {
     "Approval_History", "Approved_By", "Approved_At"
   ],
   EMPLOYEES: [
-    "EmployeeId", "EmployeeCode", "FullName", "Email", "AlternateEmails", "Mobile", "AlternateMobile",
-    "Department", "Designation", "Role", "Password", "JoiningDate", "Status",
+    "EmployeeId", "EmployeeCode", "FullName", "Username", "Email", "AlternateEmails", "Mobile", "AlternateMobile",
+    "Department", "Designation", "Role", "Password", "BirthDate", "JoiningDate", "BloodGroup", "EmergencyContact", "AadharNo", "Status",
     "Address", "City", "State", "PhotoUrl", "DriveFileId", "Documents",
     "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At",
     "Created_Approved_By", "Created_Approved_At",
