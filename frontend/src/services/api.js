@@ -3187,32 +3187,68 @@ export const crmApi = {
 
       // Drive Backup Listing & ZIP generator
       case 'getDriveBackupsList': {
+        const isSuper = Boolean(payload.isSuperAdmin);
         const activeTenant = crmApi.getActiveTenant() || { tenantId: 'TEN001', companyName: 'SR_Investments' };
-        const cleanCompany = (activeTenant.companyName || 'SR_Investments').replace(/[^a-zA-Z0-9_-]/g, '_');
-        const cleanTenant = (activeTenant.tenantId || 'TEN001').replace(/[^a-zA-Z0-9_-]/g, '_');
-        const existingBackups = JSON.parse(localStorage.getItem('crm_drive_backups_list') || '[]');
+        const cleanCompany = isSuper ? 'SR_Investments_CRM_ROOT' : (activeTenant.companyName || 'SR_Investments').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const cleanTenant = isSuper ? 'ROOT' : (activeTenant.tenantId || 'TEN001').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const storageKey = isSuper ? 'crm_drive_root_backups_list' : `crm_drive_backups_${cleanTenant}`;
+        const existingBackups = JSON.parse(localStorage.getItem(storageKey) || localStorage.getItem('crm_drive_backups_list') || '[]');
+        const emailCount = Number(localStorage.getItem('crm_dispatch_email_count') || 0);
+        const emailMaxLimit = 200;
+
         return {
           success: true,
+          isSuperAdmin: isSuper,
           companyName: cleanCompany,
           tenantId: cleanTenant,
-          driveFolderUrl: 'https://drive.google.com/drive/folders/SRInvestmentsCRM',
-          driveFolderPath: `My Drive > SRInvestmentsCRM > org > ${cleanTenant}`,
-          driveFolderName: cleanTenant,
+          driveFolderUrl: 'https://drive.google.com/drive/folders/1rVz2OnKPDHbXuq-ujsJg2R3vzYDwnzMU',
+          driveFolderPath: isSuper ? 'My Drive > SRInvestmentsCRM' : `My Drive > SRInvestmentsCRM > org > ${cleanTenant}`,
+          driveFolderName: isSuper ? 'SRInvestmentsCRM' : cleanTenant,
+          emailStats: {
+            emailCount: emailCount,
+            emailMaxLimit: emailMaxLimit,
+            remainingEmails: Math.max(0, emailMaxLimit - emailCount),
+            isLimitReached: emailCount >= emailMaxLimit
+          },
           backups: existingBackups.slice(0, 3)
         };
       }
 
       case 'downloadDriveBackup': {
+        const isSuper = Boolean(payload.isSuperAdmin);
         const customers = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMERS) || '[]');
         const employees = JSON.parse(localStorage.getItem(STORAGE_KEYS.EMPLOYEES) || '[]');
         const settings = JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTINGS) || '{}');
+        const tenants = JSON.parse(localStorage.getItem(STORAGE_KEYS.TENANTS) || '[]');
+        const users = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
         const activeTenant = crmApi.getActiveTenant() || { tenantId: 'TEN001', companyName: 'SR_Investments' };
-        const cleanCompany = (activeTenant.companyName || 'SR_Investments').replace(/[^a-zA-Z0-9_-]/g, '_');
-        const cleanTenant = (activeTenant.tenantId || 'TEN001').replace(/[^a-zA-Z0-9_-]/g, '_');
-        const prefixBase = `${cleanCompany}_CRM_${cleanTenant}`;
+        const cleanCompany = isSuper ? 'SR_Investments_CRM_ROOT' : (activeTenant.companyName || 'SR_Investments').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const cleanTenant = isSuper ? 'ROOT' : (activeTenant.tenantId || 'TEN001').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const prefixBase = isSuper ? 'SR_Investments_CRM_ROOT_ALL' : `${cleanCompany}_CRM_${cleanTenant}`;
 
-        // Create client-side downloadable backup JSON or manifest
-        const backupPackage = {
+        // Create client-side downloadable backup JSON
+        const backupPackage = isSuper ? {
+          meta: {
+            title: 'SR Investments CRM - SuperAdmin Full Platform & Root Drive Backup',
+            generatedAt: new Date().toISOString(),
+            scope: 'FULL_SYSTEM_ROOT',
+            firm: 'SR Investments Platform',
+            version: '2.0.0'
+          },
+          rootStructure: {
+            org: tenants.map(t => ({ tenantId: t.TenantId, name: t.TenantName || t.CompanyName })),
+            customerFiles: 'CustomerFiles/ (PAN, Folio, KYC)',
+            employeeFiles: 'EmployeeFiles/ (Staff records)',
+            centralDB: 'Central_SaaS_Master_DB'
+          },
+          database: {
+            tenants,
+            users,
+            customers,
+            employees,
+            settings
+          }
+        } : {
           meta: {
             title: `${cleanCompany} CRM - Full Database & File Backup`,
             generatedAt: new Date().toISOString(),
@@ -3239,30 +3275,61 @@ export const crmApi = {
         const blob = new Blob([JSON.stringify(backupPackage, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
 
-        // Keep at most 2 previous in local storage, so total with new one is 3
-        const list = JSON.parse(localStorage.getItem('crm_drive_backups_list') || '[]');
+        const storageKey = isSuper ? 'crm_drive_root_backups_list' : `crm_drive_backups_${cleanTenant}`;
+        const list = JSON.parse(localStorage.getItem(storageKey) || localStorage.getItem('crm_drive_backups_list') || '[]');
         const updatedList = [
           {
             id: 'backup_' + Date.now(),
             name: zipFileName,
-            sizeFormatted: '1.24 MB',
+            sizeFormatted: isSuper ? '4.85 MB' : '1.24 MB',
             createdDate: now.toISOString(),
             downloadUrl: url,
-            viewUrl: 'https://drive.google.com/drive/folders/SRInvestmentsCRM'
+            viewUrl: 'https://drive.google.com/drive/folders/1rVz2OnKPDHbXuq-ujsJg2R3vzYDwnzMU'
           },
           ...list.slice(0, 2)
         ];
-        localStorage.setItem('crm_drive_backups_list', JSON.stringify(updatedList));
+        localStorage.setItem(storageKey, JSON.stringify(updatedList));
+
+        const emailCount = Number(localStorage.getItem('crm_dispatch_email_count') || 0);
+        const emailMaxLimit = 200;
 
         return {
           success: true,
+          isSuperAdmin: isSuper,
           downloadUrl: url,
           fileName: zipFileName,
-          driveFolderUrl: 'https://drive.google.com/drive/folders/SRInvestmentsCRM',
-          driveFolderPath: `My Drive > SRInvestmentsCRM > org > ${cleanTenant}`,
+          fileSizeBytes: isSuper ? 5085560 : 1300234,
+          sizeFormatted: isSuper ? '4.85 MB' : '1.24 MB',
+          isLarge: false,
+          driveFolderUrl: 'https://drive.google.com/drive/folders/1rVz2OnKPDHbXuq-ujsJg2R3vzYDwnzMU',
+          driveFolderPath: isSuper ? 'My Drive > SRInvestmentsCRM' : `My Drive > SRInvestmentsCRM > org > ${cleanTenant}`,
           companyName: cleanCompany,
           tenantId: cleanTenant,
+          emailStats: {
+            emailCount: emailCount,
+            emailMaxLimit: emailMaxLimit,
+            remainingEmails: Math.max(0, emailMaxLimit - emailCount),
+            isLimitReached: emailCount >= emailMaxLimit
+          },
           backups: updatedList
+        };
+      }
+
+      case 'sendBackupToEmail': {
+        const emailCount = Number(localStorage.getItem('crm_dispatch_email_count') || 0);
+        const emailMaxLimit = 200;
+        if (emailCount >= emailMaxLimit) {
+          throw new Error(`Daily email limit reached (${emailCount}/${emailMaxLimit} emails sent today). Please opt for manual download or try again after 24 hours.`);
+        }
+        const newCount = emailCount + 1;
+        localStorage.setItem('crm_dispatch_email_count', String(newCount));
+        const recipient = payload.recipientEmail || payload.email || 'company@example.com';
+        return {
+          success: true,
+          emailCount: newCount,
+          emailMaxLimit: emailMaxLimit,
+          remainingEmails: Math.max(0, emailMaxLimit - newCount),
+          message: `Backup archive sent successfully with ZIP attachment to ${recipient}. (Today's count: ${newCount}/${emailMaxLimit})`
         };
       }
 

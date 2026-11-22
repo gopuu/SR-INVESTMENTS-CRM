@@ -22,7 +22,7 @@ import { useAuth } from '../context/AuthContext';
 import Modal from './Modal';
 
 export default function BackupModal({ isOpen, onClose }) {
-  const { user, hasPermission } = useAuth();
+  const { user, isSuperAdmin, hasPermission } = useAuth();
   const [downloading, setDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [fileName, setFileName] = useState('');
@@ -54,7 +54,10 @@ export default function BackupModal({ isOpen, onClose }) {
     if (!isOpen || !canBackup) return;
     try {
       setLoadingBackups(true);
-      const res = await crmApi.call('getDriveBackupsList');
+      const res = await crmApi.call('getDriveBackupsList', {
+        isSuperAdmin: Boolean(isSuperAdmin),
+        tenantId: tenantId
+      });
       if (res && res.success) {
         setBackupsList(res.backups || []);
         if (res.driveFolderUrl) setDriveFolderUrl(res.driveFolderUrl);
@@ -105,11 +108,20 @@ export default function BackupModal({ isOpen, onClose }) {
     setEmailStatus(null);
 
     try {
-      const res = await crmApi.call('downloadDriveBackup', { userEmail: user?.email });
-      const currentFileName = res.fileName || `${companyName}_CRM_${tenantId}_Backup.zip`;
+      const res = await crmApi.call('downloadDriveBackup', { 
+        userEmail: user?.email,
+        isSuperAdmin: Boolean(isSuperAdmin),
+        tenantId: tenantId
+      });
+      const currentFileName = res.fileName || (isSuperAdmin ? `SR_Investments_CRM_ROOT_Backup.zip` : `${companyName}_CRM_${tenantId}_Backup.zip`);
       setFileName(currentFileName);
       setLatestBackup(res);
       setDownloadSuccess(true);
+
+      // Auto-trigger direct download to device
+      if (res.downloadUrl) {
+        handleDownloadFile(res);
+      }
 
       if (res.companyEmail) {
         setCompanyEmail(res.companyEmail);
@@ -170,7 +182,8 @@ export default function BackupModal({ isOpen, onClose }) {
       const res = await crmApi.call('sendBackupToEmail', {
         fileId: item?.fileId || item?.id,
         recipientEmail: emailToUse,
-        tenantId: tenantId
+        tenantId: tenantId,
+        isSuperAdmin: Boolean(isSuperAdmin)
       });
       setEmailStatus({
         success: true,
@@ -246,16 +259,16 @@ export default function BackupModal({ isOpen, onClose }) {
               alignItems: 'center',
               gap: '1rem',
               padding: '1.25rem',
-              backgroundColor: '#eff6ff',
+              backgroundColor: isSuperAdmin ? '#eff6ff' : '#eff6ff',
               borderRadius: '12px',
-              border: '1px solid #bfdbfe',
+              border: isSuperAdmin ? '1.5px solid #93c5fd' : '1px solid #bfdbfe',
               marginBottom: '1.25rem'
             }}>
               <div style={{
                 width: '48px',
                 height: '48px',
                 borderRadius: '10px',
-                backgroundColor: '#2563eb',
+                backgroundColor: isSuperAdmin ? '#1d4ed8' : '#2563eb',
                 color: '#ffffff',
                 display: 'flex',
                 alignItems: 'center',
@@ -265,11 +278,20 @@ export default function BackupModal({ isOpen, onClose }) {
                 <FolderArchive size={26} />
               </div>
               <div style={{ flex: 1 }}>
-                <h4 style={{ fontSize: '1rem', fontWeight: '700', color: '#1e40af', margin: 0 }}>
-                  Complete Drive & Database Backup (.ZIP)
-                </h4>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <h4 style={{ fontSize: '1rem', fontWeight: '700', color: '#1e40af', margin: 0 }}>
+                    {isSuperAdmin ? 'SuperAdmin Platform Root Backup (.ZIP)' : 'Complete Drive & Database Backup (.ZIP)'}
+                  </h4>
+                  {isSuperAdmin && (
+                    <span className="badge" style={{ backgroundColor: '#dbeafe', color: '#1e40af', fontSize: '0.65rem', fontWeight: '700' }}>
+                      Entire CRM Root
+                    </span>
+                  )}
+                </div>
                 <div style={{ fontSize: '0.775rem', color: '#1e3a8a', marginTop: '3px' }}>
-                  Compresses all investor KYC files, staff directories, and Google Spreadsheet records into an encrypted ZIP file.
+                  {isSuperAdmin 
+                    ? 'Generates a full backup ZIP of the entire CRM root folder (all tenant workspaces, templates, spreadsheets, files, and central registers).'
+                    : 'Compresses all investor KYC files, staff directories, and Google Spreadsheet records into an encrypted ZIP file.'}
                 </div>
               </div>
             </div>
@@ -294,7 +316,7 @@ export default function BackupModal({ isOpen, onClose }) {
                     Google Drive Location Path
                   </div>
                   <div style={{ fontSize: '0.825rem', fontWeight: '600', color: '#0f172a', fontFamily: 'monospace' }}>
-                    {driveFolderPath || `My Drive > SRInvestmentsCRM > org > ${tenantId}`}
+                    {driveFolderPath || (isSuperAdmin ? 'My Drive > SRInvestmentsCRM' : `My Drive > SRInvestmentsCRM > org > ${tenantId}`)}
                   </div>
                 </div>
               </div>
@@ -330,11 +352,20 @@ export default function BackupModal({ isOpen, onClose }) {
               <div style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', color: '#475569', marginBottom: '0.4rem', letterSpacing: '0.05em' }}>
                 Zip Package Structure:
               </div>
-              <ul style={{ fontSize: '0.785rem', color: '#334155', lineHeight: '1.6', margin: 0, paddingLeft: '1.25rem' }}>
-                <li><strong>Customer Documents:</strong> <code>{prefixBase}_CustomerFiles/</code> (PAN, KYC, Folio scans)</li>
-                <li><strong>Staff Photos & Records:</strong> <code>{prefixBase}_EmployeeFiles/</code></li>
-                <li><strong>Relational DB Snapshot:</strong> <code>{prefixBase}_Database_Snapshot.json</code></li>
-              </ul>
+              {isSuperAdmin ? (
+                <ul style={{ fontSize: '0.785rem', color: '#334155', lineHeight: '1.6', margin: 0, paddingLeft: '1.25rem' }}>
+                  <li><strong>All Client Workspaces & Organizations:</strong> <code>SRInvestmentsCRM/org/</code> (Contains every client tenant directory)</li>
+                  <li><strong>Global Document Vaults:</strong> <code>SRInvestmentsCRM/CustomerFiles/</code>, <code>SRInvestmentsCRM/EmployeeFiles/</code></li>
+                  <li><strong>Central Databases:</strong> <code>Central_SaaS_Master_DB</code>, <code>_CRM_DATABASE_TEMPLATE</code>, <code>DevAppTracker</code></li>
+                  <li><strong>Master Relational Snapshot:</strong> <code>SRInvestmentsCRM/Central_DB_Master_Snapshot.json</code></li>
+                </ul>
+              ) : (
+                <ul style={{ fontSize: '0.785rem', color: '#334155', lineHeight: '1.6', margin: 0, paddingLeft: '1.25rem' }}>
+                  <li><strong>Customer Documents:</strong> <code>{prefixBase}_CustomerFiles/</code> (PAN, KYC, Folio scans)</li>
+                  <li><strong>Staff Photos & Records:</strong> <code>{prefixBase}_EmployeeFiles/</code></li>
+                  <li><strong>Relational DB Snapshot:</strong> <code>{prefixBase}_Database_Snapshot.json</code></li>
+                </ul>
+              )}
             </div>
 
             {/* Retention Notice & Existing Backups List */}
@@ -733,12 +764,12 @@ export default function BackupModal({ isOpen, onClose }) {
             {downloading ? (
               <>
                 <RefreshCw size={15} className="spin-animation" />
-                <span>Compressing & Generating ZIP...</span>
+                <span>{isSuperAdmin ? 'Compressing Root Folder & Generating ZIP...' : 'Compressing & Generating ZIP...'}</span>
               </>
             ) : (
               <>
                 <Download size={15} />
-                <span>Create New Backup (.ZIP)</span>
+                <span>{isSuperAdmin ? 'Generate & Download Root Backup (.ZIP)' : 'Create & Download Backup (.ZIP)'}</span>
               </>
             )}
           </button>

@@ -741,24 +741,35 @@ function getExistingZipBackups_(folder) {
 }
 
 /**
- * Get listing of last 3 backups and Drive folder path for tenant
+ * Get listing of last 3 backups and Drive folder path for tenant or SuperAdmin root
  */
 function getDriveBackupsList_(payload) {
   payload = payload || {};
+  const isSuperAdmin = payload.isSuperAdmin === true || String(payload.isSuperAdmin).toLowerCase() === "true";
   const tenantId = payload.tenantId || payload.activeTenantId || null;
-  const root = tenantId ? getTenantDriveRootFolder_(tenantId) : getDriveRootFolder_();
+  const root = isSuperAdmin ? getDriveRootFolder_() : (tenantId ? getTenantDriveRootFolder_(tenantId) : getDriveRootFolder_());
 
-  let companyName = "SR_Investments";
-  let activeTenantId = tenantId || "TEN001";
+  let companyName = isSuperAdmin ? "SR_Investments_CRM_ROOT" : "SR_Investments";
+  let activeTenantId = isSuperAdmin ? "ROOT" : (tenantId || "TEN001");
   let companyEmail = "";
-  try {
-    const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
-    const tenants = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.TENANT_MASTER);
-    const t = tenants.find(x => String(x.TenantId).trim().toUpperCase() === String(activeTenantId).trim().toUpperCase() && !x.IsDeleted);
-    if (t && t.CompanyName) companyName = t.CompanyName;
-    if (t && t.TenantId) activeTenantId = t.TenantId;
-    if (t && t.SupportEmail) companyEmail = t.SupportEmail;
-  } catch (e) {}
+
+  if (isSuperAdmin) {
+    try {
+      const cfg = getDefaultConfig_();
+      if (cfg.SupportEmail) companyEmail = cfg.SupportEmail;
+      if (cfg.CompanyName) companyName = cfg.CompanyName;
+      else if (cfg.SystemName) companyName = cfg.SystemName;
+    } catch (e) {}
+  } else {
+    try {
+      const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+      const tenants = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.TENANT_MASTER);
+      const t = tenants.find(x => String(x.TenantId).trim().toUpperCase() === String(activeTenantId).trim().toUpperCase() && !x.IsDeleted);
+      if (t && t.CompanyName) companyName = t.CompanyName;
+      if (t && t.TenantId) activeTenantId = t.TenantId;
+      if (t && t.SupportEmail) companyEmail = t.SupportEmail;
+    } catch (e) {}
+  }
 
   if (!companyEmail && payload.userEmail) {
     companyEmail = payload.userEmail;
@@ -776,11 +787,12 @@ function getDriveBackupsList_(payload) {
 
   return {
     success: true,
+    isSuperAdmin: isSuperAdmin,
     companyName: cleanCompany,
     tenantId: cleanTenant,
     companyEmail: companyEmail,
     driveFolderUrl: root.getUrl(),
-    driveFolderPath: "My Drive > SRInvestmentsCRM > org > " + cleanTenant,
+    driveFolderPath: isSuperAdmin ? "My Drive > SRInvestmentsCRM" : ("My Drive > SRInvestmentsCRM > org > " + cleanTenant),
     driveFolderName: root.getName(),
     emailStats: {
       emailCount: emailCount,
@@ -802,26 +814,37 @@ function getDriveBackupsList_(payload) {
 /**
  * Generate full ZIP backup of Google Drive folder and files
  * Retention: Always keep Current + last 2 backups (Max 3). Automatically removes older backups.
- * Naming: CompanyName_CRM_TENANTID_DATETIME.ZIP
- * Subfolders: CompanyName_CRM_TENANTID_<folder>
+ * If SuperAdmin=TRUE: Generates ZIP of the entire CRM root folder (SRInvestmentsCRM).
+ * If SuperAdmin=FALSE: Follows tenant flow for user TENANT (CustomerFiles, EmployeeFiles, Database Snapshot).
  */
 function backupDriveFilesToZip_(payload) {
   payload = payload || {};
+  const isSuperAdmin = payload.isSuperAdmin === true || String(payload.isSuperAdmin).toLowerCase() === "true";
   const tenantId = payload.tenantId || payload.activeTenantId || null;
-  const root = tenantId ? getTenantDriveRootFolder_(tenantId) : getDriveRootFolder_();
+  const root = isSuperAdmin ? getDriveRootFolder_() : (tenantId ? getTenantDriveRootFolder_(tenantId) : getDriveRootFolder_());
 
-  let companyName = "SR_Investments";
-  let activeTenantId = tenantId || "TEN001";
+  let companyName = isSuperAdmin ? "SR_Investments_CRM_ROOT" : "SR_Investments";
+  let activeTenantId = isSuperAdmin ? "ROOT" : (tenantId || "TEN001");
   let companyEmail = "";
-  try {
-    const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
-    const tenants = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.TENANT_MASTER);
-    const t = tenants.find(x => String(x.TenantId).trim().toUpperCase() === String(activeTenantId).trim().toUpperCase() && !x.IsDeleted);
-    if (t && t.CompanyName) companyName = t.CompanyName;
-    if (t && t.TenantId) activeTenantId = t.TenantId;
-    if (t && t.SupportEmail) companyEmail = t.SupportEmail;
-  } catch (e) {
-    Logger.log("Could not resolve tenant for backup: " + e.message);
+
+  if (isSuperAdmin) {
+    try {
+      const cfg = getDefaultConfig_();
+      if (cfg.SupportEmail) companyEmail = cfg.SupportEmail;
+      if (cfg.CompanyName) companyName = cfg.CompanyName;
+      else if (cfg.SystemName) companyName = cfg.SystemName;
+    } catch (e) {}
+  } else {
+    try {
+      const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+      const tenants = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.TENANT_MASTER);
+      const t = tenants.find(x => String(x.TenantId).trim().toUpperCase() === String(activeTenantId).trim().toUpperCase() && !x.IsDeleted);
+      if (t && t.CompanyName) companyName = t.CompanyName;
+      if (t && t.TenantId) activeTenantId = t.TenantId;
+      if (t && t.SupportEmail) companyEmail = t.SupportEmail;
+    } catch (e) {
+      Logger.log("Could not resolve tenant for backup: " + e.message);
+    }
   }
 
   if (!companyEmail && payload.userEmail) {
@@ -830,7 +853,7 @@ function backupDriveFilesToZip_(payload) {
 
   const cleanCompany = String(companyName).trim().replace(/[^a-zA-Z0-9_-]/g, "_");
   const cleanTenant = String(activeTenantId).trim().replace(/[^a-zA-Z0-9_-]/g, "_");
-  const prefixBase = cleanCompany + "_CRM_" + cleanTenant;
+  const prefixBase = isSuperAdmin ? (cleanCompany + "_ALL") : (cleanCompany + "_CRM_" + cleanTenant);
 
   // 1. Retention Management: Keep at most 2 previous backups so when new 1 is added, total is 3
   const existingZips = getExistingZipBackups_(root);
@@ -846,49 +869,112 @@ function backupDriveFilesToZip_(payload) {
     }
   }
 
-  // 2. Helper to collect files recursively into ZIP with CompanyName_CRM_TENANTID_<folder> naming
+  // 2. Helper to collect files recursively into ZIP
   const blobs = [];
-  function collectBlobs(folder, pathPrefix) {
-    const files = folder.getFiles();
-    while (files.hasNext()) {
-      const file = files.next();
-      const fname = file.getName();
-      // Skip .zip backup files so we don't zip previous zips
-      if (fname.toLowerCase().endsWith(".zip")) continue;
-      const blob = file.getBlob().setName(pathPrefix + "/" + fname);
-      blobs.push(blob);
-    }
-    const subfolders = folder.getFolders();
-    while (subfolders.hasNext()) {
-      const sub = subfolders.next();
-      let subName = sub.getName();
-      // Replace generic SR_CRM_ with CompanyName_CRM_TENANTID_
-      if (subName.indexOf("SR_CRM_") === 0) {
-        subName = subName.replace("SR_CRM_", prefixBase + "_");
-      } else if (subName.indexOf("SR_") === 0) {
-        subName = subName.replace("SR_", prefixBase + "_");
-      } else {
-        subName = prefixBase + "_" + subName;
+
+  if (isSuperAdmin) {
+    // Collect ENTIRE CRM root folder recursively (EmployeeFiles, CustomerFiles, org/, Spreadsheets, and images)
+    function collectRootBlobs(folder, pathPrefix) {
+      const files = folder.getFiles();
+      while (files.hasNext()) {
+        const file = files.next();
+        const fname = file.getName();
+        // Skip .zip backup files so we don't zip previous zips
+        if (fname.toLowerCase().endsWith(".zip")) continue;
+
+        try {
+          const mime = file.getMimeType();
+          if (mime === MimeType.GOOGLE_SHEETS || mime === "application/vnd.google-apps.spreadsheet") {
+            try {
+              const exportUrl = "https://docs.google.com/spreadsheets/d/" + file.getId() + "/export?format=xlsx";
+              const resp = UrlFetchApp.fetch(exportUrl, {
+                headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() },
+                muteHttpExceptions: true
+              });
+              if (resp.getResponseCode() === 200) {
+                blobs.push(resp.getBlob().setName(pathPrefix + "/" + fname + ".xlsx"));
+              } else {
+                blobs.push(file.getBlob().setName(pathPrefix + "/" + fname + ".pdf"));
+              }
+            } catch (sheetErr) {
+              blobs.push(file.getBlob().setName(pathPrefix + "/" + fname + ".pdf"));
+            }
+          } else {
+            blobs.push(file.getBlob().setName(pathPrefix + "/" + fname));
+          }
+        } catch (fErr) {
+          Logger.log("Error collecting root file " + fname + ": " + fErr.message);
+        }
       }
-      collectBlobs(sub, pathPrefix + "/" + subName);
+
+      const subfolders = folder.getFolders();
+      while (subfolders.hasNext()) {
+        const sub = subfolders.next();
+        collectRootBlobs(sub, pathPrefix + "/" + sub.getName());
+      }
     }
+
+    collectRootBlobs(root, "SRInvestmentsCRM");
+
+    // Add Central Database Complete Snapshot JSON
+    try {
+      const centralMasterSnapshot = {
+        exportedAt: new Date().toISOString(),
+        backupType: "SUPERADMIN_FULL_CRM_ROOT",
+        tenants: getSheetRowsAsObjects_(getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER), CRM_SCHEMAS.TENANT_MASTER),
+        users: getSheetRowsAsObjects_(getOrCreateSheet_(CRM_CONFIG.SHEETS.USER_MASTER, CRM_SCHEMAS.USER_MASTER), CRM_SCHEMAS.USER_MASTER),
+        defaultConfig: getSheetRowsAsObjects_(getOrCreateSheet_(CRM_CONFIG.SHEETS.DEFAULT_CONFIG, CRM_SCHEMAS.DEFAULT_CONFIG), CRM_SCHEMAS.DEFAULT_CONFIG),
+        paymentAccounts: getSheetRowsAsObjects_(getOrCreateSheet_("Payment_Accounts", CRM_SCHEMAS.PAYMENT_ACCOUNTS), CRM_SCHEMAS.PAYMENT_ACCOUNTS),
+        dispatchTracker: getSheetRowsAsObjects_(getOrCreateSheet_("Daily_Dispatch_Tracker", CRM_SCHEMAS.DAILY_DISPATCH_TRACKER), CRM_SCHEMAS.DAILY_DISPATCH_TRACKER)
+      };
+      blobs.push(Utilities.newBlob(JSON.stringify(centralMasterSnapshot, null, 2), "application/json", "SRInvestmentsCRM/Central_DB_Master_Snapshot.json"));
+    } catch (snapErr) {
+      Logger.log("Error creating centralMasterSnapshot: " + snapErr.message);
+    }
+  } else {
+    // Tenant-specific recursive collection
+    function collectBlobs(folder, pathPrefix) {
+      const files = folder.getFiles();
+      while (files.hasNext()) {
+        const file = files.next();
+        const fname = file.getName();
+        // Skip .zip backup files so we don't zip previous zips
+        if (fname.toLowerCase().endsWith(".zip")) continue;
+        const blob = file.getBlob().setName(pathPrefix + "/" + fname);
+        blobs.push(blob);
+      }
+      const subfolders = folder.getFolders();
+      while (subfolders.hasNext()) {
+        const sub = subfolders.next();
+        let subName = sub.getName();
+        // Replace generic SR_CRM_ with CompanyName_CRM_TENANTID_
+        if (subName.indexOf("SR_CRM_") === 0) {
+          subName = subName.replace("SR_CRM_", prefixBase + "_");
+        } else if (subName.indexOf("SR_") === 0) {
+          subName = subName.replace("SR_", prefixBase + "_");
+        } else {
+          subName = prefixBase + "_" + subName;
+        }
+        collectBlobs(sub, pathPrefix + "/" + subName);
+      }
+    }
+
+    collectBlobs(root, prefixBase);
+
+    // Database JSON snapshot (from tenant operational database)
+    const custSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.CUSTOMERS, CRM_SCHEMAS.CUSTOMERS, tenantId);
+    const empSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES, tenantId);
+    const dbSnapshot = {
+      exportedAt: new Date().toISOString(),
+      tenantId: cleanTenant,
+      companyName: cleanCompany,
+      customers: getSheetRowsAsObjects_(custSheet, CRM_SCHEMAS.CUSTOMERS),
+      employees: getSheetRowsAsObjects_(empSheet, CRM_SCHEMAS.EMPLOYEES)
+    };
+    blobs.push(Utilities.newBlob(JSON.stringify(dbSnapshot, null, 2), "application/json", prefixBase + "_Database_Snapshot.json"));
   }
 
-  collectBlobs(root, prefixBase);
-
-  // 3. Database JSON snapshot (from tenant operational database)
-  const custSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.CUSTOMERS, CRM_SCHEMAS.CUSTOMERS, tenantId);
-  const empSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES, tenantId);
-  const dbSnapshot = {
-    exportedAt: new Date().toISOString(),
-    tenantId: cleanTenant,
-    companyName: cleanCompany,
-    customers: getSheetRowsAsObjects_(custSheet, CRM_SCHEMAS.CUSTOMERS),
-    employees: getSheetRowsAsObjects_(empSheet, CRM_SCHEMAS.EMPLOYEES)
-  };
-  blobs.push(Utilities.newBlob(JSON.stringify(dbSnapshot, null, 2), "application/json", prefixBase + "_Database_Snapshot.json"));
-
-  // 4. Create ZIP: CompanyName_CRM_TENANTID_DATETIME.ZIP
+  // 4. Create ZIP: prefixBase_DATETIME.ZIP
   const dateStr = Utilities.formatDate(new Date(), "Asia/Kolkata", "yyyyMMdd_HHmmss");
   const zipFileName = prefixBase + "_" + dateStr + ".zip";
   const zipBlob = Utilities.zip(blobs, zipFileName);
@@ -914,6 +1000,7 @@ function backupDriveFilesToZip_(payload) {
 
   return {
     success: true,
+    isSuperAdmin: isSuperAdmin,
     fileId: zipFile.getId(),
     fileName: zipFileName,
     fileSizeBytes: fileSizeBytes,
@@ -929,7 +1016,7 @@ function backupDriveFilesToZip_(payload) {
     downloadUrl: zipFile.getDownloadUrl() || ("https://drive.google.com/uc?export=download&id=" + zipFile.getId()),
     viewUrl: zipFile.getUrl(),
     driveFolderUrl: root.getUrl(),
-    driveFolderPath: "My Drive > SRInvestmentsCRM > org > " + cleanTenant,
+    driveFolderPath: isSuperAdmin ? "My Drive > SRInvestmentsCRM" : ("My Drive > SRInvestmentsCRM > org > " + cleanTenant),
     driveFolderName: root.getName(),
     companyName: cleanCompany,
     tenantId: cleanTenant,
@@ -954,6 +1041,7 @@ function backupDriveFilesToZip_(payload) {
  */
 function sendBackupToEmail_(payload) {
   payload = payload || {};
+  const isSuperAdmin = payload.isSuperAdmin === true || String(payload.isSuperAdmin).toLowerCase() === "true";
   const fileId = payload.fileId;
   const tenantId = payload.tenantId || payload.activeTenantId || null;
   const recipientEmail = (payload.recipientEmail || payload.email || "").trim();
@@ -982,7 +1070,7 @@ function sendBackupToEmail_(payload) {
     }
   }
 
-  const root = tenantId ? getTenantDriveRootFolder_(tenantId) : getDriveRootFolder_();
+  const root = isSuperAdmin ? getDriveRootFolder_() : (tenantId ? getTenantDriveRootFolder_(tenantId) : getDriveRootFolder_());
   if (!file) {
     const existing = getExistingZipBackups_(root);
     if (existing.length === 0) {
@@ -997,23 +1085,34 @@ function sendBackupToEmail_(payload) {
     ? (fileSizeBytes / 1048576).toFixed(2) + " MB" 
     : (fileSizeBytes / 1024).toFixed(1) + " KB";
 
-  let companyName = "SR Investments";
-  let activeTenantId = tenantId || "TEN001";
-  try {
-    const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
-    const tenants = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.TENANT_MASTER);
-    const t = tenants.find(x => String(x.TenantId).trim().toUpperCase() === String(activeTenantId).trim().toUpperCase() && !x.IsDeleted);
-    if (t && t.CompanyName) companyName = t.CompanyName;
-    if (t && t.TenantId) activeTenantId = t.TenantId;
-  } catch (e) {
-    Logger.log("Error fetching company name for backup email: " + e.message);
+  let companyName = isSuperAdmin ? "SR Investments Platform" : "SR Investments";
+  let activeTenantId = isSuperAdmin ? "ROOT" : (tenantId || "TEN001");
+
+  if (isSuperAdmin) {
+    try {
+      const cfg = getDefaultConfig_();
+      if (cfg.CompanyName) companyName = cfg.CompanyName;
+      else if (cfg.SystemName) companyName = cfg.SystemName;
+    } catch (e) {}
+  } else {
+    try {
+      const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+      const tenants = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.TENANT_MASTER);
+      const t = tenants.find(x => String(x.TenantId).trim().toUpperCase() === String(activeTenantId).trim().toUpperCase() && !x.IsDeleted);
+      if (t && t.CompanyName) companyName = t.CompanyName;
+      if (t && t.TenantId) activeTenantId = t.TenantId;
+    } catch (e) {
+      Logger.log("Error fetching company name for backup email: " + e.message);
+    }
   }
 
   const isLarge = fileSizeBytes > (20 * 1024 * 1024);
   const downloadUrl = file.getDownloadUrl() || ("https://drive.google.com/uc?export=download&id=" + file.getId());
-  const driveFolderPath = "My Drive > SRInvestmentsCRM > org > " + activeTenantId;
+  const driveFolderPath = isSuperAdmin ? "My Drive > SRInvestmentsCRM" : ("My Drive > SRInvestmentsCRM > org > " + activeTenantId);
   const driveFolderUrl = root.getUrl();
-  const emailSubject = "[" + companyName + " CRM Backup] " + fileName;
+  const emailSubject = isSuperAdmin 
+    ? ("[" + companyName + " System Root Backup] " + fileName)
+    : ("[" + companyName + " CRM Backup] " + fileName);
 
   let deliveryMode = "attachment";
   const attachments = [];
@@ -1032,13 +1131,13 @@ function sendBackupToEmail_(payload) {
   const htmlBody = 
     "<div style='font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;'>" +
       "<div style='background: linear-gradient(135deg, #1e40af, #2563eb); padding: 22px; color: #ffffff; text-align: center;'>" +
-        "<h2 style='margin: 0; font-size: 20px;'>" + companyName + " CRM</h2>" +
-        "<p style='margin: 5px 0 0; opacity: 0.9; font-size: 13px;'>Full System & Google Drive Backup Archive</p>" +
+        "<h2 style='margin: 0; font-size: 20px;'>" + companyName + (isSuperAdmin ? " Platform Root Backup" : " CRM") + "</h2>" +
+        "<p style='margin: 5px 0 0; opacity: 0.9; font-size: 13px;'>" + (isSuperAdmin ? "Entire CRM Root Folder & Database Archive" : "Full System & Google Drive Backup Archive") + "</p>" +
       "</div>" +
       "<div style='padding: 24px; color: #1e293b; background: #ffffff;'>" +
         "<p style='font-size: 15px; margin-top: 0;'>Hello,</p>" +
         "<p style='font-size: 14px; line-height: 1.5; color: #334155;'>" +
-          "A full system and Google Drive database backup archive has been generated for <strong>" + companyName + "</strong>." +
+          "A full system " + (isSuperAdmin ? "platform root backup (including all workspaces and databases)" : "and Google Drive database backup") + " archive has been generated for <strong>" + companyName + "</strong>." +
         "</p>" +
         "<div style='background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 18px 0;'>" +
           "<table style='width: 100%; font-size: 13px; border-collapse: collapse;'>" +
@@ -1050,7 +1149,7 @@ function sendBackupToEmail_(payload) {
         "</div>" +
         (isLarge ? 
           "<div style='background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 14px; margin-bottom: 18px; color: #92400e; font-size: 13px; line-height: 1.5;'>" +
-            "⚠️ <strong>Large File Notice:</strong> Because this backup package size (" + sizeFormatted + ") exceeds standard email attachment limits (>20MB), it has been securely stored in your company Google Drive. Click below to access or download it directly." +
+            "⚠️ <strong>Large File Notice:</strong> Because this backup package size (" + sizeFormatted + ") exceeds standard email attachment limits (>20MB), it has been securely stored in your Google Drive. Click below to access or download it directly." +
           "</div>" : 
           "<p style='font-size: 13px; color: #16a34a; font-weight: 600;'>📎 The complete backup ZIP file is attached directly to this email.</p>"
         ) +
