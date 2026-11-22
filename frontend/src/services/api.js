@@ -342,6 +342,7 @@ const SEED_DATA = {
   tenants: [
     {
       TenantId: 'TEN001',
+      TenantName: 'SR INVESTMENTS',
       CompanyName: 'SR GROWW',
       TagLine: 'Mutual Fund CRM',
       ArnNumber: 'ARN-189241',
@@ -361,7 +362,9 @@ const SEED_DATA = {
     },
     {
       TenantId: 'TEN002',
+      TenantName: 'XYZ FINANCE',
       CompanyName: 'XYZ Finance',
+      TagLine: 'Smart Investments',
       ArnNumber: 'ARN-992144',
       SpreadsheetId: '1ABC_SPREADSHEET_ID_LIVE',
       DriveRootFolderId: '1ABC_DRIVE_FOLDER_LIVE',
@@ -379,7 +382,9 @@ const SEED_DATA = {
     },
     {
       TenantId: 'TEN003',
+      TenantName: 'PQR ASSOCIATES',
       CompanyName: 'PQR Associates',
+      TagLine: 'Wealth Management',
       ArnNumber: 'ARN-551209',
       SpreadsheetId: '1XYZ_SPREADSHEET_ID_LIVE',
       DriveRootFolderId: '1XYZ_DRIVE_FOLDER_LIVE',
@@ -2264,7 +2269,9 @@ export const crmApi = {
 
         const record = {
           TenantId: tenantId,
-          CompanyName: payload.CompanyName || 'New Client Company',
+          TenantName: (payload.TenantName || payload.CompanyName || 'SR INVESTMENTS').trim(),
+          CompanyName: (payload.CompanyName || 'New Client Company').trim(),
+          TagLine: (payload.TagLine || payload.CompanyTagLine || 'Mutual Fund CRM').trim(),
           ArnNumber: payload.ArnNumber || '',
           SpreadsheetId: payload.SpreadsheetId || '',
           DriveRootFolderId: payload.DriveRootFolderId || '',
@@ -3471,6 +3478,19 @@ export const crmApi = {
 
       case 'saveCompanySettings': {
         localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(payload));
+        // Two-way sync: Update tenant in STORAGE_KEYS.TENANTS if present
+        try {
+          const tenants = JSON.parse(localStorage.getItem(STORAGE_KEYS.TENANTS) || '[]');
+          const curTenantId = localStorage.getItem('sr_crm_active_tenant_id') || 'TEN001';
+          const tIdx = tenants.findIndex(t => t.TenantId === curTenantId);
+          if (tIdx >= 0) {
+            if (payload.CompanyName) tenants[tIdx].CompanyName = payload.CompanyName;
+            if (payload.CompanyTagLine || payload.TagLine) tenants[tIdx].TagLine = payload.CompanyTagLine || payload.TagLine;
+            localStorage.setItem(STORAGE_KEYS.TENANTS, JSON.stringify(tenants));
+          }
+        } catch (e) {
+          console.warn('Local tenant sync error:', e);
+        }
         return { success: true, message: 'Company settings saved.' };
       }
 

@@ -820,12 +820,28 @@ function getCompanySettings_(payload) {
     }
   });
 
-  // Fallback to Tenant_Master if CompanyName is missing or still default
-  if (!settingsObj.CompanyName || settingsObj.CompanyName === "SR Investments") {
-    const liveName = getTenantCompanyName_(tenantId, "SR GROWW");
-    if (liveName) {
-      settingsObj.CompanyName = liveName;
+  // Fallback / sync from Central Tenant_Master
+  try {
+    const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+    const tenants = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.TENANT_MASTER);
+    const t = tenants.find(x => 
+      String(x.TenantId || "").trim().toUpperCase() === String(tenantId || "TEN001").trim().toUpperCase() && 
+      (!x.IsDeleted || String(x.IsDeleted).toLowerCase() !== "true")
+    );
+    if (t) {
+      if (!settingsObj.CompanyName || settingsObj.CompanyName === "SR Investments") {
+        settingsObj.CompanyName = t.CompanyName || "SR GROWW";
+      }
+      if (!settingsObj.CompanyTagLine && !settingsObj.TagLine) {
+        settingsObj.CompanyTagLine = t.TagLine || "Mutual Fund CRM";
+        settingsObj.TagLine = t.TagLine || "Mutual Fund CRM";
+      }
+      if (!settingsObj.TenantName) {
+        settingsObj.TenantName = t.TenantName || t.CompanyName || "SR INVESTMENTS";
+      }
     }
+  } catch (e) {
+    Logger.log("getCompanySettings_ Central sync error: " + e.message);
   }
 
   return settingsObj;
@@ -841,6 +857,9 @@ function saveCompanySettings_(payload) {
   // Canonical mapping for CompanySettings keys
   const CANONICAL_MAP = {
     companyname: "CompanyName",
+    tagline: "CompanyTagLine",
+    companytagline: "CompanyTagLine",
+    tenantname: "TenantName",
     arnnumber: "ArnNumber",
     arn: "ArnNumber",
     euinnumber: "EuinNumber",
@@ -936,6 +955,14 @@ function saveCompanySettings_(payload) {
       if (canonicalUpdates.CompanyName) {
         const cCol = headers.indexOf("CompanyName") + 1;
         if (cCol > 0) centralSheet.getRange(rowNum, cCol).setValue(canonicalUpdates.CompanyName);
+      }
+      if (canonicalUpdates.CompanyTagLine) {
+        const tCol = headers.indexOf("TagLine") + 1;
+        if (tCol > 0) centralSheet.getRange(rowNum, tCol).setValue(canonicalUpdates.CompanyTagLine);
+      }
+      if (canonicalUpdates.TenantName) {
+        const tnCol = headers.indexOf("TenantName") + 1;
+        if (tnCol > 0) centralSheet.getRange(rowNum, tnCol).setValue(canonicalUpdates.TenantName);
       }
       if (canonicalUpdates.ArnNumber) {
         const aCol = headers.indexOf("ArnNumber") + 1;

@@ -122,6 +122,7 @@ export default function SuperAdminPortal({ onOpenBackup }) {
   const [editingTenant, setEditingTenant] = useState(null);
   const [tenantFormData, setTenantFormData] = useState({
     TenantId: '',
+    TenantName: '',
     CompanyName: '',
     TagLine: '',
     ArnNumber: '',
@@ -285,6 +286,7 @@ export default function SuperAdminPortal({ onOpenBackup }) {
     const nextId = getNextTenantId(tenants);
     setTenantFormData({
       TenantId: nextId,
+      TenantName: '',
       CompanyName: '',
       TagLine: 'Mutual Fund CRM',
       ArnNumber: '',
@@ -309,6 +311,7 @@ export default function SuperAdminPortal({ onOpenBackup }) {
     setEditingTenant(t);
     setTenantFormData({
       TenantId: t.TenantId || '',
+      TenantName: t.TenantName || t.CompanyName || '',
       CompanyName: t.CompanyName || '',
       TagLine: t.TagLine || '',
       ArnNumber: t.ArnNumber || '',
@@ -821,11 +824,16 @@ export default function SuperAdminPortal({ onOpenBackup }) {
                               fontSize: '1rem',
                               flexShrink: 0
                             }}>
-                              {t.CompanyName ? t.CompanyName.charAt(0).toUpperCase() : 'T'}
+                              {t.TenantName ? t.TenantName.charAt(0).toUpperCase() : (t.CompanyName ? t.CompanyName.charAt(0).toUpperCase() : 'T')}
                             </div>
                             <div>
-                              <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '0.9rem' }}>
-                                {t.CompanyName}
+                              <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <span>{t.TenantName || t.CompanyName}</span>
+                                {t.TenantName && t.CompanyName && t.TenantName !== t.CompanyName && (
+                                  <span style={{ fontSize: '0.75rem', fontWeight: '500', color: '#475569' }}>
+                                    ({t.CompanyName})
+                                  </span>
+                                )}
                               </div>
                               <div style={{ fontSize: '0.725rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '2px' }}>
                                 <span style={{ fontFamily: 'monospace', fontWeight: '700', color: '#2563eb' }}>{t.TenantId}</span>
@@ -1019,34 +1027,24 @@ export default function SuperAdminPortal({ onOpenBackup }) {
                   <span>1. Organization Profile & Credentials</span>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                   <div className="form-group" style={{ margin: 0 }}>
                     <label className="form-label" style={{ fontWeight: '600' }}>
-                      Organization Legal Trade Name *
+                      Tenant Name *
                     </label>
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="e.g. ABC Investments & Wealth Management"
-                      value={tenantFormData.CompanyName}
-                      onChange={(e) => setTenantFormData({ ...tenantFormData, CompanyName: e.target.value })}
+                      placeholder="e.g. SR INVESTMENTS"
+                      value={tenantFormData.TenantName || ''}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, TenantName: e.target.value })}
                       required
                       autoFocus
                       style={{ fontWeight: '600', fontSize: '0.9rem' }}
                     />
-                  </div>
-
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label" style={{ fontWeight: '600' }}>
-                      Brand TagLine / Slogan
-                    </label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="e.g. Mutual Fund CRM, Grow Your Wealth"
-                      value={tenantFormData.TagLine || ''}
-                      onChange={(e) => setTenantFormData({ ...tenantFormData, TagLine: e.target.value })}
-                    />
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.25rem' }}>
+                      Master Tenant / Account Title in Central DB
+                    </div>
                   </div>
 
                   <div className="form-group" style={{ margin: 0 }}>
@@ -1073,7 +1071,43 @@ export default function SuperAdminPortal({ onOpenBackup }) {
                       }}
                     />
                     <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.25rem' }}>
-                      Workspace URI: <code>/org/{tenantFormData.TenantId || 'TEN00X'}</code> (System managed)
+                      Workspace URI: <code>/org/{tenantFormData.TenantId || 'TEN00X'}</code>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontWeight: '600' }}>
+                      Company Legal Trade Name *
+                    </label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. SR Groww, ABC Investments"
+                      value={tenantFormData.CompanyName}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, CompanyName: e.target.value })}
+                      required
+                      style={{ fontWeight: '600', fontSize: '0.9rem' }}
+                    />
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.25rem' }}>
+                      Firm name displayed on investor reports & synced to Tenant DB
+                    </div>
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontWeight: '600' }}>
+                      Brand TagLine / Slogan
+                    </label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. Mutual Fund CRM, Grow Your Wealth"
+                      value={tenantFormData.TagLine || ''}
+                      onChange={(e) => setTenantFormData({ ...tenantFormData, TagLine: e.target.value })}
+                    />
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.25rem' }}>
+                      Branding subtitle synced automatically between Central & Tenant DB
                     </div>
                   </div>
                 </div>

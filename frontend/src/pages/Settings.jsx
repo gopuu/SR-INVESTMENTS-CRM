@@ -26,6 +26,7 @@ export default function Settings({ onOpenBackup }) {
   // Company Settings State
   const [companySettings, setCompanySettings] = useState({
     CompanyName: 'SR GROWW',
+    CompanyTagLine: 'Mutual Fund CRM',
     ArnNumber: 'ARN-189241',
     EuinNumber: 'E345678',
     GSTIN: '27AAACR1234F1Z5',
@@ -71,6 +72,7 @@ export default function Settings({ onOpenBackup }) {
       if (comp) {
         setCompanySettings({
           CompanyName: comp.CompanyName || comp.COMPANY_NAME || comp.companyName || 'SR GROWW',
+          CompanyTagLine: comp.CompanyTagLine || comp.TagLine || comp.tagline || 'Mutual Fund CRM',
           ArnNumber: comp.ArnNumber || comp.ARN_NUMBER || comp.arnNumber || '',
           EuinNumber: comp.EuinNumber || comp.EUIN_NUMBER || comp.euinNumber || '',
           GSTIN: comp.GSTIN || comp.Gstin || comp.gstin || '',
@@ -108,6 +110,8 @@ export default function Settings({ onOpenBackup }) {
     try {
       const payload = {
         CompanyName: (companySettings.CompanyName || '').trim(),
+        CompanyTagLine: (companySettings.CompanyTagLine || '').trim(),
+        TagLine: (companySettings.CompanyTagLine || '').trim(),
         ArnNumber: (companySettings.ArnNumber || '').trim(),
         EuinNumber: (companySettings.EuinNumber || '').trim(),
         GSTIN: (companySettings.GSTIN || '').trim(),
@@ -349,6 +353,17 @@ export default function Settings({ onOpenBackup }) {
                     value={companySettings.CompanyName || ''}
                     onChange={(e) => setCompanySettings({ ...companySettings, CompanyName: e.target.value })}
                     required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Brand TagLine / Slogan</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Mutual Fund CRM, Grow Your Wealth"
+                    value={companySettings.CompanyTagLine || ''}
+                    onChange={(e) => setCompanySettings({ ...companySettings, CompanyTagLine: e.target.value })}
                   />
                 </div>
 

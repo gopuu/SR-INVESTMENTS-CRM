@@ -67,7 +67,7 @@ const CRM_SCHEMAS = {
   ],
   // Central SaaS Registries with 7 audit fields
   TENANT_MASTER: [
-    "TenantId", "CompanyName", "TagLine", "ArnNumber", "SpreadsheetId", "DriveRootFolderId",
+    "TenantId", "TenantName", "CompanyName", "TagLine", "ArnNumber", "SpreadsheetId", "DriveRootFolderId",
     "SupportEmail", "ContactPhone", "OfficeAddress", "Status",
     "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
   ],
@@ -359,8 +359,33 @@ function ensureSheetAndColumns_(ss, sheetName, schema) {
       }
     }
 
-    // Automatic column migration for Tenant_Master to insert TagLine column if missing
+    // Automatic column migration for Tenant_Master to insert TenantName and TagLine columns if missing
     if (sheetName === "Tenant_Master" || sheetName === CRM_CONFIG.SHEETS.TENANT_MASTER) {
+      // 1. Insert TenantName column if missing
+      const hasTenantName = existingLower.indexOf("tenantname") !== -1;
+      if (!hasTenantName) {
+        const tIdIdx = existingLower.indexOf("tenantid");
+        if (tIdIdx !== -1) {
+          sheet.insertColumnAfter(tIdIdx + 1);
+          const tNameCol = tIdIdx + 2;
+          sheet.getRange(1, tNameCol).setValue("TenantName")
+            .setFontWeight("bold")
+            .setBackground("#1e40af")
+            .setFontColor("#ffffff");
+          const numRows = sheet.getLastRow();
+          if (numRows > 1) {
+            for (let r = 2; r <= numRows; r++) {
+              const cur = sheet.getRange(r, tNameCol).getValue();
+              if (!cur) sheet.getRange(r, tNameCol).setValue("SR INVESTMENTS");
+            }
+          }
+          existingHeaders.splice(tIdIdx + 1, 0, "TenantName");
+          existingLower.splice(tIdIdx + 1, 0, "tenantname");
+          Logger.log("[COLUMN_MIGRATION] Tenant_Master: Inserted 'TenantName' column after 'TenantId' at column " + tNameCol);
+        }
+      }
+
+      // 2. Insert TagLine column if missing
       const hasTagLine = existingLower.indexOf("tagline") !== -1;
       if (!hasTagLine) {
         const cNameIdx = existingLower.indexOf("companyname");
@@ -1187,7 +1212,41 @@ function setupTenantTemplateDatabase(spreadsheetId) {
 }
 
 /**
- * Fixes any formula errors (like #ERROR! in ContactPhone) and syncs CompanyName in tenant settings.
+ * Helper to update or insert a key-value setting in a tenant's CompanySettings tab
+ */
+function setTenantSettingRow_(sheet, key, value, userEmail, now) {
+  if (!sheet || !key) return;
+  now = now || new Date().toISOString();
+  userEmail = userEmail || "System";
+  const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.SETTINGS);
+  const cleanKey = String(key).trim().toLowerCase();
+  const idx = rows.findIndex(r => String(r.Key || "").trim().toLowerCase() === cleanKey);
+
+  if (idx >= 0) {
+    const rowNum = idx + 2;
+    sheet.getRange(rowNum, 2).setValue(value);
+    const upAtCol = CRM_SCHEMAS.SETTINGS.indexOf("Updated_At") + 1;
+    if (upAtCol > 0) sheet.getRange(rowNum, upAtCol).setValue(now);
+    const upByCol = CRM_SCHEMAS.SETTINGS.indexOf("Updated_By") + 1;
+    if (upByCol > 0) sheet.getRange(rowNum, upByCol).setValue(userEmail);
+  } else {
+    writeRowByHeaders_(sheet, 0, {
+      Key: key,
+      Value: value,
+      Description: "Company profile setting",
+      IsDeleted: false,
+      Created_By: userEmail,
+      Created_At: now,
+      Updated_By: userEmail,
+      Updated_At: now,
+      Deleted_By: "",
+      Deleted_At: ""
+    }, CRM_SCHEMAS.SETTINGS);
+  }
+}
+
+/**
+ * Fixes any formula errors (like #ERROR! in ContactPhone) and syncs CompanyName/TagLine from Central DB.
  */
 function cleanTenantSettingsErrors_(ssOrId) {
   try {
@@ -1195,27 +1254,41 @@ function cleanTenantSettingsErrors_(ssOrId) {
     const sheet = ss.getSheetByName(CRM_CONFIG.SHEETS.SETTINGS) || ss.getSheetByName("CompanySettings") || ss.getSheetByName("Settings");
     if (!sheet) return;
     const lastRow = sheet.getLastRow();
-    if (lastRow < 2) return;
-    const values = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
-    for (let i = 0; i < values.length; i++) {
-      const key = String(values[i][0] || "").trim().toLowerCase();
-      const row = i + 2;
-      if (key === "contactphone") {
-        const cell = sheet.getRange(row, 2);
-        const valStr = String(cell.getValue() || "");
-        if (valStr.includes("ERROR") || valStr.includes("#") || valStr.startsWith("=") || !valStr.trim()) {
-          cell.clearContent();
-          cell.setNumberFormat("@").setValue("9876543210");
-          Logger.log("[CLEAN_SETTINGS] Fixed ContactPhone #ERROR! in " + ss.getName());
-        }
-      } else if (key === "companyname") {
-        const cell = sheet.getRange(row, 2);
-        const curName = String(cell.getValue() || "").trim();
-        if (curName === "SR Investmentss" || curName === "SR Investments") {
-          cell.setValue("SR Groww");
-          Logger.log("[CLEAN_SETTINGS] Synced CompanyName to 'SR Groww' in " + ss.getName());
+    if (lastRow >= 2) {
+      const values = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+      for (let i = 0; i < values.length; i++) {
+        const key = String(values[i][0] || "").trim().toLowerCase();
+        const row = i + 2;
+        if (key === "contactphone") {
+          const cell = sheet.getRange(row, 2);
+          const valStr = String(cell.getValue() || "");
+          if (valStr.includes("ERROR") || valStr.includes("#") || valStr.startsWith("=") || !valStr.trim()) {
+            cell.clearContent();
+            cell.setNumberFormat("@").setValue("9876543210");
+            Logger.log("[CLEAN_SETTINGS] Fixed ContactPhone #ERROR! in " + ss.getName());
+          }
         }
       }
+    }
+
+    // 2. Vice-versa sync: Central DB (CompanyName, TagLine) -> Tenant DB (CompanySettings)
+    try {
+      const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
+      const tenants = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.TENANT_MASTER);
+      const t = tenants.find(x => 
+        String(x.SpreadsheetId || "").trim() === ss.getId() || 
+        ss.getName().toUpperCase().startsWith(String(x.TenantId || "").toUpperCase())
+      );
+      if (t) {
+        const cName = String(t.CompanyName || "").trim();
+        const tLine = String(t.TagLine || "").trim();
+        if (cName) setTenantSettingRow_(sheet, "CompanyName", cName);
+        if (tLine) setTenantSettingRow_(sheet, "CompanyTagLine", tLine);
+        if (t.TenantName) setTenantSettingRow_(sheet, "TenantName", t.TenantName);
+        Logger.log("[CLEAN_SETTINGS] Synced branding from Central DB to " + ss.getName() + ": " + cName + " | " + tLine);
+      }
+    } catch (e) {
+      Logger.log("Branding sync notice: " + e.message);
     }
   } catch (err) {
     Logger.log("[CLEAN_SETTINGS_ERROR] " + err.message);
@@ -2485,6 +2558,7 @@ function saveTenant_(payload) {
 
   const tenantRecord = {
     TenantId: tenantId,
+    TenantName: cleanStr_(payload.TenantName) || cleanStr_(payload.CompanyName) || "SR INVESTMENTS",
     CompanyName: cleanStr_(payload.CompanyName) || "New Client Organization",
     TagLine: cleanStr_(payload.TagLine) || "Mutual Fund CRM",
     ArnNumber: cleanStr_(payload.ArnNumber) || "",
@@ -2507,6 +2581,23 @@ function saveTenant_(payload) {
   }
 
   writeRowByHeaders_(tenantSheet, targetRowIndex, tenantRecord, CRM_SCHEMAS.TENANT_MASTER);
+
+  // Vice-versa sync: Central DB (CompanyName, TagLine, TenantName) -> Tenant DB (CompanySettings)
+  const targetSpreadsheetId = tenantRecord.SpreadsheetId || (targetRowIndex > 0 ? getTenantSpreadsheetId_(tenantId) : "");
+  if (targetSpreadsheetId && targetSpreadsheetId !== CRM_CONFIG.SPREADSHEET_ID) {
+    try {
+      const tenantSS = SpreadsheetApp.openById(targetSpreadsheetId);
+      const setSheet = tenantSS.getSheetByName(CRM_CONFIG.SHEETS.SETTINGS) || tenantSS.getSheetByName("CompanySettings") || tenantSS.getSheetByName("Settings");
+      if (setSheet) {
+        setTenantSettingRow_(setSheet, "CompanyName", tenantRecord.CompanyName, userEmail, now);
+        setTenantSettingRow_(setSheet, "CompanyTagLine", tenantRecord.TagLine, userEmail, now);
+        setTenantSettingRow_(setSheet, "TenantName", tenantRecord.TenantName, userEmail, now);
+        Logger.log("[TENANT_SETTINGS_SYNC] Synced Central DB (CompanyName, TagLine) to Tenant DB: " + tenantId);
+      }
+    } catch (e) {
+      Logger.log("[TENANT_SETTINGS_SYNC_WARN] Could not sync to Tenant DB: " + e.message);
+    }
+  }
 
   // If initial license configuration is passed with new tenant, create license record
   if (payload.initialLicense) {
