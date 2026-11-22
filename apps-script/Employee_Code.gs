@@ -24,6 +24,7 @@ function getEmployees_(filters) {
       (e.EmployeeCode && e.EmployeeCode.toLowerCase().includes(q)) ||
       (e.FullName && e.FullName.toLowerCase().includes(q)) ||
       (e.Email && e.Email.toLowerCase().includes(q)) ||
+      (e.AlternateEmails && e.AlternateEmails.toLowerCase().includes(q)) ||
       (e.GoogleEmails && e.GoogleEmails.toLowerCase().includes(q)) ||
       (e.Mobile && String(e.Mobile).toLowerCase().includes(q)) ||
       (e.AlternateMobile && String(e.AlternateMobile).toLowerCase().includes(q)) ||
@@ -54,8 +55,9 @@ function saveEmployee_(data) {
   const incomingEmails = [];
   const primaryEmailClean = cleanStr_(data.Email).toLowerCase();
   if (primaryEmailClean) incomingEmails.push(primaryEmailClean);
-  if (data.GoogleEmails) {
-    cleanStr_(data.GoogleEmails).toLowerCase().split(",").forEach(s => {
+  const altEmailsVal = data.AlternateEmails || data.GoogleEmails;
+  if (altEmailsVal) {
+    cleanStr_(altEmailsVal).toLowerCase().split(",").forEach(s => {
       const em = s.trim();
       if (em && !incomingEmails.includes(em)) incomingEmails.push(em);
     });
@@ -80,8 +82,9 @@ function saveEmployee_(data) {
     // Check emails
     const existingRowEmails = [];
     if (r.Email) existingRowEmails.push(cleanStr_(r.Email).toLowerCase());
-    if (r.GoogleEmails) {
-      cleanStr_(r.GoogleEmails).toLowerCase().split(",").forEach(s => {
+    const rowAltEmails = r.AlternateEmails || r.GoogleEmails;
+    if (rowAltEmails) {
+      cleanStr_(rowAltEmails).toLowerCase().split(",").forEach(s => {
         const em = s.trim();
         if (em && !existingRowEmails.includes(em)) existingRowEmails.push(em);
       });
@@ -224,7 +227,8 @@ function saveEmployee_(data) {
     EmployeeCode: code,
     FullName: cleanStr_(data.FullName),
     Email: primaryEmailClean,
-    GoogleEmails: cleanStr_(data.GoogleEmails), // Multiple Google IDs
+    AlternateEmails: cleanStr_(data.AlternateEmails || data.GoogleEmails),
+    GoogleEmails: cleanStr_(data.AlternateEmails || data.GoogleEmails), // Cross-compat alias
     Mobile: cleanStr_(data.Mobile),
     AlternateMobile: cleanStr_(data.AlternateMobile),
     Department: cleanStr_(data.Department || "Wealth Management"),
@@ -428,7 +432,7 @@ function syncEmployeeToUserMaster_(employeeObj, tenantId, userEmail) {
     const mobile = cleanStr_(employeeObj.Mobile);
     const alternateMobile = cleanStr_(employeeObj.AlternateMobile);
     const password = hashPasswordSHA256_(cleanStr_(employeeObj.Password || "password123"));
-    const googleEmails = cleanStr_(employeeObj.GoogleEmails);
+    const googleEmails = cleanStr_(employeeObj.AlternateEmails || employeeObj.GoogleEmails);
     const role = cleanStr_(employeeObj.Role || "Staff");
     const status = cleanStr_(employeeObj.Status || "Active");
     const now = new Date().toISOString();

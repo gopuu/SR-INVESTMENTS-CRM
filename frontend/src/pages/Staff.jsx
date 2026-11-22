@@ -79,7 +79,8 @@ export default function Staff({ onOpenBackup }) {
     EmployeeCode: '',
     FullName: '',
     Email: '',
-    GoogleEmails: '', // Multiple Google IDs
+    AlternateEmails: '',
+    GoogleEmails: '', // Multiple Google IDs / Alternate Emails
     Mobile: '',
     AlternateMobile: '', // Alternate Mobile numbers
     Department: '',
@@ -184,7 +185,8 @@ export default function Staff({ onOpenBackup }) {
       EmployeeCode: emp.EmployeeCode || '',
       FullName: emp.FullName || '',
       Email: emp.Email || '',
-      GoogleEmails: emp.GoogleEmails || '',
+      AlternateEmails: emp.AlternateEmails || emp.GoogleEmails || '',
+      GoogleEmails: emp.AlternateEmails || emp.GoogleEmails || '',
       Mobile: emp.Mobile || '',
       AlternateMobile: emp.AlternateMobile || '',
       Department: emp.Department || departments[0]?.DepartmentName || 'Wealth Management',
@@ -573,9 +575,9 @@ export default function Staff({ onOpenBackup }) {
                       </td>
                       <td>
                         <div style={{ fontSize: '0.8125rem', fontWeight: '600', color: '#0f172a' }}>{e.Email || 'No email'}</div>
-                        {e.GoogleEmails && (
+                        {(e.AlternateEmails || e.GoogleEmails) && (
                           <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '2px' }}>
-                            <span style={{ color: '#2563eb', fontWeight: '600' }}>Google IDs:</span> {e.GoogleEmails}
+                            <span style={{ color: '#2563eb', fontWeight: '600' }}>Alternate Emails:</span> {e.AlternateEmails || e.GoogleEmails}
                           </div>
                         )}
                       </td>
@@ -869,8 +871,8 @@ export default function Staff({ onOpenBackup }) {
                   type="text"
                   className="form-input"
                   placeholder="rajesh.mf@gmail.com, rajesh.personal@gmail.com"
-                  value={formData.GoogleEmails}
-                  onChange={(e) => setFormData({ ...formData, GoogleEmails: e.target.value })}
+                  value={formData.AlternateEmails || formData.GoogleEmails || ''}
+                  onChange={(e) => setFormData({ ...formData, AlternateEmails: e.target.value, GoogleEmails: e.target.value })}
                 />
                 <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.3rem' }}>
                   Staff can sign in via Google using ANY of these addresses.

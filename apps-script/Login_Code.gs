@@ -321,7 +321,8 @@ function loginUser_(username, password) {
     staff = employees.find(e => {
       const matchCode = e.EmployeeCode && String(e.EmployeeCode).trim().toLowerCase() === cleanInput;
       const matchEmail = e.Email && String(e.Email).trim().toLowerCase() === cleanInput;
-      const googleList = e.GoogleEmails ? String(e.GoogleEmails).toLowerCase().split(",").map(s => s.trim()) : [];
+      const rawGoogle = e.AlternateEmails || e.GoogleEmails;
+      const googleList = rawGoogle ? String(rawGoogle).toLowerCase().split(",").map(s => s.trim()) : [];
       const matchGoogle = googleList.includes(cleanInput);
       const empMobile = e.Mobile ? String(e.Mobile).replace(/[\s\-\(\)\+]/g, "") : "";
       const matchMobile = empMobile && empMobile === cleanMobile;
@@ -1020,7 +1021,7 @@ function findUserForPasswordReset_(identifier) {
       if (e.IsDeleted && String(e.IsDeleted).toLowerCase() === "true") continue;
 
       const matchEmail = e.Email && String(e.Email).trim().toLowerCase() === cleanInput;
-      const matchEmailList = matchEmailList_(cleanInput, e.GoogleEmails || e.EmailList);
+      const matchEmailList = matchEmailList_(cleanInput, e.AlternateEmails || e.GoogleEmails || e.EmailList);
       const matchCode = (e.EmployeeCode && String(e.EmployeeCode).trim().toLowerCase() === cleanInput) ||
                         (e.EmployeeId && String(e.EmployeeId).trim().toLowerCase() === cleanInput);
       const matchMobile = cleanDigits.length >= 10 && matchPhoneNumber_(cleanDigits, e.Mobile);
@@ -1030,8 +1031,8 @@ function findUserForPasswordReset_(identifier) {
         let primaryEmail = "";
         if (isValidEmailAddress_(e.Email)) {
           primaryEmail = String(e.Email).trim();
-        } else if (e.GoogleEmails) {
-          const list = String(e.GoogleEmails).split(/[,;|\s]+/);
+        } else if (e.AlternateEmails || e.GoogleEmails) {
+          const list = String(e.AlternateEmails || e.GoogleEmails).split(/[,;|\s]+/);
           for (let j = 0; j < list.length; j++) {
             if (isValidEmailAddress_(list[j])) {
               primaryEmail = list[j].trim();

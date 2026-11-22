@@ -107,7 +107,7 @@ const CRM_SCHEMAS = {
     "Approval_History", "Approved_By", "Approved_At"
   ],
   EMPLOYEES: [
-    "EmployeeId", "EmployeeCode", "FullName", "Email", "GoogleEmails", "Mobile", "AlternateMobile",
+    "EmployeeId", "EmployeeCode", "FullName", "Email", "AlternateEmails", "Mobile", "AlternateMobile",
     "Department", "Designation", "Role", "Password", "JoiningDate", "Status",
     "Address", "City", "State", "PhotoUrl", "DriveFileId", "Documents",
     "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At",
@@ -339,6 +339,17 @@ function ensureSheetAndColumns_(ss, sheetName, schema) {
       }
     }
 
+    // Automatic column renaming / migration for Employees (GoogleEmails -> AlternateEmails)
+    if (sheetName === "Employees" || sheetName === CRM_CONFIG.SHEETS.EMPLOYEES) {
+      const gIdx = existingHeaders.findIndex(h => h.toLowerCase() === "googleemails");
+      if (gIdx !== -1) {
+        sheet.getRange(1, gIdx + 1).setValue("AlternateEmails");
+        existingHeaders[gIdx] = "AlternateEmails";
+        existingLower[gIdx] = "alternateemails";
+        Logger.log("[COLUMN_RENAME] Employees: Successfully renamed column 'GoogleEmails' to 'AlternateEmails' at column " + (gIdx + 1));
+      }
+    }
+
     // Automatic column migration for Tenant_Licenses / Tenant_Licensing to insert Payment fields
     if (sheetName === "Tenant_Licenses" || sheetName === "Tenant_Licensing" || sheetName === CRM_CONFIG.SHEETS.TENANT_LICENSES) {
       const hasPaymentMode = existingLower.indexOf("paymentmode") !== -1;
@@ -496,6 +507,11 @@ function getSheetRowsAsObjects_(sheet, fallbackSchema) {
         obj.GoogleEmails = obj.AlternateEmailsList;
       } else if (obj.GoogleEmails !== undefined && obj.AlternateEmailsList === undefined) {
         obj.AlternateEmailsList = obj.GoogleEmails;
+      }
+      if (obj.AlternateEmails !== undefined && obj.GoogleEmails === undefined) {
+        obj.GoogleEmails = obj.AlternateEmails;
+      } else if (obj.GoogleEmails !== undefined && obj.AlternateEmails === undefined) {
+        obj.AlternateEmails = obj.GoogleEmails;
       }
 
       // 4. Status normalization: accurately recognize Active, Inactive, Expired, CANCELLED, and NEW

@@ -2828,6 +2828,7 @@ export const crmApi = {
             (e.FullName && e.FullName.toLowerCase().includes(q)) ||
             (e.EmployeeCode && e.EmployeeCode.toLowerCase().includes(q)) ||
             (e.Email && e.Email.toLowerCase().includes(q)) ||
+            (e.AlternateEmails && e.AlternateEmails.toLowerCase().includes(q)) ||
             (e.GoogleEmails && e.GoogleEmails.toLowerCase().includes(q)) ||
             (e.Mobile && String(e.Mobile).toLowerCase().includes(q)) ||
             (e.AlternateMobile && String(e.AlternateMobile).toLowerCase().includes(q)) ||
@@ -2854,8 +2855,9 @@ export const crmApi = {
         const incomingEmails = [];
         const primaryEmailClean = (payload.Email || '').trim().toLowerCase();
         if (primaryEmailClean) incomingEmails.push(primaryEmailClean);
-        if (payload.GoogleEmails) {
-          payload.GoogleEmails.toLowerCase().split(',').forEach(s => {
+        const altEmailsVal = payload.AlternateEmails || payload.GoogleEmails;
+        if (altEmailsVal) {
+          altEmailsVal.toLowerCase().split(',').forEach(s => {
             const em = s.trim();
             if (em && !incomingEmails.includes(em)) incomingEmails.push(em);
           });
@@ -2880,8 +2882,9 @@ export const crmApi = {
           // Check emails
           const existingRowEmails = [];
           if (r.Email) existingRowEmails.push(r.Email.trim().toLowerCase());
-          if (r.GoogleEmails) {
-            r.GoogleEmails.toLowerCase().split(',').forEach(s => {
+          const rowAltEmails = r.AlternateEmails || r.GoogleEmails;
+          if (rowAltEmails) {
+            rowAltEmails.toLowerCase().split(',').forEach(s => {
               const em = s.trim();
               if (em && !existingRowEmails.includes(em)) existingRowEmails.push(em);
             });
@@ -2944,7 +2947,8 @@ export const crmApi = {
           EmployeeCode: code,
           Password: hashedPassword,
           Status: status,
-          GoogleEmails: payload.GoogleEmails || '',
+          AlternateEmails: payload.AlternateEmails || payload.GoogleEmails || '',
+          GoogleEmails: payload.AlternateEmails || payload.GoogleEmails || '',
           PhotoUrl: photoUrl || list[index]?.PhotoUrl || '',
           IsDeleted: isDeleted,
           Created_By: createdBy,
@@ -2997,7 +3001,8 @@ export const crmApi = {
               FullName: record.FullName,
               Mobile: record.Mobile,
               AlternateMobile: record.AlternateMobile || '',
-              GoogleEmails: record.GoogleEmails,
+              AlternateEmailsList: record.AlternateEmails || record.GoogleEmails || '',
+              GoogleEmails: record.AlternateEmails || record.GoogleEmails || '',
               Password: hashedPassword,
               Status: record.Status || 'Active',
               Updated_By: userEmail,
@@ -3008,7 +3013,8 @@ export const crmApi = {
             userMaster.push({
               UserId: uId,
               Email: cleanEmail,
-              GoogleEmails: record.GoogleEmails || '',
+              AlternateEmailsList: record.AlternateEmails || record.GoogleEmails || '',
+              GoogleEmails: record.AlternateEmails || record.GoogleEmails || '',
               Password: hashedPassword,
               FullName: record.FullName,
               Mobile: record.Mobile,
