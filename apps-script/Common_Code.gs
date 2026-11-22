@@ -21,7 +21,6 @@ const CRM_CONFIG = {
   },
 
   SHEETS: {
-    EMPLOYEE_EMAILS: "EmployeeEmails",
     EMPLOYEES: "Employees",
     CUSTOMERS: "Customers",
     USERS: "Users",
@@ -128,9 +127,6 @@ const CRM_SCHEMAS = {
   APP_TRACKER: [
     "Date", "Status", "Module", "Task", "Description / Updates"
   ],
-  EMPLOYEE_EMAILS: [
-    "Email", "Name", "Department", "Designation", "Status"
-  ],
   NOTIFICATIONS: [
     "NotifId", "Timestamp", "ActorEmail", "ActorName", "ActorRole", "IsSuperUser", "TargetAudience",
     "Action", "Module", "RecordId", "Title", "Message", "TargetRoute", "ReadByEmails"
@@ -184,8 +180,7 @@ const TENANT_OPERATIONAL_SHEETS = [
   "RolesRights",
   "MasterDepartments",
   "MasterDesignations",
-  "MasterRoles",
-  "EmployeeEmails"
+  "MasterRoles"
 ];
 
 /**
@@ -1150,8 +1145,7 @@ function setupTenantTemplateDatabase(spreadsheetId) {
     { name: CRM_CONFIG.SHEETS.RIGHTS, schema: CRM_SCHEMAS.RIGHTS },
     { name: CRM_CONFIG.SHEETS.DEPARTMENTS, schema: CRM_SCHEMAS.DEPARTMENTS },
     { name: CRM_CONFIG.SHEETS.DESIGNATIONS, schema: CRM_SCHEMAS.DESIGNATIONS },
-    { name: CRM_CONFIG.SHEETS.ROLES, schema: CRM_SCHEMAS.ROLES },
-    { name: CRM_CONFIG.SHEETS.EMPLOYEE_EMAILS, schema: CRM_SCHEMAS.EMPLOYEE_EMAILS }
+    { name: CRM_CONFIG.SHEETS.ROLES, schema: CRM_SCHEMAS.ROLES }
   ];
 
   // Purge obsolete/redundant sheets (Users & User_Documents) from Tenant DB
@@ -1230,7 +1224,7 @@ function deleteSheetIfExists_(ss, sheetName) {
 function cleanTenantDatabaseSheets_(ss) {
   if (!ss) return [];
   const deleted = [];
-  ["Users", "User_Documents", "UserDocuments"].forEach(name => {
+  ["Users", "User_Documents", "UserDocuments", "EmployeeEmails", "Employee_Emails", "EmployeeEmail"].forEach(name => {
     if (deleteSheetIfExists_(ss, name)) {
       deleted.push(name);
     }
