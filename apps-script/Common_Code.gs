@@ -125,8 +125,8 @@ const CRM_SCHEMAS = {
     "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At"
   ],
   EMPLOYEES: [
-    "EmployeeId", "EmployeeCode", "FullName", "Username", "Email", "AlternateEmails", "Mobile", "AlternateMobile",
-    "Department", "Designation", "Role", "Password", "BirthDate", "JoiningDate", "BloodGroup", "EmergencyContact", "AadharNo", "Status",
+    "EmployeeId", "EmployeeCode", "FullName", "Email", "AlternateEmails", "Mobile", "AlternateMobile",
+    "Department", "Designation", "Role", "BirthDate", "JoiningDate", "BloodGroup", "AadharNo", "Status",
     "Address", "City", "State", "PhotoUrl", "DriveFileId", "Documents",
     "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At",
     "Created_Approved_By", "Created_Approved_At",
@@ -1439,6 +1439,23 @@ function deleteSheetIfExists_(ss, sheetName) {
   return false;
 }
 
+function deleteColumnsIfExists_(sheet, colNames) {
+  if (!sheet || sheet.getLastColumn() === 0 || !Array.isArray(colNames)) return;
+  try {
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    // Delete in reverse order so column indices don't shift
+    for (let c = headers.length - 1; c >= 0; c--) {
+      const header = String(headers[c] || '').trim();
+      if (colNames.some(name => name.toLowerCase() === header.toLowerCase())) {
+        sheet.deleteColumn(c + 1);
+        Logger.log("[CLEANUP] Deleted column '" + header + "' from " + sheet.getName());
+      }
+    }
+  } catch (err) {
+    Logger.log("[CLEANUP_COL_WARN] Could not delete columns: " + err.message);
+  }
+}
+
 function cleanTenantDatabaseSheets_(ss) {
   if (!ss) return [];
   const deleted = [];
@@ -1447,6 +1464,13 @@ function cleanTenantDatabaseSheets_(ss) {
       deleted.push(name);
     }
   });
+
+  // Remove obsolete columns from Employees sheet (Username, Password, EmergencyContact now live in Central User_Master & AlternateMobile)
+  const empSheet = ss.getSheetByName("Employees");
+  if (empSheet) {
+    deleteColumnsIfExists_(empSheet, ["Username", "Password", "EmergencyContact", "Emergency_Contact"]);
+  }
+
   return deleted;
 }
 

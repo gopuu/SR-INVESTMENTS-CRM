@@ -3186,20 +3186,13 @@ export const crmApi = {
         const deletedBy = existing ? (existing.Deleted_By || '') : '';
         const deletedAt = existing ? (existing.Deleted_At || '') : '';
 
-        // SHA-256 Password Security
-        const rawPassword = payload.Password || existing?.Password || 'password123';
-        const hashedPassword = await hashPasswordSHA256(rawPassword);
-
         const record = {
           ...payload,
           EmployeeId: id,
           EmployeeCode: code,
-          Username: payload.Username || code,
           BirthDate: payload.BirthDate || '',
           BloodGroup: payload.BloodGroup || '',
-          EmergencyContact: payload.EmergencyContact || '',
           AadharNo: payload.AadharNo || '',
-          Password: hashedPassword,
           Status: status,
           AlternateEmails: payload.AlternateEmails || payload.GoogleEmails || '',
           GoogleEmails: payload.AlternateEmails || payload.GoogleEmails || '',

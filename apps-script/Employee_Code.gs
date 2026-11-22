@@ -23,7 +23,6 @@ function getEmployees_(filters) {
     rows = rows.filter(e =>
       (e.EmployeeCode && e.EmployeeCode.toLowerCase().includes(q)) ||
       (e.FullName && e.FullName.toLowerCase().includes(q)) ||
-      (e.Username && e.Username.toLowerCase().includes(q)) ||
       (e.Email && e.Email.toLowerCase().includes(q)) ||
       (e.AlternateEmails && e.AlternateEmails.toLowerCase().includes(q)) ||
       (e.GoogleEmails && e.GoogleEmails.toLowerCase().includes(q)) ||
@@ -31,8 +30,7 @@ function getEmployees_(filters) {
       (e.AlternateMobile && String(e.AlternateMobile).toLowerCase().includes(q)) ||
       (e.Department && e.Department.toLowerCase().includes(q)) ||
       (e.Designation && e.Designation.toLowerCase().includes(q)) ||
-      (e.AadharNo && String(e.AadharNo).toLowerCase().includes(q)) ||
-      (e.EmergencyContact && String(e.EmergencyContact).toLowerCase().includes(q))
+      (e.AadharNo && String(e.AadharNo).toLowerCase().includes(q))
     );
   }
 
@@ -229,7 +227,6 @@ function saveEmployee_(data) {
     EmployeeId: id,
     EmployeeCode: code,
     FullName: cleanStr_(data.FullName),
-    Username: cleanStr_(data.Username || code),
     Email: primaryEmailClean,
     AlternateEmails: cleanStr_(data.AlternateEmails || data.GoogleEmails),
     GoogleEmails: cleanStr_(data.AlternateEmails || data.GoogleEmails), // Cross-compat alias
@@ -238,11 +235,9 @@ function saveEmployee_(data) {
     Department: cleanStr_(data.Department || "Wealth Management"),
     Designation: cleanStr_(data.Designation || "Relationship Manager"),
     Role: cleanStr_(data.Role || "Staff"),
-    Password: hashPasswordSHA256_(cleanStr_(data.Password || "password123")),
     BirthDate: cleanStr_(data.BirthDate),
     JoiningDate: cleanStr_(data.JoiningDate),
     BloodGroup: cleanStr_(data.BloodGroup),
-    EmergencyContact: cleanStr_(data.EmergencyContact),
     AadharNo: cleanStr_(data.AadharNo),
     Status: status,
     Address: cleanStr_(data.Address),
@@ -458,11 +453,13 @@ function syncEmployeeToUserMaster_(employeeObj, tenantId, userEmail) {
         Mobile: mobile,
         AlternateMobile: alternateMobile,
         GoogleEmails: googleEmails,
-        Password: password,
         Status: status,
         Updated_By: userEmail,
         Updated_At: now
       };
+      if (employeeObj.Password) {
+        updatedUser.Password = hashPasswordSHA256_(cleanStr_(employeeObj.Password));
+      }
       writeRowByHeaders_(userSheet, userIndex + 2, updatedUser, CRM_SCHEMAS.USER_MASTER);
     } else {
       userId = "USR_" + String(userRows.length + 1).padStart(3, '0');
