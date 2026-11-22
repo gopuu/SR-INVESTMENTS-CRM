@@ -476,12 +476,9 @@ export default function MasterDesignations({ onOpenBackup }) {
 
           {/* 2nd Input: Designation Code (Enabled Alphanumeric, defaults to initials of Name) */}
           <div className="form-group">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-              <label className="form-label" style={{ margin: 0 }}>
-                Designation Code <span style={{ color: '#ef4444' }}>*</span>
-              </label>
-              <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Alphanumeric</span>
-            </div>
+            <label className="form-label">
+              Designation Code <span style={{ color: '#ef4444' }}>*</span>
+            </label>
             <input
               type="text"
               className="form-input"

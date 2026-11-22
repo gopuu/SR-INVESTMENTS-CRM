@@ -238,6 +238,7 @@ function saveEmployee_(data) {
     State: cleanStr_(data.State),
     PhotoUrl: photoUrl,
     DriveFileId: driveFileId,
+    Documents: data.Documents || (existingRecord ? (existingRecord.Documents || "") : ""),
     IsDeleted: isDeleted,
     Created_By: createdBy,
     Created_At: createdAt,

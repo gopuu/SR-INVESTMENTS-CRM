@@ -312,79 +312,7 @@ function loginUser_(username, password) {
     };
   }
 
-  // 2. Fallback check: Primary tenant database (Users / Employees)
-  let adminUser = null;
-  try {
-    const userSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USERS, CRM_SCHEMAS.USERS, "TEN001");
-    const users = getSheetRowsAsObjects_(userSheet, CRM_SCHEMAS.USERS);
-    adminUser = users.find(u => 
-      String(u.Email).trim().toLowerCase() === cleanInput ||
-      String(u.UserId).trim().toLowerCase() === cleanInput
-    );
-  } catch (e) {
-    Logger.log("Users sheet lookup error: " + e.message);
-  }
-
-  if (adminUser) {
-    const rawPass = String(password).trim();
-    const hashedPass = hashPasswordSHA256_(rawPass);
-    const expectedPass = String(adminUser.Password || "").trim();
-    const isValid = (expectedPass === hashedPass) || (expectedPass === rawPass) || (rawPass === "admin123");
-    if (!isValid) {
-      throw new Error("Invalid password.");
-    }
-    const isSuper = cleanInput.includes("admin") || cleanInput === "usr_001";
-    const workspaces = resolveTenantMemberships_(adminUser.UserId, adminUser.Email);
-
-    if (workspaces.length > 1) {
-      return {
-        multiTenant: true,
-        preAuthToken: "SR_PRE_" + Utilities.getUuid(),
-        user: {
-          userId: adminUser.UserId,
-          name: adminUser.Name,
-          email: adminUser.Email,
-          isSuperAdmin: isSuper
-        },
-        workspaces: workspaces
-      };
-    }
-
-    const primaryTenant = workspaces[0] || {
-      tenantId: "TEN001",
-      companyName: getTenantCompanyName_("TEN001", "SR GROWW"),
-      CompanyName: getTenantCompanyName_("TEN001", "SR GROWW"),
-      tagLine: getTenantTagLine_("TEN001", "Mutual Fund CRM"),
-      TagLine: getTenantTagLine_("TEN001", "Mutual Fund CRM"),
-      role: "Admin"
-    };
-
-    const licCheck = checkTenantLicenseActive_(primaryTenant.tenantId, isSuperAdmin);
-    if (!licCheck.valid) {
-      throw new Error(licCheck.error);
-    }
-
-    return {
-      user: {
-        userId: adminUser.UserId,
-        employeeCode: "SR-ADMIN",
-        name: adminUser.Name,
-        email: adminUser.Email,
-        role: adminUser.Role || "Admin",
-        isSuperAdmin: isSuper,
-        activeTenantId: primaryTenant.tenantId,
-        companyName: primaryTenant.companyName,
-        status: adminUser.Status,
-        workspaces: workspaces,
-        lastLogin: new Date().toISOString()
-      },
-      tenant: primaryTenant,
-      rights: getRolePermissions_(adminUser.Role),
-      token: "SR_" + Utilities.getUuid()
-    };
-  }
-
-  // 3. Fallback check: Primary tenant Employees sheet
+  // 2. Fallback check: Primary tenant Employees sheet
   let staff = null;
   try {
     const empSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES, "TEN001");
@@ -494,31 +422,7 @@ function googleLogin_(googleEmail, googleName) {
     Logger.log("User_Master lookup in googleLogin_: " + e.message);
   }
 
-  // 2. Check Primary Tenant Users sheet
-  if (!matchedUser) {
-    try {
-      const userSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USERS, CRM_SCHEMAS.USERS, "TEN001");
-      const tenantUsers = getSheetRowsAsObjects_(userSheet, CRM_SCHEMAS.USERS);
-      const tu = tenantUsers.find(u => {
-        if (u.IsDeleted || String(u.IsDeleted).toLowerCase() === "true") return false;
-        return u.Email && String(u.Email).trim().toLowerCase() === cleanEmail;
-      });
-      if (tu) {
-        if (tu.Status && String(tu.Status).trim().toLowerCase() !== "active") {
-          throw new Error("Your CRM user account (" + cleanEmail + ") is inactive. Please contact CRM Administrator.");
-        }
-        matchedUser = tu;
-        userId = tu.UserId || cleanEmail;
-        userName = tu.Name || googleName || "User";
-        userRole = tu.Role || "Admin";
-      }
-    } catch (e) {
-      if (e.message && e.message.includes("inactive")) throw e;
-      Logger.log("Tenant Users lookup in googleLogin_: " + e.message);
-    }
-  }
-
-  // 3. Check Primary Tenant Employees sheet
+  // 2. Check Primary Tenant Employees sheet
   if (!matchedUser) {
     try {
       const empSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES, "TEN001");
@@ -674,17 +578,21 @@ function selectTenant_(payload) {
 }
 
 function updateUserProfile_(payload) {
-  const userId = cleanStr_(payload.userId);
-  if (!userId) throw new Error("UserId is required.");
+  const userId = cleanStr_(payload.userId || payload.email);
+  if (!userId) throw new Error("UserId or Email is required.");
 
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USERS, CRM_SCHEMAS.USERS);
-  const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.USERS);
-  const index = rows.findIndex(u => u.UserId === userId);
-  if (index === -1) throw new Error("User record not found.");
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USER_MASTER, CRM_SCHEMAS.USER_MASTER);
+  const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.USER_MASTER);
+  const index = rows.findIndex(u => 
+    String(u.UserId || "").trim() === userId || 
+    String(u.Email || "").trim().toLowerCase() === userId.toLowerCase()
+  );
+  if (index === -1) throw new Error("User record not found in User_Master.");
 
   const rowNum = index + 2;
-  if (payload.name) {
-    sheet.getRange(rowNum, CRM_SCHEMAS.USERS.indexOf("Name") + 1).setValue(payload.name.trim());
+  const colName = getHeaderColIndex_(sheet, "FullName");
+  if (payload.name && colName > 0) {
+    sheet.getRange(rowNum, colName).setValue(payload.name.trim());
   }
 
   return { success: true, message: "Profile updated successfully." };
@@ -695,10 +603,13 @@ function changeUserPassword_(payload) {
   if (!userId || !oldPassword || !newPassword) throw new Error("All password fields are required.");
   if (newPassword.length < 6) throw new Error("New password must be at least 6 characters.");
 
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USERS, CRM_SCHEMAS.USERS);
-  const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.USERS);
-  const index = rows.findIndex(u => u.UserId === userId);
-  if (index === -1) throw new Error("User not found.");
+  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USER_MASTER, CRM_SCHEMAS.USER_MASTER);
+  const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.USER_MASTER);
+  const index = rows.findIndex(u => 
+    String(u.UserId || "").trim() === String(userId).trim() || 
+    String(u.Email || "").trim().toLowerCase() === String(userId).trim().toLowerCase()
+  );
+  if (index === -1) throw new Error("User not found in User_Master.");
 
   const user = rows[index];
   const hashedOld = hashPasswordSHA256_(oldPassword);
@@ -709,15 +620,21 @@ function changeUserPassword_(payload) {
 
   const hashedNew = hashPasswordSHA256_(newPassword);
   const rowNum = index + 2;
-  sheet.getRange(rowNum, CRM_SCHEMAS.USERS.indexOf("Password") + 1).setValue(hashedNew);
+  const colPass = getHeaderColIndex_(sheet, "Password");
+  if (colPass > 0) sheet.getRange(rowNum, colPass).setValue(hashedNew);
 
-  // Sync to User_Master if present
+  // Sync to Tenant Employees if present
   try {
-    const umSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USER_MASTER, CRM_SCHEMAS.USER_MASTER);
-    const umRows = getSheetRowsAsObjects_(umSheet, CRM_SCHEMAS.USER_MASTER);
-    const umIdx = umRows.findIndex(u => u.UserId === userId || (user.Email && u.Email === user.Email));
-    if (umIdx >= 0) {
-      umSheet.getRange(umIdx + 2, CRM_SCHEMAS.USER_MASTER.indexOf("Password") + 1).setValue(hashedNew);
+    const tenantId = payload.tenantId || payload.activeTenantId || "TEN001";
+    const empSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES, tenantId);
+    const emps = getSheetRowsAsObjects_(empSheet, CRM_SCHEMAS.EMPLOYEES);
+    const empIdx = emps.findIndex(e => 
+      (e.Email && String(e.Email).trim().toLowerCase() === String(user.Email).trim().toLowerCase()) ||
+      (e.EmployeeCode && String(e.EmployeeCode).trim().toLowerCase() === String(user.UserId).trim().toLowerCase())
+    );
+    if (empIdx >= 0) {
+      const colEmpPass = getHeaderColIndex_(empSheet, "Password");
+      if (colEmpPass > 0) empSheet.getRange(empIdx + 2, colEmpPass).setValue(hashedNew);
     }
   } catch (e) {}
 
@@ -1094,36 +1011,7 @@ function findUserForPasswordReset_(identifier) {
     Logger.log("findUserForPasswordReset_ User_Master check notice: " + e.message);
   }
 
-  // 2. Search Operational Users sheet
-  try {
-    const userSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USERS, CRM_SCHEMAS.USERS, "TEN001");
-    const users = getSheetRowsAsObjects_(userSheet, CRM_SCHEMAS.USERS);
-    for (let i = 0; i < users.length; i++) {
-      const u = users[i];
-      if (u.IsDeleted && String(u.IsDeleted).toLowerCase() === "true") continue;
-
-      const matchEmail = u.Email && String(u.Email).trim().toLowerCase() === cleanInput;
-      const matchId = u.UserId && String(u.UserId).trim().toLowerCase() === cleanInput;
-      const matchMobile = cleanDigits.length >= 10 && matchPhoneNumber_(cleanDigits, u.Mobile || u.Phone);
-
-      if (matchEmail || matchId || matchMobile) {
-        return {
-          found: true,
-          source: "Users",
-          rowIndex: i + 2,
-          userId: u.UserId || "",
-          email: isValidEmailAddress_(u.Email) ? String(u.Email).trim() : "",
-          fullName: u.Name || "User",
-          mobile: u.Mobile || u.Phone || "",
-          status: u.Status || "Active"
-        };
-      }
-    }
-  } catch (e) {
-    Logger.log("findUserForPasswordReset_ Users check notice: " + e.message);
-  }
-
-  // 3. Search Operational Employees sheet
+  // 2. Search Operational Employees sheet
   try {
     const empSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES, "TEN001");
     const emps = getSheetRowsAsObjects_(empSheet, CRM_SCHEMAS.EMPLOYEES);
@@ -1746,23 +1634,7 @@ function resetPasswordWithOtp_(payload) {
     Logger.log("Update User_Master password error: " + e.message);
   }
 
-  // 2. Update in Tenant Users sheet
-  try {
-    const userSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USERS, CRM_SCHEMAS.USERS, "TEN001");
-    const users = getSheetRowsAsObjects_(userSheet, CRM_SCHEMAS.USERS);
-    const uIdx = users.findIndex(u => 
-      (u.Email && String(u.Email).trim().toLowerCase() === user.email.toLowerCase()) ||
-      (u.UserId && String(u.UserId).trim().toLowerCase() === String(user.userId).toLowerCase())
-    );
-    if (uIdx >= 0) {
-      const colIdx = CRM_SCHEMAS.USERS.indexOf("Password") + 1;
-      userSheet.getRange(uIdx + 2, colIdx).setValue(hashedNew);
-    }
-  } catch (e) {
-    Logger.log("Update Users password error: " + e.message);
-  }
-
-  // 3. Update in Tenant Employees sheet
+  // 2. Update in Tenant Employees sheet
   try {
     const empSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES, "TEN001");
     const emps = getSheetRowsAsObjects_(empSheet, CRM_SCHEMAS.EMPLOYEES);

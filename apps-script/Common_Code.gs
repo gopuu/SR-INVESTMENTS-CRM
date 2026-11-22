@@ -110,7 +110,7 @@ const CRM_SCHEMAS = {
   EMPLOYEES: [
     "EmployeeId", "EmployeeCode", "FullName", "Email", "GoogleEmails", "Mobile", "AlternateMobile",
     "Department", "Designation", "Role", "Password", "JoiningDate", "Status",
-    "Address", "City", "State", "PhotoUrl", "DriveFileId",
+    "Address", "City", "State", "PhotoUrl", "DriveFileId", "Documents",
     "IsDeleted", "Created_By", "Created_At", "Updated_By", "Updated_At", "Deleted_By", "Deleted_At",
     "Created_Approved_By", "Created_Approved_At",
     "Updated_Approved_By", "Updated_Approved_At",
@@ -180,13 +180,11 @@ const TENANT_OPERATIONAL_SHEETS = [
   "Customers",
   "Employees",
   "Notifications",
-  "User_Documents",
   "CompanySettings",
   "RolesRights",
   "MasterDepartments",
   "MasterDesignations",
   "MasterRoles",
-  "Users",
   "EmployeeEmails"
 ];
 
@@ -1148,15 +1146,16 @@ function setupTenantTemplateDatabase(spreadsheetId) {
     { name: CRM_CONFIG.SHEETS.CUSTOMERS, schema: CRM_SCHEMAS.CUSTOMERS },
     { name: CRM_CONFIG.SHEETS.EMPLOYEES, schema: CRM_SCHEMAS.EMPLOYEES },
     { name: CRM_CONFIG.SHEETS.NOTIFICATIONS, schema: CRM_SCHEMAS.NOTIFICATIONS },
-    { name: CRM_CONFIG.SHEETS.USER_DOCUMENTS, schema: CRM_SCHEMAS.USER_DOCUMENTS },
     { name: CRM_CONFIG.SHEETS.SETTINGS, schema: CRM_SCHEMAS.SETTINGS },
     { name: CRM_CONFIG.SHEETS.RIGHTS, schema: CRM_SCHEMAS.RIGHTS },
     { name: CRM_CONFIG.SHEETS.DEPARTMENTS, schema: CRM_SCHEMAS.DEPARTMENTS },
     { name: CRM_CONFIG.SHEETS.DESIGNATIONS, schema: CRM_SCHEMAS.DESIGNATIONS },
     { name: CRM_CONFIG.SHEETS.ROLES, schema: CRM_SCHEMAS.ROLES },
-    { name: CRM_CONFIG.SHEETS.USERS, schema: CRM_SCHEMAS.USERS },
     { name: CRM_CONFIG.SHEETS.EMPLOYEE_EMAILS, schema: CRM_SCHEMAS.EMPLOYEE_EMAILS }
   ];
+
+  // Purge obsolete/redundant sheets (Users & User_Documents) from Tenant DB
+  cleanTenantDatabaseSheets_(ss);
 
   tenantSchemas.forEach(item => {
     ensureSheetAndColumns_(ss, item.name, item.schema);
@@ -1213,6 +1212,32 @@ function cleanTenantSettingsErrors_(ssOrId) {
   }
 }
 
+function deleteSheetIfExists_(ss, sheetName) {
+  try {
+    if (!ss) return false;
+    const sheet = ss.getSheetByName(sheetName);
+    if (sheet && ss.getSheets().length > 1) {
+      ss.deleteSheet(sheet);
+      Logger.log("[CLEANUP] Deleted sheet '" + sheetName + "' from " + ss.getName() + " (" + ss.getId() + ")");
+      return true;
+    }
+  } catch (e) {
+    Logger.log("[CLEANUP_WARN] Could not delete '" + sheetName + "': " + e.message);
+  }
+  return false;
+}
+
+function cleanTenantDatabaseSheets_(ss) {
+  if (!ss) return [];
+  const deleted = [];
+  ["Users", "User_Documents", "UserDocuments"].forEach(name => {
+    if (deleteSheetIfExists_(ss, name)) {
+      deleted.push(name);
+    }
+  });
+  return deleted;
+}
+
 /**
  * Master CRM Setup: Initializes Central DB registries, ensures _CRM_DATABASE_TEMPLATE exists,
  * and automatically upgrades all operational sheets across every tenant database with latest schema.
@@ -1220,15 +1245,18 @@ function cleanTenantSettingsErrors_(ssOrId) {
 function setupCRM() {
   const steps = [];
   try {
+    cleanCentralDatabase();
     setupCentralDatabase();
-    steps.push("Central DB setup: OK");
+    steps.push("Central DB setup & cleanup: OK");
   } catch (e) {
     steps.push("Central DB setup: " + e.message + " stack: " + (e.stack || ""));
   }
 
   try {
-    setupTenantTemplateDatabase();
-    steps.push("Template DB setup: OK");
+    const tss = getOrCreateTemplateSpreadsheet_();
+    cleanTenantDatabaseSheets_(tss);
+    setupTenantTemplateDatabase(tss.getId());
+    steps.push("Template DB setup & cleanup: OK");
   } catch (e) {
     steps.push("Template DB setup: " + e.message + " stack: " + (e.stack || ""));
   }
@@ -3211,79 +3239,111 @@ function saveTenantLicense_(payload) {
 }
 
 /**
- * Get User Documents (Multi-Tenant Aware)
+ * Get User / Employee Documents (Multi-Tenant Aware, stored in Employees sheet)
  */
 function getUserDocuments_(payload) {
   payload = payload || {};
-  const userId = (payload.userId || payload.UserId || "").trim();
+  const employeeId = (payload.employeeId || payload.EmployeeId || payload.userId || payload.UserId || "").trim();
   const tenantId = (payload.tenantId || payload.TenantId || payload.activeTenantId || "").trim();
 
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USER_DOCUMENTS, CRM_SCHEMAS.USER_DOCUMENTS, tenantId);
-  let rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.USER_DOCUMENTS);
+  if (!employeeId) return [];
 
-  if (!payload.showDeleted) {
-    rows = rows.filter(r => !r.IsDeleted && String(r.IsDeleted).toLowerCase() !== "true");
+  try {
+    const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES, tenantId);
+    const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.EMPLOYEES);
+    const emp = rows.find(e => 
+      String(e.EmployeeId || "").trim().toLowerCase() === employeeId.toLowerCase() ||
+      String(e.EmployeeCode || "").trim().toLowerCase() === employeeId.toLowerCase() ||
+      String(e.Email || "").trim().toLowerCase() === employeeId.toLowerCase()
+    );
+    if (!emp) return [];
+
+    let docs = [];
+    if (emp.Documents) {
+      try {
+        const parsed = JSON.parse(emp.Documents);
+        if (Array.isArray(parsed)) docs = parsed;
+      } catch (e) {
+        docs = [];
+      }
+    }
+    return docs;
+  } catch (err) {
+    Logger.log("getUserDocuments_ notice: " + err.message);
+    return [];
   }
-
-  if (userId) {
-    rows = rows.filter(r => String(r.UserId).trim().toLowerCase() === userId.toLowerCase());
-  }
-
-  if (tenantId) {
-    rows = rows.filter(r => String(r.TenantId).trim().toUpperCase() === tenantId.toUpperCase());
-  }
-
-  return rows.reverse();
 }
 
 /**
- * Upload User / Tenant Document (Multi-Tenant Aware)
+ * Upload Employee Document (Stored in Drive Employees folder, metadata in Employees sheet)
  */
 function uploadUserDocument_(payload) {
+  return uploadEmployeeDocument_(payload);
+}
+
+function uploadEmployeeDocument_(payload) {
   payload = payload || {};
   const fileData = payload.file;
   if (!fileData || !fileData.base64) throw new Error("Document file content is required.");
 
   const tenantId = (payload.tenantId || payload.TenantId || payload.activeTenantId || "").trim();
-  const userId = (payload.userId || payload.UserId || "").trim();
-  const docName = cleanStr_(payload.docName || fileData.name || "User_Document");
+  const employeeId = (payload.employeeId || payload.EmployeeId || payload.userId || payload.UserId || "").trim();
+  const docName = cleanStr_(payload.docName || fileData.name || "Employee_Document");
   const docType = cleanStr_(payload.docType || "General Document");
-  const userEmail = payload.userEmail || "user@srinvestments.com";
+  const userEmail = payload.userEmail || "admin@srinvestments.com";
   const now = new Date().toISOString();
 
-  // Upload to tenant or root folder
-  const driveRoot = getTenantDriveRootFolder_(tenantId);
+  // Upload to tenant employee drive subfolder
+  const folder = getDriveSubfolder_(CRM_CONFIG.SUBFOLDERS.EMPLOYEES, tenantId);
   const blob = Utilities.newBlob(Utilities.base64Decode(fileData.base64.split(",")[1] || fileData.base64), fileData.mimeType || "application/pdf", docName);
-  const file = driveRoot.createFile(blob);
+  const file = folder.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
   const docId = "DOC_" + Date.now();
-  const record = {
-    Id: docId,
-    UserId: userId,
-    TenantId: tenantId,
-    DocName: docName,
-    DocType: docType,
-    DocPath: file.getUrl(),
-    DriveFileId: file.getId(),
-    ViewUrl: file.getUrl(),
-    IsDeleted: false,
-    Created_By: userEmail,
-    Created_At: now,
-    Updated_By: userEmail,
-    Updated_At: now,
-    Deleted_By: "",
-    Deleted_At: ""
+  const docObj = {
+    id: docId,
+    name: docName,
+    type: docType,
+    driveFileId: file.getId(),
+    viewUrl: file.getUrl(),
+    uploadedAt: now,
+    uploadedBy: userEmail
   };
 
-  const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USER_DOCUMENTS, CRM_SCHEMAS.USER_DOCUMENTS, tenantId);
-  writeRowByHeaders_(sheet, -1, record, CRM_SCHEMAS.USER_DOCUMENTS);
+  if (employeeId) {
+    try {
+      const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.EMPLOYEES, CRM_SCHEMAS.EMPLOYEES, tenantId);
+      const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.EMPLOYEES);
+      const index = rows.findIndex(e => 
+        String(e.EmployeeId || "").trim().toLowerCase() === employeeId.toLowerCase() ||
+        String(e.EmployeeCode || "").trim().toLowerCase() === employeeId.toLowerCase() ||
+        String(e.Email || "").trim().toLowerCase() === employeeId.toLowerCase()
+      );
+      if (index >= 0) {
+        const rowNum = index + 2;
+        let docs = [];
+        try {
+          const raw = rows[index].Documents;
+          if (raw) docs = JSON.parse(raw);
+          if (!Array.isArray(docs)) docs = [];
+        } catch (e) {
+          docs = [];
+        }
+        docs.push(docObj);
+        const colDocs = getHeaderColIndex_(sheet, "Documents");
+        if (colDocs > 0) sheet.getRange(rowNum, colDocs).setValue(JSON.stringify(docs));
+      }
+    } catch (e) {
+      Logger.log("Update employee documents error: " + e.message);
+    }
+  }
 
   return {
     success: true,
     documentId: docId,
     fileId: file.getId(),
-    viewUrl: file.getUrl()
+    viewUrl: file.getUrl(),
+    document: docObj
   };
 }
 

@@ -783,12 +783,9 @@ export default function Staff({ onOpenBackup }) {
 
               {/* 2nd Input: Employee Code (Enabled Alphanumeric, defaults to initials of Name) */}
               <div className="form-group">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                  <label className="form-label" style={{ margin: 0 }}>
-                    Employee Code <span style={{ color: '#ef4444' }}>*</span>
-                  </label>
-                  <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>Alphanumeric</span>
-                </div>
+                <label className="form-label">
+                  Employee Code <span style={{ color: '#ef4444' }}>*</span>
+                </label>
                 <input
                   type="text"
                   className="form-input"
@@ -809,12 +806,9 @@ export default function Staff({ onOpenBackup }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
               {/* Primary Email */}
               <div className="form-group">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                  <label className="form-label" style={{ margin: 0 }}>
-                    Primary Official Email <span style={{ color: '#ef4444' }}>*</span>
-                  </label>
-                  <span style={{ fontSize: '0.675rem', color: '#2563eb', fontWeight: '700' }}>Inner Join Key</span>
-                </div>
+                <label className="form-label">
+                  Primary Official Email <span style={{ color: '#ef4444' }}>*</span>
+                </label>
                 <input
                   type="email"
                   className="form-input"
@@ -827,12 +821,9 @@ export default function Staff({ onOpenBackup }) {
 
               {/* Primary Mobile */}
               <div className="form-group">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                  <label className="form-label" style={{ margin: 0 }}>
-                    Primary Mobile Number <span style={{ color: '#ef4444' }}>*</span>
-                  </label>
-                  <span style={{ fontSize: '0.675rem', color: '#2563eb', fontWeight: '700' }}>Login Key</span>
-                </div>
+                <label className="form-label">
+                  Primary Mobile Number <span style={{ color: '#ef4444' }}>*</span>
+                </label>
                 <input
                   type="tel"
                   className="form-input"
@@ -890,10 +881,7 @@ export default function Staff({ onOpenBackup }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               {/* Department (Loaded from Department Master) */}
               <div className="form-group">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                  <label className="form-label" style={{ margin: 0 }}>Department</label>
-                  <span style={{ fontSize: '0.675rem', color: '#2563eb', fontWeight: '600' }}>Master Hub</span>
-                </div>
+                <label className="form-label">Department</label>
                 <select
                   className="form-select"
                   value={formData.Department}
@@ -919,10 +907,7 @@ export default function Staff({ onOpenBackup }) {
 
               {/* Designation (Loaded from Designation Master) */}
               <div className="form-group">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                  <label className="form-label" style={{ margin: 0 }}>Designation</label>
-                  <span style={{ fontSize: '0.675rem', color: '#2563eb', fontWeight: '600' }}>Master Hub</span>
-                </div>
+                <label className="form-label">Designation</label>
                 <select
                   className="form-select"
                   value={formData.Designation}
@@ -948,10 +933,7 @@ export default function Staff({ onOpenBackup }) {
 
               {/* CRM System Role (Loaded from Role Master) */}
               <div className="form-group">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                  <label className="form-label" style={{ margin: 0 }}>CRM System Role</label>
-                  <span style={{ fontSize: '0.675rem', color: '#2563eb', fontWeight: '600' }}>Master Hub</span>
-                </div>
+                <label className="form-label">CRM System Role</label>
                 <select
                   className="form-select"
                   value={formData.Role}
