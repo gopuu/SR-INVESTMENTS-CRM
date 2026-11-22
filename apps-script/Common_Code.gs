@@ -1323,6 +1323,7 @@ function setupCRM() {
  * ==============================================================
  */
 function cleanCentralDatabase() {
+  deduplicateDefaultConfig_();
   const ss = getSpreadsheet_();
   const sheets = ss.getSheets();
   const deleted = [];
@@ -3575,6 +3576,7 @@ function isConfigTrue_(val, defaultVal) {
 
 function getDefaultConfig_() {
   const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.DEFAULT_CONFIG, CRM_SCHEMAS.DEFAULT_CONFIG);
+  deduplicateDefaultConfig_(sheet);
   let rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.DEFAULT_CONFIG);
 
   if (!rows || rows.length === 0) {
@@ -3617,11 +3619,12 @@ function getDefaultConfig_() {
         } catch (e) {
           Logger.log("Update empty cell notice: " + e.message);
         }
+        rows[idx].Value = defaultValue;
         config[cleanKey] = defaultValue;
         config[cleanKey.toLowerCase()] = defaultValue;
       }
     } else {
-      // Row doesn't exist: insert it
+      // Row doesn't exist: insert it once
       try {
         writeRowByHeaders_(sheet, 0, {
           Key: cleanKey,
@@ -3635,6 +3638,11 @@ function getDefaultConfig_() {
           Deleted_By: "",
           Deleted_At: ""
         }, CRM_SCHEMAS.DEFAULT_CONFIG);
+        rows.push({
+          Key: cleanKey,
+          Value: defaultValue,
+          Description: description
+        });
         config[cleanKey] = defaultValue;
         config[cleanKey.toLowerCase()] = defaultValue;
       } catch (e) {
@@ -3664,29 +3672,97 @@ function getDefaultConfig_() {
   return config;
 }
 
+/**
+ * Deduplicates the Default-Config sheet in Central SaaS Master DB.
+ * Scans all rows by "Key" (case-insensitive).
+ * - If an existing key has empty Value but duplicate has a non-empty Value, preserves the non-empty Value.
+ * - Deletes all duplicate rows from bottom-to-top.
+ * Enforces strict single-entry uniqueness for every config key.
+ */
+function deduplicateDefaultConfig_(sheet) {
+  try {
+    sheet = sheet || getOrCreateSheet_(CRM_CONFIG.SHEETS.DEFAULT_CONFIG, CRM_SCHEMAS.DEFAULT_CONFIG);
+    if (!sheet) return;
+    const lastRow = sheet.getLastRow();
+    if (lastRow <= 1) return;
+
+    const data = sheet.getDataRange().getValues();
+    if (data.length <= 1) return;
+
+    const headers = data[0].map(h => String(h || "").trim());
+    const keyColIdx = headers.indexOf("Key");
+    const valColIdx = headers.indexOf("Value");
+    if (keyColIdx === -1) return;
+
+    const seenKeys = {}; // keyLower -> { rowNum, hasValue }
+    const rowsToDelete = [];
+
+    for (let i = 1; i < data.length; i++) {
+      const rowNum = i + 1;
+      const rawKey = String(data[i][keyColIdx] || "").trim();
+      if (!rawKey) continue;
+      const keyLower = rawKey.toLowerCase();
+      const rawVal = valColIdx !== -1 ? String(data[i][valColIdx] || "").trim() : "";
+
+      if (seenKeys[keyLower]) {
+        // Duplicate key encountered!
+        // If earlier row was empty, preserve non-empty value from duplicate
+        if (!seenKeys[keyLower].hasValue && rawVal !== "") {
+          if (valColIdx !== -1) {
+            sheet.getRange(seenKeys[keyLower].rowNum, valColIdx + 1).setValue(data[i][valColIdx]);
+          }
+          seenKeys[keyLower].hasValue = true;
+        }
+        rowsToDelete.push(rowNum);
+      } else {
+        seenKeys[keyLower] = {
+          rowNum: rowNum,
+          hasValue: rawVal !== ""
+        };
+      }
+    }
+
+    if (rowsToDelete.length > 0) {
+      Logger.log("[DEDUPLICATE_CONFIG] Found " + rowsToDelete.length + " duplicate rows in Default-Config. Deleting...");
+      for (let j = rowsToDelete.length - 1; j >= 0; j--) {
+        sheet.deleteRow(rowsToDelete[j]);
+      }
+      Logger.log("[DEDUPLICATE_CONFIG] Successfully purged duplicate rows from Default-Config.");
+    }
+  } catch (err) {
+    Logger.log("[DEDUPLICATE_CONFIG_ERROR] " + err.message);
+  }
+}
+
 function saveDefaultConfig_(payload) {
   payload = payload || {};
   const configs = payload.configs || payload;
   const userEmail = payload.userEmail || "superadmin@srinvestments.com";
   const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.DEFAULT_CONFIG, CRM_SCHEMAS.DEFAULT_CONFIG);
-  const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.DEFAULT_CONFIG);
+  deduplicateDefaultConfig_(sheet);
+
+  let rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.DEFAULT_CONFIG);
   const now = new Date().toISOString();
+  const valCol = getHeaderColIndex_(sheet, "Value");
+  const upByCol = getHeaderColIndex_(sheet, "Updated_By");
+  const upAtCol = getHeaderColIndex_(sheet, "Updated_At");
 
   Object.keys(configs).forEach(key => {
     if (key === "userEmail" || key === "userName" || key === "tenantId" || key === "activeTenantId") return;
     const val = String(configs[key] ?? "").trim();
     const cleanKey = String(key).trim();
+    if (!cleanKey) return;
     const idx = rows.findIndex(r => String(r.Key || "").trim().toLowerCase() === cleanKey.toLowerCase());
 
     if (idx >= 0) {
+      // Update in-place; NEVER create a duplicate row
       const rowNum = idx + 2;
-      const valCol = getHeaderColIndex_(sheet, "Value");
-      const upByCol = getHeaderColIndex_(sheet, "Updated_By");
-      const upAtCol = getHeaderColIndex_(sheet, "Updated_At");
       if (valCol > 0) sheet.getRange(rowNum, valCol).setValue(val);
       if (upByCol > 0) sheet.getRange(rowNum, upByCol).setValue(userEmail);
       if (upAtCol > 0) sheet.getRange(rowNum, upAtCol).setValue(now);
+      rows[idx].Value = val;
     } else {
+      // Row does not exist; insert once
       writeRowByHeaders_(sheet, 0, {
         Key: cleanKey,
         Value: val,
@@ -3699,6 +3775,10 @@ function saveDefaultConfig_(payload) {
         Deleted_By: "",
         Deleted_At: ""
       }, CRM_SCHEMAS.DEFAULT_CONFIG);
+      rows.push({
+        Key: cleanKey,
+        Value: val
+      });
     }
   });
 
@@ -3708,7 +3788,15 @@ function saveDefaultConfig_(payload) {
 
 function seedDefaultConfig_(sheet) {
   sheet = sheet || getOrCreateSheet_(CRM_CONFIG.SHEETS.DEFAULT_CONFIG, CRM_SCHEMAS.DEFAULT_CONFIG);
+  deduplicateDefaultConfig_(sheet);
+
   const now = new Date().toISOString();
+  let rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.DEFAULT_CONFIG);
+  const valCol = getHeaderColIndex_(sheet, "Value");
+  const descCol = getHeaderColIndex_(sheet, "Description");
+  const upByCol = getHeaderColIndex_(sheet, "Updated_By");
+  const upAtCol = getHeaderColIndex_(sheet, "Updated_At");
+
   const seedData = [
     {
       Key: "LoginCompanyName",
@@ -3783,18 +3871,43 @@ function seedDefaultConfig_(sheet) {
   ];
 
   seedData.forEach(item => {
-    writeRowByHeaders_(sheet, 0, {
-      Key: item.Key,
-      Value: item.Value,
-      Description: item.Description,
-      IsDeleted: false,
-      Created_By: "system",
-      Created_At: now,
-      Updated_By: "system",
-      Updated_At: now,
-      Deleted_By: "",
-      Deleted_At: ""
-    }, CRM_SCHEMAS.DEFAULT_CONFIG);
+    const cleanKey = String(item.Key).trim();
+    const idx = rows.findIndex(r => String(r.Key || "").trim().toLowerCase() === cleanKey.toLowerCase());
+    if (idx >= 0) {
+      // Row already exists: update if value is empty and seed item has value; NEVER duplicate
+      const existingVal = rows[idx].Value !== undefined && rows[idx].Value !== null ? String(rows[idx].Value).trim() : "";
+      if (existingVal === "" && item.Value !== "") {
+        const rowNum = idx + 2;
+        try {
+          if (valCol > 0) sheet.getRange(rowNum, valCol).setValue(item.Value);
+          if (descCol > 0 && !rows[idx].Description) sheet.getRange(rowNum, descCol).setValue(item.Description);
+          if (upByCol > 0) sheet.getRange(rowNum, upByCol).setValue("system");
+          if (upAtCol > 0) sheet.getRange(rowNum, upAtCol).setValue(now);
+          rows[idx].Value = item.Value;
+        } catch (e) {
+          Logger.log("Update empty cell notice: " + e.message);
+        }
+      }
+    } else {
+      // Truly absent: write once
+      writeRowByHeaders_(sheet, 0, {
+        Key: cleanKey,
+        Value: item.Value,
+        Description: item.Description,
+        IsDeleted: false,
+        Created_By: "system",
+        Created_At: now,
+        Updated_By: "system",
+        Updated_At: now,
+        Deleted_By: "",
+        Deleted_At: ""
+      }, CRM_SCHEMAS.DEFAULT_CONFIG);
+      rows.push({
+        Key: cleanKey,
+        Value: item.Value,
+        Description: item.Description
+      });
+    }
   });
 }
 
