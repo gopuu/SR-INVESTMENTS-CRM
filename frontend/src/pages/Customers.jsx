@@ -924,23 +924,72 @@ export default function Customers({ onOpenBackup }) {
         maxWidth="900px"
         hideHeader={true}
       >
-        <div className="bg-white rounded-xl overflow-hidden -m-4 sm:-m-6">
-          {/* Header Bar matching Reference Screenshot (Blue ribbon) */}
-          <div className="bg-[#2563eb] text-white px-6 py-4 flex items-center justify-between">
-            <h2 className="text-lg font-bold">
-              {editingCustomer ? 'Edit Customer' : 'Add Customer'}
-            </h2>
+        <div className="bg-white rounded-xl overflow-hidden -m-4 sm:-m-6 flex flex-col h-full max-h-[88vh] min-h-0">
+          {/* Custom Header with Primary Color (Fixed Top) */}
+          <div style={{
+            background: 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
+            color: '#ffffff',
+            padding: '1.25rem 1.75rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0,
+            borderTopLeftRadius: '12px',
+            borderTopRightRadius: '12px',
+            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+            zIndex: 10
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                backgroundColor: 'rgba(255, 255, 255, 0.18)',
+                backdropFilter: 'blur(8px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ffffff',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                flexShrink: 0
+              }}>
+                {editingCustomer ? <Edit3 size={20} /> : <UserPlus size={20} />}
+              </div>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em' }}>
+                  {editingCustomer ? `Edit Customer: ${editingCustomer.FullName || editingCustomer.EmployeeCode}` : 'Add Customer'}
+                </h2>
+                <p style={{ margin: '0.15rem 0 0', fontSize: '0.775rem', color: '#dbeafe', fontWeight: '400' }}>
+                  7-Step KYC, Bank, Nominee & Investor Registration Wizard
+                </p>
+              </div>
+            </div>
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
-              className="text-white/80 hover:text-white p-1 rounded-md transition-colors"
+              aria-label="Close modal"
+              style={{
+                background: 'rgba(255, 255, 255, 0.15)',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                color: '#ffffff',
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'; }}
             >
-              <X size={20} />
+              <X size={18} />
             </button>
           </div>
 
-          {/* 7-Step Progress Wizard Bar (Exact layout as in User Screenshots) */}
-          <div className="bg-white border-b border-slate-200 px-4 sm:px-8 py-5">
+          {/* 7-Step Progress Wizard Bar (Fixed) */}
+          <div className="bg-white border-b border-slate-200 px-4 sm:px-8 py-5 flex-shrink-0">
             <div className="flex items-center justify-between relative">
               {/* Connecting line */}
               <div className="absolute left-6 right-6 top-4 -translate-y-1/2 h-0.5 bg-slate-200 -z-0" />
@@ -982,8 +1031,8 @@ export default function Customers({ onOpenBackup }) {
             </div>
           </div>
 
-          {/* Step Body */}
-          <div className="p-6 max-h-[70vh] overflow-y-auto space-y-6">
+          {/* Step Body (Scrollable) */}
+          <div className="p-6 flex-1 min-h-0 overflow-y-auto space-y-6">
             
             {/* ================= STEP 1: BASIC DETAILS ================= */}
             {currentStep === 1 && (
@@ -2014,8 +2063,8 @@ export default function Customers({ onOpenBackup }) {
             )}
           </div>
 
-          {/* Modal Footer Bar (Next, Prev, Save as Draft, Submit) */}
-          <div className="bg-slate-50 border-t border-slate-200 px-6 py-4 flex items-center justify-between">
+          {/* Modal Footer Bar (Pinned Non-scrolling: Next, Prev, Save as Draft, Submit) */}
+          <div className="bg-white border-t border-slate-200 px-6 py-4 flex items-center justify-between flex-shrink-0 shadow-[0_-2px_10px_rgba(0,0,0,0.04)] z-10">
             <span className="text-xs text-slate-500">* Required fields</span>
 
             <div className="flex items-center gap-2">

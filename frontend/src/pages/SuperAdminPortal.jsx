@@ -965,51 +965,90 @@ export default function SuperAdminPortal({ onOpenBackup }) {
         <Modal
           isOpen={isTenantModalOpen}
           onClose={() => setIsTenantModalOpen(false)}
-          headerContent={
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-              <div style={{
-                width: '42px',
-                height: '42px',
-                borderRadius: '10px',
-                background: 'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#ffffff',
-                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.28)',
-                flexShrink: 0
-              }}>
-                <Building2 size={22} />
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: '800', color: '#0f172a', margin: 0, letterSpacing: '-0.01em' }}>
-                    {editingTenant ? `Edit Organization: ${editingTenant.CompanyName}` : 'Onboard New Client Organization'}
-                  </h3>
-                  <span style={{
-                    fontSize: '0.675rem',
-                    fontWeight: '700',
-                    textTransform: 'uppercase',
-                    backgroundColor: '#eff6ff',
-                    color: '#1d4ed8',
-                    border: '1px solid #bfdbfe',
-                    padding: '2px 8px',
-                    borderRadius: '9999px',
-                    letterSpacing: '0.04em'
-                  }}>
-                    SaaS Multi-Tenant
-                  </span>
-                </div>
-                <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '3px 0 0', lineHeight: 1.3 }}>
-                  Configure dedicated Google Cloud Sheets, Drive folder storage isolation & subscription licensing.
-                </p>
-              </div>
-            </div>
-          }
-          maxWidth="820px"
+          hideHeader={true}
+          maxWidth="840px"
         >
-          <form onSubmit={handleSaveTenant} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-            <div className="modal-body" style={{ overflowY: 'auto', flex: 1, padding: '1.5rem', maxHeight: 'calc(90vh - 140px)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '88vh', minHeight: 0, overflow: 'hidden' }}>
+            {/* Custom Primary Color Header (Fixed Top) */}
+            <div style={{
+              background: 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
+              color: '#ffffff',
+              padding: '1.25rem 1.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexShrink: 0,
+              borderTopLeftRadius: '12px',
+              borderTopRightRadius: '12px',
+              boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+              zIndex: 10
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.18)',
+                  backdropFilter: 'blur(8px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                  flexShrink: 0
+                }}>
+                  <Building2 size={22} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: '800', color: '#ffffff', margin: 0, letterSpacing: '-0.01em' }}>
+                      {editingTenant ? `Edit Organization: ${editingTenant.CompanyName}` : 'Onboard New Client Organization'}
+                    </h3>
+                    <span style={{
+                      fontSize: '0.675rem',
+                      fontWeight: '800',
+                      textTransform: 'uppercase',
+                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                      color: '#ffffff',
+                      border: '1px solid rgba(255, 255, 255, 0.35)',
+                      padding: '2px 8px',
+                      borderRadius: '9999px',
+                      letterSpacing: '0.04em'
+                    }}>
+                      SaaS Multi-Tenant
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.785rem', color: '#dbeafe', margin: '3px 0 0', lineHeight: 1.3 }}>
+                    Configure dedicated Google Cloud Sheets, Drive folder storage isolation & subscription licensing.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsTenantModalOpen(false)}
+                aria-label="Close modal"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.15)',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                  color: '#ffffff',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'; }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveTenant} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', margin: 0 }}>
+              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '1.75rem 2rem' }}>
               {/* SECTION 1: ORGANIZATION IDENTITY & PROFILE */}
               <div style={{ marginBottom: '1.5rem' }}>
                 <div style={{
@@ -1567,17 +1606,21 @@ export default function SuperAdminPortal({ onOpenBackup }) {
               )}
             </div>
 
-            {/* MODAL FOOTER */}
-            <div className="modal-footer" style={{
+            {/* Non-scrolling pinned footer */}
+            <div style={{
               flexShrink: 0,
-              padding: '0.85rem 1.5rem',
+              padding: '1rem 1.75rem',
               borderTop: '1px solid #e2e8f0',
-              backgroundColor: '#f8fafc',
+              backgroundColor: '#ffffff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               flexWrap: 'wrap',
-              gap: '0.75rem'
+              gap: '0.75rem',
+              borderBottomLeftRadius: '12px',
+              borderBottomRightRadius: '12px',
+              boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.04)',
+              zIndex: 10
             }}>
               <div style={{
                 fontSize: '0.75rem',
@@ -1637,7 +1680,8 @@ export default function SuperAdminPortal({ onOpenBackup }) {
               </div>
             </div>
           </form>
-        </Modal>
+        </div>
+      </Modal>
       )}
 
       {/* ============================================================== */}
@@ -1647,10 +1691,74 @@ export default function SuperAdminPortal({ onOpenBackup }) {
         <Modal
           isOpen={isLicenseModalOpen}
           onClose={() => setIsLicenseModalOpen(false)}
-          title={`Licensing & Subscription: ${selectedTenantForLicense.CompanyName} (${selectedTenantForLicense.TenantId})`}
-          maxWidth="760px"
+          hideHeader={true}
+          maxWidth="780px"
         >
-          <div className="modal-body" style={{ overflowY: 'auto', flex: 1, padding: '1.25rem 1.5rem', maxHeight: 'calc(90vh - 140px)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '88vh', minHeight: 0, overflow: 'hidden' }}>
+            {/* Custom Primary Color Header (Fixed Top) */}
+            <div style={{
+              background: 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
+              color: '#ffffff',
+              padding: '1.25rem 1.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexShrink: 0,
+              borderTopLeftRadius: '12px',
+              borderTopRightRadius: '12px',
+              boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+              zIndex: 10
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '10px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.18)',
+                  backdropFilter: 'blur(8px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                  flexShrink: 0
+                }}>
+                  <CreditCard size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em' }}>
+                    Licensing & Subscription: {selectedTenantForLicense.CompanyName}
+                  </h3>
+                  <p style={{ margin: '0.15rem 0 0', fontSize: '0.775rem', color: '#dbeafe', fontWeight: '400' }}>
+                    Tenant ID: {selectedTenantForLicense.TenantId} • Manage SaaS licenses & payment trail
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLicenseModalOpen(false)}
+                aria-label="Close modal"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.15)',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                  color: '#ffffff',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'; }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '1.5rem 1.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {/* Active Subscription Banner */}
             <div style={{
               display: 'flex',
@@ -1991,10 +2099,28 @@ export default function SuperAdminPortal({ onOpenBackup }) {
             </div>
           </div>
 
-          <div className="modal-footer" style={{ padding: '0.75rem 1.5rem', display: 'flex', justifyContent: 'flex-end', flexShrink: 0, borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
-            <button type="button" className="btn btn-secondary" onClick={() => setIsLicenseModalOpen(false)}>
-              Close
-            </button>
+            {/* Non-scrolling pinned footer */}
+            <div style={{
+              padding: '1rem 1.75rem',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              flexShrink: 0,
+              borderTop: '1px solid #e2e8f0',
+              backgroundColor: '#ffffff',
+              borderBottomLeftRadius: '12px',
+              borderBottomRightRadius: '12px',
+              boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.04)',
+              zIndex: 10
+            }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setIsLicenseModalOpen(false)}
+                style={{ padding: '0.6rem 1.4rem', fontSize: '0.85rem' }}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </Modal>
       )}

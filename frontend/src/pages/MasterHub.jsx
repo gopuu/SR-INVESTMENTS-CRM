@@ -1130,134 +1130,248 @@ export default function MasterHub({ onOpenBackup, initialTab = 'departments' }) 
       <Modal
         isOpen={isModalOpen}
         onClose={() => !saving && setIsModalOpen(false)}
-        title={
-          editingItem 
-            ? `Edit ${modalType.charAt(0).toUpperCase() + modalType.slice(1)}: ${formData.code}` 
-            : `Add New ${modalType.charAt(0).toUpperCase() + modalType.slice(1)}`
-        }
-        maxWidth="540px"
+        hideHeader={true}
+        maxWidth="580px"
       >
-        <form onSubmit={handleSave}>
-          <div className="modal-body">
-            {/* 1st Input: Name */}
-            <div className="form-group">
-              <label className="form-label">
-                {modalType === 'department' ? 'Department Name' : modalType === 'designation' ? 'Designation Name' : 'Role Title'} <span style={{ color: '#ef4444' }}>*</span>
-              </label>
-              <input
-                type="text"
-                className="form-input"
-                value={formData.name}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  const updated = { ...formData, name: val };
-                  if (!isCodeManual) {
-                    updated.code = getInitialsCode(val);
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '88vh', minHeight: 0, overflow: 'hidden' }}>
+          {/* Custom Header with Primary Color (Fixed Top) */}
+          <div style={{
+            background: 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
+            color: '#ffffff',
+            padding: '1.25rem 1.75rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0,
+            borderTopLeftRadius: '12px',
+            borderTopRightRadius: '12px',
+            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+            zIndex: 10
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                backgroundColor: 'rgba(255, 255, 255, 0.18)',
+                backdropFilter: 'blur(8px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ffffff',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                flexShrink: 0
+              }}>
+                {modalType === 'department' ? (
+                  <Building2 size={20} />
+                ) : modalType === 'designation' ? (
+                  <Briefcase size={20} />
+                ) : (
+                  <Shield size={20} />
+                )}
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em' }}>
+                  {editingItem 
+                    ? `Edit ${modalType.charAt(0).toUpperCase() + modalType.slice(1)}: ${formData.name || formData.code}` 
+                    : `Add New ${modalType.charAt(0).toUpperCase() + modalType.slice(1)}`
                   }
-                  setFormData(updated);
-                }}
-                placeholder={
-                  modalType === 'department' 
-                    ? 'e.g. Wealth Management' 
-                    : modalType === 'designation' 
-                    ? 'e.g. Senior Investment Advisor' 
-                    : 'e.g. Relationship Manager'
-                }
-                required
-              />
-            </div>
-
-            {/* 2nd Input: Code (Enabled Alphanumeric, defaults to initials of Name) */}
-            <div className="form-group">
-              <label className="form-label">
-                {modalType === 'department' ? 'Department Code' : modalType === 'designation' ? 'Designation Code' : 'Role Code'} <span style={{ color: '#ef4444' }}>*</span>
-              </label>
-              <input
-                type="text"
-                className="form-input"
-                value={formData.code}
-                onChange={(e) => {
-                  setIsCodeManual(true);
-                  setFormData({ ...formData, code: e.target.value.toUpperCase() });
-                }}
-                placeholder="e.g. HW, SIA, RM..."
-                required
-              />
-              <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
-                Alphanumeric unique code (auto-derived from initials, editable). Must be unique.
+                </h3>
+                <p style={{ margin: '0.15rem 0 0', fontSize: '0.775rem', color: '#dbeafe', fontWeight: '400' }}>
+                  {modalType === 'department'
+                    ? 'Define organization unit structure & operational team'
+                    : modalType === 'designation'
+                    ? 'Staff professional title & job hierarchy mapping'
+                    : 'Platform authorization level & system privilege mapping'
+                  }
+                </p>
               </div>
             </div>
-
-            {/* Mapped Department for Designations */}
-            {modalType === 'designation' && (
-              <div className="form-group">
-                <label className="form-label">Mapped Department</label>
-                <select
-                  className="form-select"
-                  value={formData.department}
-                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <option value="" disabled>Fetching data...</option>
-                  ) : departments.filter(d => !d.IsDeleted && d.Status === 'Active').length === 0 ? (
-                    <option value="" disabled>No Data Available</option>
-                  ) : (
-                    <>
-                      <option value="">-- Select Department --</option>
-                      {departments.filter(d => !d.IsDeleted && d.Status === 'Active').map(dept => (
-                        <option key={dept.DepartmentId} value={dept.DepartmentName}>
-                          {dept.DepartmentName} ({dept.DepartmentCode})
-                        </option>
-                      ))}
-                    </>
-                  )}
-                </select>
-              </div>
-            )}
-
-            <div className="form-group">
-              <label className="form-label">Description / Responsibilities</label>
-              <textarea
-                className="form-textarea"
-                rows={3}
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Brief description of this master entity..."
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Status</label>
-              <select
-                className="form-select"
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-              >
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="modal-footer">
             <button
               type="button"
-              className="btn btn-secondary"
-              onClick={() => setIsModalOpen(false)}
-              disabled={saving}
+              onClick={() => !saving && setIsModalOpen(false)}
+              aria-label="Close modal"
+              style={{
+                background: 'rgba(255, 255, 255, 0.15)',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                color: '#ffffff',
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'; }}
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={saving}
-            >
-              {saving ? 'Saving...' : editingItem ? 'Update Master' : 'Create Master'}
+              <X size={18} />
             </button>
           </div>
-        </form>
+
+          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', margin: 0 }}>
+            {/* Scrollable Form Body */}
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '1.5rem 2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* 1st Input: Name */}
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontWeight: '700', fontSize: '0.825rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.45rem' }}>
+                  {modalType === 'department' ? <Building2 size={14} color="#2563eb" /> : modalType === 'designation' ? <Briefcase size={14} color="#2563eb" /> : <Shield size={14} color="#2563eb" />}
+                  <span>{modalType === 'department' ? 'Department Name' : modalType === 'designation' ? 'Designation Name' : 'Role Title'} <span style={{ color: '#ef4444' }}>*</span></span>
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={formData.name}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const updated = { ...formData, name: val };
+                    if (!isCodeManual) {
+                      updated.code = getInitialsCode(val);
+                    }
+                    setFormData(updated);
+                  }}
+                  placeholder={
+                    modalType === 'department' 
+                      ? 'e.g. Wealth Management' 
+                      : modalType === 'designation' 
+                      ? 'e.g. Senior Investment Advisor' 
+                      : 'e.g. Relationship Manager'
+                  }
+                  required
+                  style={{ height: '42px', borderRadius: '8px', fontSize: '0.875rem' }}
+                />
+              </div>
+
+              {/* 2nd Input: Code (Enabled Alphanumeric, defaults to initials of Name) */}
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontWeight: '700', fontSize: '0.825rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.45rem' }}>
+                  <span>{modalType === 'department' ? 'Department Code' : modalType === 'designation' ? 'Designation Code' : 'Role Code'} <span style={{ color: '#ef4444' }}>*</span></span>
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={formData.code}
+                  onChange={(e) => {
+                    setIsCodeManual(true);
+                    setFormData({ ...formData, code: e.target.value.toUpperCase() });
+                  }}
+                  placeholder="e.g. HW, SIA, RM..."
+                  required
+                  style={{ height: '42px', borderRadius: '8px', fontSize: '0.875rem', fontFamily: 'monospace', fontWeight: '700' }}
+                />
+                <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '4px' }}>
+                  Alphanumeric unique code (auto-derived from initials, editable). Must be unique.
+                </div>
+              </div>
+
+              {/* Mapped Department for Designations */}
+              {modalType === 'designation' && (
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontWeight: '700', fontSize: '0.825rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.45rem' }}>
+                    <Building2 size={14} color="#64748b" />
+                    <span>Mapped Department</span>
+                  </label>
+                  <select
+                    className="form-select"
+                    value={formData.department}
+                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                    disabled={loading}
+                    style={{ height: '42px', borderRadius: '8px', fontSize: '0.875rem' }}
+                  >
+                    {loading ? (
+                      <option value="" disabled>Fetching data...</option>
+                    ) : departments.filter(d => !d.IsDeleted && d.Status === 'Active').length === 0 ? (
+                      <option value="" disabled>No Data Available</option>
+                    ) : (
+                      <>
+                        <option value="">-- Select Department --</option>
+                        {departments.filter(d => !d.IsDeleted && d.Status === 'Active').map(dept => (
+                          <option key={dept.DepartmentId} value={dept.DepartmentName}>
+                            {dept.DepartmentName} ({dept.DepartmentCode})
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
+                </div>
+              )}
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontWeight: '700', fontSize: '0.825rem', color: '#334155', marginBottom: '0.45rem' }}>
+                  Description / Responsibilities
+                </label>
+                <textarea
+                  className="form-textarea"
+                  rows={3}
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Brief description of this master entity..."
+                  style={{ borderRadius: '8px', fontSize: '0.875rem' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontWeight: '700', fontSize: '0.825rem', color: '#334155', marginBottom: '0.45rem' }}>
+                  Status
+                </label>
+                <select
+                  className="form-select"
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  style={{ height: '42px', borderRadius: '8px', fontSize: '0.875rem' }}
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Non-scrolling pinned footer */}
+            <div style={{
+              flexShrink: 0,
+              padding: '1rem 2rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: '0.85rem',
+              borderTop: '1px solid #e2e8f0',
+              backgroundColor: '#ffffff',
+              borderBottomLeftRadius: '12px',
+              borderBottomRightRadius: '12px',
+              boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.04)',
+              zIndex: 10
+            }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setIsModalOpen(false)}
+                disabled={saving}
+                style={{ padding: '0.65rem 1.4rem', fontSize: '0.875rem' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={saving}
+                style={{
+                  padding: '0.65rem 1.6rem',
+                  fontSize: '0.875rem',
+                  fontWeight: '700',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  boxShadow: '0 2px 6px rgba(37, 99, 235, 0.3)'
+                }}
+              >
+                {saving && <RefreshCw size={15} className="spin-anim" />}
+                <span>{saving ? 'Saving...' : editingItem ? 'Update Master' : 'Create Master'}</span>
+              </button>
+            </div>
+          </form>
+        </div>
       </Modal>
     </div>
   );

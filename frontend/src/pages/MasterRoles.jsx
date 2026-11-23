@@ -423,9 +423,73 @@ export default function MasterRoles({ onOpenBackup }) {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingItem ? 'Edit Role' : 'Add New Role'}
+        hideHeader={true}
+        maxWidth="560px"
       >
-        <form onSubmit={handleSave}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '88vh', minHeight: 0, overflow: 'hidden' }}>
+          {/* Custom Header with Primary Color (Fixed Top) */}
+          <div style={{
+            background: 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
+            color: '#ffffff',
+            padding: '1.25rem 1.75rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0,
+            borderTopLeftRadius: '12px',
+            borderTopRightRadius: '12px',
+            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+            zIndex: 10
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                backgroundColor: 'rgba(255, 255, 255, 0.18)',
+                backdropFilter: 'blur(8px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ffffff',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                flexShrink: 0
+              }}>
+                <Shield size={20} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em' }}>
+                  {editingItem ? 'Edit Role: ' + formData.RoleName : 'Add New Role'}
+                </h3>
+                <p style={{ margin: '0.15rem 0 0', fontSize: '0.775rem', color: '#dbeafe', fontWeight: '400' }}>
+                  Platform authorization level & system privilege mapping
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(false)}
+              aria-label="Close modal"
+              style={{
+                background: 'rgba(255, 255, 255, 0.15)',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                color: '#ffffff',
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>×</span>
+            </button>
+          </div>
+
+          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', margin: 0 }}>
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '1.5rem 2rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
           {/* 1st Input: Role Name */}
           <div className="form-group">
             <label className="form-label">Role Name <span style={{ color: '#ef4444' }}>*</span></label>
@@ -490,24 +554,44 @@ export default function MasterRoles({ onOpenBackup }) {
             </select>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setIsModalOpen(false)}
-              disabled={saving}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={saving}
-            >
-              {saving ? 'Saving...' : (editingItem ? 'Update Role' : 'Save Role')}
-            </button>
-          </div>
-        </form>
+            </div>
+
+            {/* Non-scrolling pinned footer */}
+            <div style={{
+              flexShrink: 0,
+              padding: '1rem 2rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: '0.85rem',
+              borderTop: '1px solid #e2e8f0',
+              backgroundColor: '#ffffff',
+              borderBottomLeftRadius: '12px',
+              borderBottomRightRadius: '12px',
+              boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.04)',
+              zIndex: 10
+            }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setIsModalOpen(false)}
+                disabled={saving}
+                style={{ padding: '0.65rem 1.4rem', fontSize: '0.875rem' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={saving}
+                style={{ padding: '0.65rem 1.6rem', fontSize: '0.875rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: '0 2px 6px rgba(37, 99, 235, 0.3)' }}
+              >
+                {saving && <RefreshCw size={15} className="spin-anim" />}
+                <span>{saving ? 'Saving...' : (editingItem ? 'Update Role' : 'Save Role')}</span>
+              </button>
+            </div>
+          </form>
+        </div>
       </Modal>
     </div>
   );

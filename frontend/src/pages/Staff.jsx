@@ -733,11 +733,75 @@ export default function Staff({ onOpenBackup }) {
       <Modal
         isOpen={isModalOpen}
         onClose={() => !saving && setIsModalOpen(false)}
-        title={editingEmployee ? `Edit Staff: ${editingEmployee.EmployeeCode}` : 'Add Staff / Team Member'}
-        maxWidth="720px"
+        hideHeader={true}
+        maxWidth="760px"
       >
-        <form onSubmit={handleSave}>
-          <div className="modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '88vh', minHeight: 0, overflow: 'hidden' }}>
+          {/* Custom Header with Primary Color (Fixed Top) */}
+          <div style={{
+            background: 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
+            color: '#ffffff',
+            padding: '1.25rem 1.75rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0,
+            borderTopLeftRadius: '12px',
+            borderTopRightRadius: '12px',
+            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+            zIndex: 10
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                backgroundColor: 'rgba(255, 255, 255, 0.18)',
+                backdropFilter: 'blur(8px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ffffff',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                flexShrink: 0
+              }}>
+                <UserCheck size={20} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em' }}>
+                  {editingEmployee ? `Edit Staff: ${editingEmployee.FullName || editingEmployee.EmployeeCode}` : 'Add Staff / Team Member'}
+                </h3>
+                <p style={{ margin: '0.15rem 0 0', fontSize: '0.775rem', color: '#dbeafe', fontWeight: '400' }}>
+                  Staff Profile, Department & Tenant Workspace Assignment
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => !saving && setIsModalOpen(false)}
+              aria-label="Close modal"
+              style={{
+                background: 'rgba(255, 255, 255, 0.15)',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                color: '#ffffff',
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'; }}
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', margin: 0 }}>
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '1.5rem 2rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
             {/* Photo preview and upload */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginBottom: '1.25rem', padding: '1rem', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
               <div style={{ position: 'relative' }}>
@@ -1044,26 +1108,52 @@ export default function Staff({ onOpenBackup }) {
                 onChange={(e) => setFormData({ ...formData, Address: e.target.value })}
               />
             </div>
-          </div>
+            </div>
 
-          <div className="modal-footer">
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setIsModalOpen(false)}
-              disabled={saving}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={saving}
-            >
-              {saving ? 'Saving...' : (editingEmployee ? 'Update Staff Member' : 'Register Staff Member')}
-            </button>
-          </div>
-        </form>
+            {/* Non-scrolling pinned footer */}
+            <div style={{
+              flexShrink: 0,
+              padding: '1rem 2rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: '0.85rem',
+              borderTop: '1px solid #e2e8f0',
+              backgroundColor: '#ffffff',
+              borderBottomLeftRadius: '12px',
+              borderBottomRightRadius: '12px',
+              boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.04)',
+              zIndex: 10
+            }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setIsModalOpen(false)}
+                disabled={saving}
+                style={{ padding: '0.65rem 1.4rem', fontSize: '0.875rem' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={saving}
+                style={{
+                  padding: '0.65rem 1.6rem',
+                  fontSize: '0.875rem',
+                  fontWeight: '700',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  boxShadow: '0 2px 6px rgba(37, 99, 235, 0.3)'
+                }}
+              >
+                {saving && <RefreshCw size={15} className="spin-anim" />}
+                <span>{saving ? 'Saving...' : (editingEmployee ? 'Update Staff Member' : 'Register Staff Member')}</span>
+              </button>
+            </div>
+          </form>
+        </div>
       </Modal>
     </div>
   );
