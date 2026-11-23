@@ -775,23 +775,25 @@ export default function UserMaster({ onOpenBackup }) {
         hideHeader={true}
         maxWidth="720px"
       >
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {/* Custom Header with Primary Color */}
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '85vh', minHeight: 0, overflow: 'hidden' }}>
+          {/* Custom Header with Primary Color (Fixed Top) */}
           <div style={{
             background: 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
             color: '#ffffff',
-            padding: '1.25rem 1.75rem',
+            padding: '1.15rem 1.75rem',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            flexShrink: 0,
             borderTopLeftRadius: '12px',
             borderTopRightRadius: '12px',
-            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)'
+            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+            zIndex: 10
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
               <div style={{
-                width: '42px',
-                height: '42px',
+                width: '40px',
+                height: '40px',
                 borderRadius: '10px',
                 backgroundColor: 'rgba(255, 255, 255, 0.18)',
                 backdropFilter: 'blur(8px)',
@@ -804,10 +806,10 @@ export default function UserMaster({ onOpenBackup }) {
                 {editingUser ? <Edit3 size={20} /> : <UserPlus size={20} />}
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em' }}>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em' }}>
                   {editingUser ? `Edit Central User (${formData.UserId})` : 'Add Central User'}
                 </h3>
-                <p style={{ margin: '0.2rem 0 0', fontSize: '0.785rem', color: '#dbeafe', fontWeight: '400' }}>
+                <p style={{ margin: '0.15rem 0 0', fontSize: '0.775rem', color: '#dbeafe', fontWeight: '400' }}>
                   Central SaaS Authentication & Platform Identity Registry
                 </p>
               </div>
@@ -820,8 +822,8 @@ export default function UserMaster({ onOpenBackup }) {
                 background: 'rgba(255, 255, 255, 0.15)',
                 border: '1px solid rgba(255, 255, 255, 0.25)',
                 color: '#ffffff',
-                width: '34px',
-                height: '34px',
+                width: '32px',
+                height: '32px',
                 borderRadius: '8px',
                 display: 'flex',
                 alignItems: 'center',
@@ -840,15 +842,17 @@ export default function UserMaster({ onOpenBackup }) {
             </button>
           </div>
 
-          {/* Form Body with Padding & Input Icons */}
-          <form onSubmit={handleSave} style={{ margin: 0 }}>
+          {/* Form wrapper with flex column */}
+          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', margin: 0 }}>
+            {/* Scrollable Form Body */}
             <div style={{
-              padding: '1.75rem 2rem',
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
+              padding: '1.5rem 2rem',
               display: 'flex',
               flexDirection: 'column',
-              gap: '1.35rem',
-              maxHeight: '72vh',
-              overflowY: 'auto'
+              gap: '1.25rem'
             }}>
               {/* Row 1: User ID & Full Name */}
               <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '1.25rem' }}>
@@ -1080,17 +1084,20 @@ export default function UserMaster({ onOpenBackup }) {
               </div>
             </div>
 
-            {/* Modal Footer with Actions */}
+            {/* Non-scrolling Fixed / Pinned Modal Footer */}
             <div style={{
+              flexShrink: 0,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-end',
               gap: '0.85rem',
-              padding: '1.25rem 2rem',
-              borderTop: '1px solid #f1f5f9',
-              backgroundColor: '#fafafa',
+              padding: '1rem 2rem',
+              borderTop: '1px solid #e2e8f0',
+              backgroundColor: '#ffffff',
               borderBottomLeftRadius: '12px',
-              borderBottomRightRadius: '12px'
+              borderBottomRightRadius: '12px',
+              boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.04)',
+              zIndex: 10
             }}>
               <button
                 type="button"
