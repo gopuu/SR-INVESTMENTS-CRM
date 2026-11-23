@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Users,
   UserPlus,
+  UserCheck,
   ShieldCheck,
   Shield,
   Search,
@@ -19,7 +20,13 @@ import {
   AlertTriangle,
   Info,
   Calendar,
-  X
+  X,
+  User,
+  Hash,
+  Smartphone,
+  AtSign,
+  Activity,
+  Check
 } from 'lucide-react';
 import { crmApi, subscribeCrmEvents } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -764,176 +771,333 @@ export default function UserMaster({ onOpenBackup }) {
       {/* Add / Edit User Modal */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={editingUser ? `Edit Central User (${formData.UserId})` : 'Add Central User'}
-        size="medium"
+        onClose={() => !saving && setIsModalOpen(false)}
+        hideHeader={true}
+        maxWidth="720px"
       >
-        <form onSubmit={handleSave} style={{ padding: '0.5rem 0' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {/* User ID & Full Name Row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '0.75rem' }}>
-              <div>
-                <label className="form-label" style={{ fontWeight: '600' }}>User ID</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={formData.UserId}
-                  readOnly
-                  disabled
-                  style={{ backgroundColor: '#f1f5f9', fontWeight: '700', color: '#475569' }}
-                />
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {/* Custom Header with Primary Color */}
+          <div style={{
+            background: 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
+            color: '#ffffff',
+            padding: '1.25rem 1.75rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderTopLeftRadius: '12px',
+            borderTopRightRadius: '12px',
+            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <div style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '10px',
+                backgroundColor: 'rgba(255, 255, 255, 0.18)',
+                backdropFilter: 'blur(8px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ffffff',
+                border: '1px solid rgba(255, 255, 255, 0.25)'
+              }}>
+                {editingUser ? <Edit3 size={20} /> : <UserPlus size={20} />}
               </div>
               <div>
-                <label className="form-label" style={{ fontWeight: '600' }}>Full Name <span style={{ color: '#ef4444' }}>*</span></label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. Gopal Kushwaha"
-                  value={formData.FullName}
-                  onChange={(e) => setFormData({ ...formData, FullName: e.target.value })}
-                  required
-                />
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em' }}>
+                  {editingUser ? `Edit Central User (${formData.UserId})` : 'Add Central User'}
+                </h3>
+                <p style={{ margin: '0.2rem 0 0', fontSize: '0.785rem', color: '#dbeafe', fontWeight: '400' }}>
+                  Central SaaS Authentication & Platform Identity Registry
+                </p>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => !saving && setIsModalOpen(false)}
+              aria-label="Close modal"
+              style={{
+                background: 'rgba(255, 255, 255, 0.15)',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                color: '#ffffff',
+                width: '34px',
+                height: '34px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
+              }}
+            >
+              <X size={18} />
+            </button>
+          </div>
 
-            {/* Email & Alternate Emails */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-              <div>
-                <label className="form-label" style={{ fontWeight: '600' }}>Primary Official Email <span style={{ color: '#ef4444' }}>*</span></label>
-                <input
-                  type="email"
-                  className="form-input"
-                  placeholder="e.g. user@domain.com"
-                  value={formData.Email}
-                  onChange={(e) => setFormData({ ...formData, Email: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <label className="form-label" style={{ fontWeight: '600' }}>Alternate Emails (Comma-separated)</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. personal@gmail.com, alt@domain.com"
-                  value={formData.AlternateEmailsList}
-                  onChange={(e) => setFormData({ ...formData, AlternateEmailsList: e.target.value })}
-                />
-              </div>
-            </div>
-
-            {/* Mobile & Alternate Mobile */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-              <div>
-                <label className="form-label" style={{ fontWeight: '600' }}>Primary Mobile Number <span style={{ color: '#ef4444' }}>*</span></label>
-                <input
-                  type="tel"
-                  className="form-input"
-                  placeholder="e.g. 9820199999"
-                  value={formData.Mobile}
-                  onChange={(e) => setFormData({ ...formData, Mobile: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <label className="form-label" style={{ fontWeight: '600' }}>Alternate Mobile (Optional)</label>
-                <input
-                  type="tel"
-                  className="form-input"
-                  placeholder="e.g. 9820188888"
-                  value={formData.AlternateMobile}
-                  onChange={(e) => setFormData({ ...formData, AlternateMobile: e.target.value })}
-                />
-              </div>
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="form-label" style={{ fontWeight: '600' }}>
-                {editingUser ? 'Change Account Password (Leave blank to keep unchanged)' : 'Account Password'} {!editingUser && <span style={{ color: '#ef4444' }}>*</span>}
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  className="form-input"
-                  placeholder={editingUser ? '•••••••• (leave blank to retain existing)' : 'Enter initial password'}
-                  value={formData.Password}
-                  onChange={(e) => setFormData({ ...formData, Password: e.target.value })}
-                  required={!editingUser}
-                  style={{ paddingRight: '2.5rem' }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: 'absolute',
-                    right: '0.75rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: '#64748b'
-                  }}
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              <span style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.2rem', display: 'block' }}>
-                Passwords are encrypted with SHA-256 before storage in Central DB.
-              </span>
-            </div>
-
-            {/* Role & Status */}
+          {/* Form Body with Padding & Input Icons */}
+          <form onSubmit={handleSave} style={{ margin: 0 }}>
             <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '1rem',
-              padding: '1rem',
-              backgroundColor: '#f8fafc',
-              borderRadius: '8px',
-              border: '1px solid #e2e8f0'
+              padding: '1.75rem 2rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.35rem',
+              maxHeight: '72vh',
+              overflowY: 'auto'
             }}>
-              {/* Is SuperAdmin */}
-              <div>
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={formData.IsSuperAdmin}
-                    onChange={(e) => setFormData({ ...formData, IsSuperAdmin: e.target.checked })}
-                    style={{ marginTop: '0.2rem' }}
-                  />
-                  <div>
-                    <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#1e293b' }}>
-                      Grant Super Admin Access
-                    </span>
-                    <p style={{ margin: '0.15rem 0 0', fontSize: '0.725rem', color: '#64748b' }}>
-                      Allows managing all tenants, subscription plans, system backups, and global users.
-                    </p>
+              {/* Row 1: User ID & Full Name */}
+              <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '1.25rem' }}>
+                <div>
+                  <label className="form-label" style={{ fontWeight: '700', fontSize: '0.825rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.45rem' }}>
+                    <Hash size={14} color="#64748b" />
+                    <span>User ID</span>
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={formData.UserId}
+                      readOnly
+                      disabled
+                      style={{
+                        backgroundColor: '#f1f5f9',
+                        fontWeight: '700',
+                        color: '#475569',
+                        height: '42px',
+                        borderRadius: '8px',
+                        cursor: 'not-allowed',
+                        fontFamily: 'monospace',
+                        letterSpacing: '0.04em'
+                      }}
+                    />
                   </div>
-                </label>
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ fontWeight: '700', fontSize: '0.825rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.45rem' }}>
+                    <User size={14} color="#2563eb" />
+                    <span>Full Name <span style={{ color: '#ef4444' }}>*</span></span>
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <User size={16} color="#94a3b8" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. Gopal Kushwaha"
+                      value={formData.FullName}
+                      onChange={(e) => setFormData({ ...formData, FullName: e.target.value })}
+                      required
+                      style={{ paddingLeft: '2.5rem', height: '42px', borderRadius: '8px', fontSize: '0.875rem' }}
+                    />
+                  </div>
+                </div>
               </div>
 
-              {/* Status */}
+              {/* Row 2: Official Email & Alternate Emails */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                <div>
+                  <label className="form-label" style={{ fontWeight: '700', fontSize: '0.825rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.45rem' }}>
+                    <Mail size={14} color="#2563eb" />
+                    <span>Primary Official Email <span style={{ color: '#ef4444' }}>*</span></span>
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Mail size={16} color="#94a3b8" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                    <input
+                      type="email"
+                      className="form-input"
+                      placeholder="e.g. user@domain.com"
+                      value={formData.Email}
+                      onChange={(e) => setFormData({ ...formData, Email: e.target.value })}
+                      required
+                      style={{ paddingLeft: '2.5rem', height: '42px', borderRadius: '8px', fontSize: '0.875rem' }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ fontWeight: '700', fontSize: '0.825rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.45rem' }}>
+                    <AtSign size={14} color="#64748b" />
+                    <span>Alternate Emails (Comma-separated)</span>
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <AtSign size={16} color="#94a3b8" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. personal@gmail.com, alt@domain.com"
+                      value={formData.AlternateEmailsList}
+                      onChange={(e) => setFormData({ ...formData, AlternateEmailsList: e.target.value })}
+                      style={{ paddingLeft: '2.5rem', height: '42px', borderRadius: '8px', fontSize: '0.875rem' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 3: Mobile & Alternate Mobile */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                <div>
+                  <label className="form-label" style={{ fontWeight: '700', fontSize: '0.825rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.45rem' }}>
+                    <Phone size={14} color="#059669" />
+                    <span>Primary Mobile Number <span style={{ color: '#ef4444' }}>*</span></span>
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Phone size={16} color="#94a3b8" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                    <input
+                      type="tel"
+                      className="form-input"
+                      placeholder="e.g. 9820199999"
+                      value={formData.Mobile}
+                      onChange={(e) => setFormData({ ...formData, Mobile: e.target.value })}
+                      required
+                      style={{ paddingLeft: '2.5rem', height: '42px', borderRadius: '8px', fontSize: '0.875rem' }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ fontWeight: '700', fontSize: '0.825rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.45rem' }}>
+                    <Smartphone size={14} color="#64748b" />
+                    <span>Alternate Mobile (Optional)</span>
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Smartphone size={16} color="#94a3b8" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                    <input
+                      type="tel"
+                      className="form-input"
+                      placeholder="e.g. 9820188888"
+                      value={formData.AlternateMobile}
+                      onChange={(e) => setFormData({ ...formData, AlternateMobile: e.target.value })}
+                      style={{ paddingLeft: '2.5rem', height: '42px', borderRadius: '8px', fontSize: '0.875rem' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 4: Account Password */}
               <div>
-                <label className="form-label" style={{ fontWeight: '600' }}>Account Status</label>
-                <select
-                  className="form-select"
-                  value={formData.Status}
-                  onChange={(e) => setFormData({ ...formData, Status: e.target.value })}
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
+                <label className="form-label" style={{ fontWeight: '700', fontSize: '0.825rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.45rem' }}>
+                  <Lock size={14} color="#2563eb" />
+                  <span>
+                    {editingUser ? 'Change Account Password (Leave blank to keep unchanged)' : 'Account Password'} {!editingUser && <span style={{ color: '#ef4444' }}>*</span>}
+                  </span>
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <Lock size={16} color="#94a3b8" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    className="form-input"
+                    placeholder={editingUser ? '•••••••• (leave blank to retain existing)' : 'Enter initial secure password'}
+                    value={formData.Password}
+                    onChange={(e) => setFormData({ ...formData, Password: e.target.value })}
+                    required={!editingUser}
+                    style={{ paddingLeft: '2.5rem', paddingRight: '2.75rem', height: '42px', borderRadius: '8px', fontSize: '0.875rem' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label="Toggle password visibility"
+                    style={{
+                      position: 'absolute',
+                      right: '0.75rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#64748b',
+                      padding: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.35rem' }}>
+                  <Info size={12} color="#64748b" />
+                  <span style={{ fontSize: '0.725rem', color: '#64748b' }}>
+                    Passwords are securely hashed with SHA-256 before storage in Central DB.
+                  </span>
+                </div>
+              </div>
+
+              {/* Row 5: Role & Account Status Elevated Box */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1.2fr 0.8fr',
+                gap: '1.25rem',
+                padding: '1.25rem',
+                backgroundColor: '#f8fafc',
+                borderRadius: '10px',
+                border: '1px solid #e2e8f0',
+                alignItems: 'center'
+              }}>
+                {/* Is SuperAdmin */}
+                <div>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer', margin: 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={formData.IsSuperAdmin}
+                      onChange={(e) => setFormData({ ...formData, IsSuperAdmin: e.target.checked })}
+                      style={{ marginTop: '0.25rem', width: '16px', height: '16px', accentColor: '#2563eb', cursor: 'pointer' }}
+                    />
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <ShieldCheck size={16} color={formData.IsSuperAdmin ? '#7c3aed' : '#64748b'} />
+                        <span style={{ fontSize: '0.875rem', fontWeight: '700', color: formData.IsSuperAdmin ? '#7c3aed' : '#1e293b' }}>
+                          Grant Super Admin Access
+                        </span>
+                      </div>
+                      <p style={{ margin: '0.2rem 0 0', fontSize: '0.725rem', color: '#64748b', lineHeight: 1.4 }}>
+                        Provides unrestricted access to manage all tenants, license plans, backups, and user identities.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Status */}
+                <div>
+                  <label className="form-label" style={{ fontWeight: '700', fontSize: '0.825rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.45rem' }}>
+                    <Activity size={14} color="#059669" />
+                    <span>Account Status</span>
+                  </label>
+                  <select
+                    className="form-select"
+                    value={formData.Status}
+                    onChange={(e) => setFormData({ ...formData, Status: e.target.value })}
+                    style={{ height: '42px', borderRadius: '8px', fontSize: '0.875rem', fontWeight: '600' }}
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
               </div>
             </div>
 
-            {/* Modal Actions */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+            {/* Modal Footer with Actions */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: '0.85rem',
+              padding: '1.25rem 2rem',
+              borderTop: '1px solid #f1f5f9',
+              backgroundColor: '#fafafa',
+              borderBottomLeftRadius: '12px',
+              borderBottomRightRadius: '12px'
+            }}>
               <button
                 type="button"
                 className="btn btn-neutral"
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => !saving && setIsModalOpen(false)}
                 disabled={saving}
+                style={{ padding: '0.65rem 1.4rem', fontSize: '0.875rem', fontWeight: '600' }}
               >
                 Cancel
               </button>
@@ -941,14 +1105,28 @@ export default function UserMaster({ onOpenBackup }) {
                 type="submit"
                 className="btn btn-primary"
                 disabled={saving}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                style={{
+                  padding: '0.65rem 1.6rem',
+                  fontSize: '0.875rem',
+                  fontWeight: '700',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  boxShadow: '0 2px 6px rgba(37, 99, 235, 0.3)'
+                }}
               >
-                {saving && <RefreshCw size={14} className="spin-anim" />}
+                {saving ? (
+                  <RefreshCw size={15} className="spin-anim" />
+                ) : editingUser ? (
+                  <Check size={16} />
+                ) : (
+                  <UserPlus size={16} />
+                )}
                 <span>{editingUser ? 'Update User' : 'Create User'}</span>
               </button>
             </div>
-          </div>
-        </form>
+          </form>
+        </div>
       </Modal>
     </div>
   );
