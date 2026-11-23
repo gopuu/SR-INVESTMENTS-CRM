@@ -739,169 +739,205 @@ export default function Customers({ onOpenBackup }) {
   ];
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#f8fafc] overflow-hidden">
+    <div className="crm-page-container">
       <Header title="Customers & Investors" onOpenBackup={onOpenBackup} />
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+      <div className="crm-page-content" style={{ padding: '1.5rem 2rem' }}>
         {/* Top Control Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <div className="flex flex-1 items-center gap-3">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input
-                type="text"
-                placeholder="Search by Name, Code, PAN, Email, Mobile, City..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-              />
+        <div className="crm-card" style={{ padding: '1.25rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flex: 1, minWidth: '280px', maxWidth: '520px' }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Search by Name, Code, PAN, Email, Mobile, City..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  style={{ paddingLeft: '2.5rem', height: '42px', borderRadius: '8px' }}
+                />
+              </div>
+
+              <select
+                className="form-select"
+                value={kycFilter}
+                onChange={(e) => setKycFilter(e.target.value)}
+                style={{ width: 'auto', minWidth: '150px', height: '42px', borderRadius: '8px' }}
+              >
+                <option value="">All KYC Status</option>
+                <option value="VERIFIED">Verified</option>
+                <option value="PENDING">Pending</option>
+                <option value="REJECTED">Rejected</option>
+              </select>
             </div>
 
-            <select
-              value={kycFilter}
-              onChange={(e) => setKycFilter(e.target.value)}
-              className="py-2 px-3 text-sm rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-            >
-              <option value="">All KYC Status</option>
-              <option value="VERIFIED">Verified</option>
-              <option value="PENDING">Pending</option>
-              <option value="REJECTED">Rejected</option>
-            </select>
-          </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              {/* Drafts Button - Visible ONLY when draftCount > 0 per requirement */}
+              {draftCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsDraftsModalOpen(true)}
+                  className="btn btn-secondary"
+                  style={{
+                    backgroundColor: '#fef3c7',
+                    borderColor: '#fde68a',
+                    color: '#b45309',
+                    fontWeight: '700',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    height: '42px',
+                    padding: '0 1rem',
+                    borderRadius: '8px'
+                  }}
+                >
+                  <Bookmark size={15} color="#b45309" />
+                  <span>Drafts ({draftCount})</span>
+                </button>
+              )}
 
-          <div className="flex items-center gap-2">
-            {/* Drafts Button - Visible ONLY when draftCount > 0 per requirement */}
-            {draftCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setIsDraftsModalOpen(true)}
-                className="inline-flex items-center gap-2 px-3.5 py-2 text-sm font-semibold rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors shadow-sm"
-              >
-                <Bookmark size={16} className="text-amber-600" />
-                <span>Drafts ({draftCount})</span>
-              </button>
-            )}
-
-            {hasPermission('Customers', 'CanCreate') && (
-              <button
-                type="button"
-                onClick={openAddModal}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors shadow-sm"
-              >
-                <Plus size={18} />
-                <span>+ Add Customer</span>
-              </button>
-            )}
+              {hasPermission('Customers', 'CanCreate') && (
+                <button
+                  type="button"
+                  onClick={openAddModal}
+                  className="btn btn-primary"
+                  style={{
+                    height: '42px',
+                    padding: '0 1.25rem',
+                    borderRadius: '8px',
+                    fontWeight: '700',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem'
+                  }}
+                >
+                  <Plus size={16} />
+                  <span>+ Add Customer</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Customer Data Table */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase font-semibold text-slate-600">
+        <div className="crm-card" style={{ padding: '0', overflow: 'hidden' }}>
+          <div className="table-responsive">
+            <table className="crm-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
                 <tr>
-                  <th className="px-4 py-3.5">Investor Info</th>
-                  <th className="px-4 py-3.5">Contact Details</th>
-                  <th className="px-4 py-3.5">PAN & Aadhaar</th>
-                  <th className="px-4 py-3.5">Location</th>
-                  <th className="px-4 py-3.5">System IDs</th>
-                  <th className="px-4 py-3.5">KYC Status</th>
-                  <th className="px-4 py-3.5 text-right">Actions</th>
+                  <th style={{ padding: '0.75rem 1.25rem' }}>Investor Info</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>Contact Details</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>PAN & Aadhaar</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>Location</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>System IDs</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>KYC Status</th>
+                  <th style={{ padding: '0.75rem 1.25rem', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
-                      <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-blue-500" />
-                      Loading investors...
+                    <td colSpan={7} style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>
+                      <RefreshCw size={24} className="spin-animation" style={{ margin: '0 auto 0.5rem', color: '#3b82f6' }} />
+                      <p style={{ margin: 0, fontWeight: '500' }}>Loading investors...</p>
                     </td>
                   </tr>
                 ) : customers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
-                      No investors found matching the criteria.
+                    <td colSpan={7} style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>
+                      <p style={{ margin: 0, fontWeight: '600' }}>No investors found matching the criteria.</p>
                     </td>
                   </tr>
                 ) : (
                   customers.slice(0, visibleCount).map((cust) => (
                     <tr 
                       key={cust.CustomerId || cust.CustomerCode}
-                      className={`hover:bg-slate-50/70 transition-colors ${cust.IsDeleted ? 'bg-red-50/40 text-slate-400' : ''}`}
+                      style={{
+                        backgroundColor: cust.IsDeleted ? '#fff5f5' : 'transparent',
+                        opacity: cust.IsDeleted ? 0.75 : 1
+                      }}
                     >
-                      <td className="px-4 py-3">
-                        <div className="font-semibold text-slate-900 flex items-center gap-1.5">
-                          {cust.FullName || `${cust.FirstName || ''} ${cust.LastName || ''}`}
-                          {cust.IsDeleted && <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-normal">Deleted</span>}
+                      <td style={{ padding: '0.85rem 1.25rem' }}>
+                        <div style={{ fontWeight: '700', color: '#1e293b', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span>{cust.FullName || `${cust.FirstName || ''} ${cust.LastName || ''}`}</span>
+                          {cust.IsDeleted && (
+                            <span style={{ fontSize: '0.675rem', backgroundColor: '#fee2e2', color: '#dc2626', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                              Deleted
+                            </span>
+                          )}
                         </div>
-                        <div className="text-xs font-mono text-slate-500">
+                        <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#64748b', marginTop: '2px' }}>
                           Code: {cust.CustomerCode || '-'} {cust.Title ? `(${cust.Title})` : ''}
                         </div>
                       </td>
 
-                      <td className="px-4 py-3">
-                        <div className="text-slate-800">{cust.Mobile || '-'}</div>
-                        <div className="text-xs text-slate-500">{cust.Email || '-'}</div>
+                      <td style={{ padding: '0.85rem 1rem' }}>
+                        <div style={{ color: '#1e293b', fontWeight: '600', fontSize: '0.825rem' }}>{cust.Mobile || '-'}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{cust.Email || '-'}</div>
                       </td>
 
-                      <td className="px-4 py-3">
-                        <div className="font-mono text-xs text-slate-800">PAN: {cust.PanNumber || '-'}</div>
-                        <div className="font-mono text-xs text-slate-500">UID: {cust.AadharNo || cust.AadhaarLast4 || '-'}</div>
+                      <td style={{ padding: '0.85rem 1rem' }}>
+                        <div style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: '#1e293b', fontWeight: '600' }}>PAN: {cust.PanNumber || '-'}</div>
+                        <div style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: '#64748b' }}>UID: {cust.AadharNo || cust.AadhaarLast4 || '-'}</div>
                       </td>
 
-                      <td className="px-4 py-3">
-                        <div className="text-slate-700">{cust.City || '-'}, {cust.State || '-'}</div>
-                        <div className="text-xs text-slate-500">{cust.Pincode || ''} {cust.Area ? `(${cust.Area})` : ''}</div>
+                      <td style={{ padding: '0.85rem 1rem' }}>
+                        <div style={{ color: '#1e293b', fontSize: '0.825rem' }}>{cust.City || '-'}, {cust.State || '-'}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{cust.Pincode || ''} {cust.Area ? `(${cust.Area})` : ''}</div>
                       </td>
 
-                      <td className="px-4 py-3">
-                        <div className="text-xs text-slate-700 font-mono">BSE: {cust.BseUcc || '-'}</div>
-                        <div className="text-xs text-slate-500 font-mono">SK: {cust.SkCustId || cust.SkClientId || '-'}</div>
+                      <td style={{ padding: '0.85rem 1rem' }}>
+                        <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#1e293b' }}>BSE: {cust.BseUcc || '-'}</div>
+                        <div style={{ fontSize: '0.725rem', fontFamily: 'monospace', color: '#64748b' }}>SK: {cust.SkCustId || cust.SkClientId || '-'}</div>
                       </td>
 
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          String(cust.KycStatus).toUpperCase() === 'VERIFIED' ? 'bg-emerald-100 text-emerald-800' :
-                          String(cust.KycStatus).toUpperCase() === 'REJECTED' ? 'bg-rose-100 text-rose-800' :
-                          'bg-amber-100 text-amber-800'
+                      <td style={{ padding: '0.85rem 1rem' }}>
+                        <span className={`badge ${
+                          String(cust.KycStatus).toUpperCase() === 'VERIFIED' ? 'badge-success' :
+                          String(cust.KycStatus).toUpperCase() === 'REJECTED' ? 'badge-danger' :
+                          'badge-warning'
                         }`}>
                           {cust.KycStatus || 'PENDING'}
                         </span>
                       </td>
 
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                      <td style={{ padding: '0.85rem 1.25rem', textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem' }}>
                           {hasPermission('Customers', 'CanEdit') && !cust.IsDeleted && (
                             <button
                               type="button"
+                              className="btn btn-neutral"
                               onClick={() => openEditModal(cust)}
                               title="Edit Customer"
-                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                              style={{ padding: '6px', color: '#2563eb' }}
                             >
-                              <Edit2 size={16} />
+                              <Edit2 size={15} />
                             </button>
                           )}
 
                           {hasPermission('Customers', 'CanDelete') && !cust.IsDeleted && (
                             <button
                               type="button"
+                              className="btn btn-neutral"
                               onClick={() => handleDelete(cust.CustomerId, cust.FullName)}
                               title="Delete Customer"
-                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                              style={{ padding: '6px', color: '#ef4444' }}
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={15} />
                             </button>
                           )}
 
                           {cust.IsDeleted && (
                             <button
                               type="button"
+                              className="btn btn-neutral"
                               onClick={() => handleRestore(cust.CustomerId, cust.FullName)}
                               title="Restore Customer"
-                              className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors"
+                              style={{ padding: '4px 8px', fontSize: '0.75rem', color: '#059669', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
                             >
-                              <RotateCcw size={16} />
+                              <RotateCcw size={13} />
+                              <span>Restore</span>
                             </button>
                           )}
                         </div>
@@ -913,7 +949,7 @@ export default function Customers({ onOpenBackup }) {
             </table>
           </div>
           {/* Intersection Observer Sentinel for Progressive Loading */}
-          <div ref={sentinelRef} className="h-4" />
+          <div ref={sentinelRef} style={{ height: '16px' }} />
         </div>
       </div>
 
