@@ -2831,9 +2831,200 @@ function getCentralUsers_(payload) {
       AlternateMobile: u.AlternateMobile || "",
       IsSuperAdmin: isSuperAdminValue_(u.IsSuperAdmin),
       Status: u.Status || "Active",
+      IsDeleted: u.IsDeleted === true || String(u.IsDeleted).toLowerCase() === "true",
+      Created_By: u.Created_By || "",
       Created_At: u.Created_At || "",
-      Updated_At: u.Updated_At || ""
+      Updated_By: u.Updated_By || "",
+      Updated_At: u.Updated_At || "",
+      Deleted_By: u.Deleted_By || "",
+      Deleted_At: u.Deleted_At || ""
     }));
+}
+
+/**
+ * Create or Update Central User in User_Master (SuperAdmin only)
+ */
+function saveCentralUser_(payload) {
+  payload = payload || {};
+  verifyIsSuperAdmin_(payload);
+
+  const email = cleanStr_(payload.Email || payload.email).toLowerCase();
+  if (!email) throw new Error("Email Address is required.");
+  const fullName = cleanStr_(payload.FullName || payload.fullName);
+  if (!fullName) throw new Error("Full Name is required.");
+  const mobile = cleanStr_(payload.Mobile || payload.mobile);
+
+  const userSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USER_MASTER, CRM_SCHEMAS.USER_MASTER);
+  const users = getSheetRowsAsObjects_(userSheet, CRM_SCHEMAS.USER_MASTER);
+  const now = new Date().toISOString();
+  const requesterEmail = payload.userEmail || payload.requesterEmail || "admin@srinvestments.com";
+
+  let userId = cleanStr_(payload.UserId || payload.userId);
+  let existingIndex = -1;
+
+  if (userId) {
+    existingIndex = users.findIndex(u => String(u.UserId || "").trim().toLowerCase() === userId.toLowerCase());
+  }
+  if (existingIndex === -1 && email) {
+    existingIndex = users.findIndex(u => String(u.Email || "").trim().toLowerCase() === email);
+  }
+
+  // Prevent duplicate email for different user
+  if (existingIndex === -1) {
+    const dup = users.find(u => String(u.Email || "").trim().toLowerCase() === email && !u.IsDeleted);
+    if (dup) throw new Error("A user with email '" + email + "' already exists in User_Master.");
+  } else if (userId) {
+    const dup = users.find(u => String(u.Email || "").trim().toLowerCase() === email && String(u.UserId || "").toLowerCase() !== userId.toLowerCase() && !u.IsDeleted);
+    if (dup) throw new Error("Email '" + email + "' is already assigned to user '" + dup.UserId + "'.");
+  }
+
+  const isSuperAdmin = isSuperAdminValue_(payload.IsSuperAdmin !== undefined ? payload.IsSuperAdmin : payload.isSuperAdmin);
+  const status = cleanStr_(payload.Status || payload.status || "Active");
+  const alternateEmails = cleanStr_(payload.AlternateEmailsList || payload.GoogleEmails || payload.alternateEmails);
+  const alternateMobile = cleanStr_(payload.AlternateMobile || payload.alternateMobile);
+
+  if (existingIndex >= 0) {
+    const existing = users[existingIndex];
+    userId = existing.UserId || userId;
+
+    let pwdHash = existing.Password;
+    if (payload.Password && String(payload.Password).trim()) {
+      pwdHash = hashPasswordSHA256_(cleanStr_(payload.Password));
+    }
+
+    const updated = {
+      UserId: userId,
+      Email: email,
+      AlternateEmailsList: alternateEmails,
+      Password: pwdHash,
+      FullName: fullName,
+      Mobile: mobile,
+      AlternateMobile: alternateMobile,
+      IsSuperAdmin: isSuperAdmin,
+      Status: status,
+      IsDeleted: false,
+      Created_By: existing.Created_By || requesterEmail,
+      Created_At: existing.Created_At || now,
+      Updated_By: requesterEmail,
+      Updated_At: now,
+      Deleted_By: "",
+      Deleted_At: ""
+    };
+
+    writeRowByHeaders_(userSheet, existingIndex + 2, updated, CRM_SCHEMAS.USER_MASTER);
+    logAudit_(requesterEmail, "UPDATE", "User_Master", userId, "Updated central user: " + fullName + " (" + email + ")");
+    return { status: "Success", success: true, message: "User updated successfully.", userId: userId };
+  } else {
+    // Generate new UserId (e.g. USER1, USER2, etc.)
+    let maxId = 0;
+    users.forEach(u => {
+      const m = String(u.UserId || "").match(/\d+/);
+      if (m) {
+        const num = parseInt(m[0], 10);
+        if (num > maxId) maxId = num;
+      }
+    });
+    userId = "USER" + (maxId + 1);
+
+    const rawPwd = cleanStr_(payload.Password || "password123");
+    const pwdHash = hashPasswordSHA256_(rawPwd);
+
+    const newUser = {
+      UserId: userId,
+      Email: email,
+      AlternateEmailsList: alternateEmails,
+      Password: pwdHash,
+      FullName: fullName,
+      Mobile: mobile,
+      AlternateMobile: alternateMobile,
+      IsSuperAdmin: isSuperAdmin,
+      Status: status,
+      IsDeleted: false,
+      Created_By: requesterEmail,
+      Created_At: now,
+      Updated_By: requesterEmail,
+      Updated_At: now,
+      Deleted_By: "",
+      Deleted_At: ""
+    };
+
+    writeRowByHeaders_(userSheet, -1, newUser, CRM_SCHEMAS.USER_MASTER);
+    logAudit_(requesterEmail, "CREATE", "User_Master", userId, "Created central user: " + fullName + " (" + email + ")");
+    return { status: "Success", success: true, message: "User registered successfully.", userId: userId };
+  }
+}
+
+/**
+ * Soft Delete Central User in User_Master (SuperAdmin only)
+ */
+function deleteCentralUser_(payload) {
+  payload = payload || {};
+  verifyIsSuperAdmin_(payload);
+  const userId = cleanStr_(payload.UserId || payload.userId);
+  if (!userId) throw new Error("UserId is required.");
+
+  const requesterEmail = payload.userEmail || payload.requesterEmail || "admin@srinvestments.com";
+  const userSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USER_MASTER, CRM_SCHEMAS.USER_MASTER);
+  const users = getSheetRowsAsObjects_(userSheet, CRM_SCHEMAS.USER_MASTER);
+  const index = users.findIndex(u => String(u.UserId || "").trim().toLowerCase() === userId.toLowerCase());
+  if (index === -1) throw new Error("User '" + userId + "' not found.");
+
+  const userRec = users[index];
+  const now = new Date().toISOString();
+
+  // Soft-delete user
+  userRec.IsDeleted = true;
+  userRec.Deleted_By = requesterEmail;
+  userRec.Deleted_At = now;
+  writeRowByHeaders_(userSheet, index + 2, userRec, CRM_SCHEMAS.USER_MASTER);
+
+  // Also soft-deactivate tenant mappings for this user
+  try {
+    const mapSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_USER_MAPPING, CRM_SCHEMAS.TENANT_USER_MAPPING);
+    const mappings = getSheetRowsAsObjects_(mapSheet, CRM_SCHEMAS.TENANT_USER_MAPPING);
+    mappings.forEach((m, mIdx) => {
+      if (String(m.UserId || "").trim().toLowerCase() === userId.toLowerCase() && !m.IsDeleted) {
+        m.IsDeleted = true;
+        m.Deleted_By = requesterEmail;
+        m.Deleted_At = now;
+        writeRowByHeaders_(mapSheet, mIdx + 2, m, CRM_SCHEMAS.TENANT_USER_MAPPING);
+      }
+    });
+  } catch (err) {
+    Logger.log("Error deactivating mappings for deleted user: " + err.message);
+  }
+
+  logAudit_(requesterEmail, "DELETE", "User_Master", userId, "Soft-deleted user: " + userRec.FullName + " (" + userId + ")");
+  return { status: "Success", success: true, message: "User deleted successfully." };
+}
+
+/**
+ * Restore Soft-Deleted Central User (SuperAdmin only)
+ */
+function restoreCentralUser_(payload) {
+  payload = payload || {};
+  verifyIsSuperAdmin_(payload);
+  const userId = cleanStr_(payload.UserId || payload.userId);
+  if (!userId) throw new Error("UserId is required.");
+
+  const requesterEmail = payload.userEmail || payload.requesterEmail || "admin@srinvestments.com";
+  const userSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USER_MASTER, CRM_SCHEMAS.USER_MASTER);
+  const users = getSheetRowsAsObjects_(userSheet, CRM_SCHEMAS.USER_MASTER);
+  const index = users.findIndex(u => String(u.UserId || "").trim().toLowerCase() === userId.toLowerCase());
+  if (index === -1) throw new Error("User '" + userId + "' not found.");
+
+  const userRec = users[index];
+  const now = new Date().toISOString();
+
+  userRec.IsDeleted = false;
+  userRec.Updated_By = requesterEmail;
+  userRec.Updated_At = now;
+  userRec.Deleted_By = "";
+  userRec.Deleted_At = "";
+  writeRowByHeaders_(userSheet, index + 2, userRec, CRM_SCHEMAS.USER_MASTER);
+
+  logAudit_(requesterEmail, "RESTORE", "User_Master", userId, "Restored user: " + userRec.FullName + " (" + userId + ")");
+  return { status: "Success", success: true, message: "User restored successfully." };
 }
 
 /**

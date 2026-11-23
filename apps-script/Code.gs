@@ -238,10 +238,22 @@ function executeAction_(action, payload) {
       verifyIsSuperAdmin_(payload);
       return cancelTenantLicense_(payload);
 
-    // Tenant-User Mapping (Central SaaS Access Matrix)
+    // Central User Master (Central SaaS Identities)
     case "getCentralUsers":
       verifyIsSuperAdmin_(payload);
       return getCentralUsers_(payload);
+
+    case "saveCentralUser":
+      verifyIsSuperAdmin_(payload);
+      return saveCentralUser_(payload);
+
+    case "deleteCentralUser":
+      verifyIsSuperAdmin_(payload);
+      return deleteCentralUser_(payload);
+
+    case "restoreCentralUser":
+      verifyIsSuperAdmin_(payload);
+      return restoreCentralUser_(payload);
 
     case "getTenantUserMappings":
       verifyIsSuperAdmin_(payload);

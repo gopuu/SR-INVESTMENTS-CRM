@@ -1397,6 +1397,18 @@ export const crmApi = {
     return this.call('getCentralUsers', { showDeleted });
   },
 
+  async saveCentralUser(userData) {
+    return this.call('saveCentralUser', userData);
+  },
+
+  async deleteCentralUser(userId) {
+    return this.call('deleteCentralUser', { userId });
+  },
+
+  async restoreCentralUser(userId) {
+    return this.call('restoreCentralUser', { userId });
+  },
+
   async getTenantUserMappings(tenantId = null, showDeleted = false) {
     return this.call('getTenantUserMappings', { tenantId, showDeleted });
   },
@@ -2507,13 +2519,186 @@ export const crmApi = {
         };
       }
 
-      // TENANT USER MAPPING (Central SaaS)
+      // USER MASTER & TENANT USER MAPPING (Central SaaS)
       case 'getCentralUsers': {
         assertSuperAdminDemo(payload);
-        return [
-          { UserId: 'USER1', FullName: 'Gopal Kushwaha', Email: 'anonymousofjain@gmail.com', Mobile: '8306588313', IsSuperAdmin: true, Status: 'Active' },
-          { UserId: 'USER2', FullName: 'Gopal8306', Email: 'kgopal8306@gmail.com', Mobile: '8306588314', IsSuperAdmin: false, Status: 'Active' }
+        const raw = localStorage.getItem('sr_crm_central_users');
+        let users = raw ? JSON.parse(raw) : [
+          {
+            UserId: 'USER1',
+            FullName: 'Gopal Kushwaha',
+            Email: 'anonymousofjain@gmail.com',
+            AlternateEmailsList: '',
+            Mobile: '8306588313',
+            AlternateMobile: '',
+            IsSuperAdmin: true,
+            Status: 'Active',
+            IsDeleted: false,
+            Created_At: '2026-01-01T00:00:00.000Z',
+            Created_By: 'system'
+          },
+          {
+            UserId: 'USER2',
+            FullName: 'Gopal8306',
+            Email: 'kgopal8306@gmail.com',
+            AlternateEmailsList: '',
+            Mobile: '8306588314',
+            AlternateMobile: '',
+            IsSuperAdmin: false,
+            Status: 'Active',
+            IsDeleted: false,
+            Created_At: '2026-01-01T00:00:00.000Z',
+            Created_By: 'system'
+          }
         ];
+        if (!raw) {
+          localStorage.setItem('sr_crm_central_users', JSON.stringify(users));
+        }
+        if (!payload?.showDeleted) {
+          users = users.filter(u => !u.IsDeleted);
+        }
+        return users;
+      }
+
+      case 'saveCentralUser': {
+        assertSuperAdminDemo(payload);
+        const raw = localStorage.getItem('sr_crm_central_users');
+        let users = raw ? JSON.parse(raw) : [
+          {
+            UserId: 'USER1',
+            FullName: 'Gopal Kushwaha',
+            Email: 'anonymousofjain@gmail.com',
+            AlternateEmailsList: '',
+            Mobile: '8306588313',
+            AlternateMobile: '',
+            IsSuperAdmin: true,
+            Status: 'Active',
+            IsDeleted: false,
+            Created_At: '2026-01-01T00:00:00.000Z',
+            Created_By: 'system'
+          },
+          {
+            UserId: 'USER2',
+            FullName: 'Gopal8306',
+            Email: 'kgopal8306@gmail.com',
+            AlternateEmailsList: '',
+            Mobile: '8306588314',
+            AlternateMobile: '',
+            IsSuperAdmin: false,
+            Status: 'Active',
+            IsDeleted: false,
+            Created_At: '2026-01-01T00:00:00.000Z',
+            Created_By: 'system'
+          }
+        ];
+
+        const email = String(payload.Email || payload.email || '').trim().toLowerCase();
+        if (!email) throw new Error('Email is required.');
+        const fullName = String(payload.FullName || payload.fullName || '').trim();
+        if (!fullName) throw new Error('Full Name is required.');
+
+        let userId = String(payload.UserId || payload.userId || '').trim();
+        const now = new Date().toISOString();
+        const isSuperAdmin = payload.IsSuperAdmin === true || String(payload.IsSuperAdmin).toLowerCase() === 'true';
+
+        let existingIdx = -1;
+        if (userId) {
+          existingIdx = users.findIndex(u => String(u.UserId || '').toLowerCase() === userId.toLowerCase());
+        }
+        if (existingIdx === -1) {
+          existingIdx = users.findIndex(u => String(u.Email || '').toLowerCase() === email);
+        }
+
+        if (existingIdx >= 0) {
+          // Update
+          const target = users[existingIdx];
+          userId = target.UserId;
+          target.FullName = fullName;
+          target.Email = email;
+          target.AlternateEmailsList = String(payload.AlternateEmailsList || payload.alternateEmails || '').trim();
+          target.Mobile = String(payload.Mobile || payload.mobile || '').trim();
+          target.AlternateMobile = String(payload.AlternateMobile || payload.alternateMobile || '').trim();
+          target.IsSuperAdmin = isSuperAdmin;
+          target.Status = String(payload.Status || payload.status || 'Active').trim();
+          target.Updated_At = now;
+          target.Updated_By = 'admin@srinvestments.com';
+        } else {
+          // Insert
+          const maxNum = users.reduce((acc, u) => {
+            const m = String(u.UserId || '').match(/USER(\d+)/i);
+            return m ? Math.max(acc, parseInt(m[1], 10)) : acc;
+          }, 0);
+          userId = userId || `USER${maxNum + 1}`;
+
+          const newUser = {
+            UserId: userId,
+            FullName: fullName,
+            Email: email,
+            AlternateEmailsList: String(payload.AlternateEmailsList || payload.alternateEmails || '').trim(),
+            Mobile: String(payload.Mobile || payload.mobile || '').trim(),
+            AlternateMobile: String(payload.AlternateMobile || payload.alternateMobile || '').trim(),
+            IsSuperAdmin: isSuperAdmin,
+            Status: String(payload.Status || payload.status || 'Active').trim(),
+            IsDeleted: false,
+            Created_At: now,
+            Created_By: 'admin@srinvestments.com'
+          };
+          users.push(newUser);
+        }
+
+        localStorage.setItem('sr_crm_central_users', JSON.stringify(users));
+        dispatchCrmEvent('UserMaster', 'USER_MASTER_UPDATED', { userId });
+        return { status: 'Success', success: true, message: 'User saved successfully.', userId };
+      }
+
+      case 'deleteCentralUser': {
+        assertSuperAdminDemo(payload);
+        const userId = String(payload.UserId || payload.userId || '').trim();
+        if (!userId) throw new Error('UserId is required.');
+        const raw = localStorage.getItem('sr_crm_central_users') || '[]';
+        let users = JSON.parse(raw);
+        const idx = users.findIndex(u => String(u.UserId || '').toLowerCase() === userId.toLowerCase());
+        if (idx === -1) throw new Error(`User '${userId}' not found.`);
+
+        users[idx].IsDeleted = true;
+        users[idx].Deleted_At = new Date().toISOString();
+        users[idx].Deleted_By = 'admin@srinvestments.com';
+        localStorage.setItem('sr_crm_central_users', JSON.stringify(users));
+
+        // Also deactivate mappings
+        try {
+          const mapRaw = localStorage.getItem('sr_crm_tenant_user_mappings') || '[]';
+          let mappings = JSON.parse(mapRaw);
+          mappings.forEach(m => {
+            if (String(m.UserId || '').toLowerCase() === userId.toLowerCase()) {
+              m.IsDeleted = true;
+              m.Deleted_At = new Date().toISOString();
+            }
+          });
+          localStorage.setItem('sr_crm_tenant_user_mappings', JSON.stringify(mappings));
+        } catch (_) {}
+
+        dispatchCrmEvent('UserMaster', 'USER_MASTER_DELETED', { userId });
+        return { status: 'Success', success: true, message: 'User deleted successfully.' };
+      }
+
+      case 'restoreCentralUser': {
+        assertSuperAdminDemo(payload);
+        const userId = String(payload.UserId || payload.userId || '').trim();
+        if (!userId) throw new Error('UserId is required.');
+        const raw = localStorage.getItem('sr_crm_central_users') || '[]';
+        let users = JSON.parse(raw);
+        const idx = users.findIndex(u => String(u.UserId || '').toLowerCase() === userId.toLowerCase());
+        if (idx === -1) throw new Error(`User '${userId}' not found.`);
+
+        users[idx].IsDeleted = false;
+        users[idx].Updated_At = new Date().toISOString();
+        delete users[idx].Deleted_At;
+        delete users[idx].Deleted_By;
+        localStorage.setItem('sr_crm_central_users', JSON.stringify(users));
+
+        dispatchCrmEvent('UserMaster', 'USER_MASTER_RESTORED', { userId });
+        return { status: 'Success', success: true, message: 'User restored successfully.' };
       }
 
       case 'getTenantUserMappings': {

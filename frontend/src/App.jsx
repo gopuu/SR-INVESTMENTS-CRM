@@ -13,6 +13,7 @@ import UserProfile from './pages/UserProfile';
 import SipCalculator from './pages/SipCalculator';
 import MasterHub from './pages/MasterHub';
 import SuperAdminPortal from './pages/SuperAdminPortal';
+import UserMaster from './pages/UserMaster';
 import SubscriptionPlans from './pages/SubscriptionPlans';
 import TenantUserMapping from './pages/TenantUserMapping';
 import RolesRights from './pages/RolesRights';
@@ -55,7 +56,7 @@ export default function App() {
 
   // Guard SuperAdmin portals
   useEffect(() => {
-    if ((currentPage === 'superadmin' || currentPage === 'subscription-plans' || currentPage === 'tenant-user-mapping') && !isSuperAdmin) {
+    if ((currentPage === 'superadmin' || currentPage === 'user-master' || currentPage === 'subscription-plans' || currentPage === 'tenant-user-mapping') && !isSuperAdmin) {
       setCurrentPage('home');
     }
   }, [currentPage, isSuperAdmin]);
@@ -102,6 +103,7 @@ export default function App() {
           {currentPage === 'settings' && <Settings onOpenBackup={openBackup} />}
           {currentPage === 'profile' && <UserProfile onOpenBackup={openBackup} />}
           {currentPage === 'superadmin' && <SuperAdminPortal onOpenBackup={openBackup} />}
+          {currentPage === 'user-master' && <UserMaster onOpenBackup={openBackup} />}
           {currentPage === 'tenant-user-mapping' && <TenantUserMapping onOpenBackup={openBackup} />}
           {currentPage === 'subscription-plans' && <SubscriptionPlans onOpenBackup={openBackup} />}
         </ErrorBoundary>
