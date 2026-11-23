@@ -3,6 +3,7 @@ import { useAuth } from './context/AuthContext';
 import { startRealtimeSyncPoller, stopRealtimeSyncPoller } from './services/api';
 import Sidebar from './components/Sidebar';
 import BackupModal from './components/BackupModal';
+import ErrorBoundary from './components/ErrorBoundary';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Customers from './pages/Customers';
@@ -83,25 +84,27 @@ export default function App() {
 
       {/* Main Dynamic Workspace */}
       <main className="main-content">
-        {currentPage === 'home' && <Home onNavigate={setCurrentPage} onOpenBackup={openBackup} />}
-        {currentPage === 'customers' && <Customers onOpenBackup={openBackup} />}
-        {currentPage === 'staff' && <Staff onOpenBackup={openBackup} />}
-        {currentPage === 'user-rights' && <RolesRights onOpenBackup={openBackup} />}
-        {(currentPage === 'masters' || currentPage === 'departments' || currentPage === 'designations' || currentPage === 'roles') && (
-          <MasterHub 
-            initialTab={
-              currentPage === 'designations' ? 'designations' : 
-              currentPage === 'roles' ? 'roles' : 'departments'
-            } 
-            onOpenBackup={openBackup} 
-          />
-        )}
-        {currentPage === 'sip' && <SipCalculator onOpenBackup={openBackup} />}
-        {currentPage === 'settings' && <Settings onOpenBackup={openBackup} />}
-        {currentPage === 'profile' && <UserProfile onOpenBackup={openBackup} />}
-        {currentPage === 'superadmin' && isSuperAdmin && <SuperAdminPortal onOpenBackup={openBackup} />}
-        {currentPage === 'tenant-user-mapping' && isSuperAdmin && <TenantUserMapping onOpenBackup={openBackup} />}
-        {currentPage === 'subscription-plans' && isSuperAdmin && <SubscriptionPlans onOpenBackup={openBackup} />}
+        <ErrorBoundary onReset={() => setCurrentPage('home')}>
+          {currentPage === 'home' && <Home onNavigate={setCurrentPage} onOpenBackup={openBackup} />}
+          {currentPage === 'customers' && <Customers onOpenBackup={openBackup} />}
+          {currentPage === 'staff' && <Staff onOpenBackup={openBackup} />}
+          {currentPage === 'user-rights' && <RolesRights onOpenBackup={openBackup} />}
+          {(currentPage === 'masters' || currentPage === 'departments' || currentPage === 'designations' || currentPage === 'roles') && (
+            <MasterHub 
+              initialTab={
+                currentPage === 'designations' ? 'designations' : 
+                currentPage === 'roles' ? 'roles' : 'departments'
+              } 
+              onOpenBackup={openBackup} 
+            />
+          )}
+          {currentPage === 'sip' && <SipCalculator onOpenBackup={openBackup} />}
+          {currentPage === 'settings' && <Settings onOpenBackup={openBackup} />}
+          {currentPage === 'profile' && <UserProfile onOpenBackup={openBackup} />}
+          {currentPage === 'superadmin' && <SuperAdminPortal onOpenBackup={openBackup} />}
+          {currentPage === 'tenant-user-mapping' && <TenantUserMapping onOpenBackup={openBackup} />}
+          {currentPage === 'subscription-plans' && <SubscriptionPlans onOpenBackup={openBackup} />}
+        </ErrorBoundary>
       </main>
 
       {/* Global Drive Backup ZIP Modal */}

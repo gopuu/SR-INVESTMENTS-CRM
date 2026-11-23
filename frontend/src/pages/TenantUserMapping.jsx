@@ -537,7 +537,7 @@ export default function TenantUserMapping({ onOpenBackup }) {
                 className="form-select"
                 value={selectedTenantId}
                 onChange={(e) => setSelectedTenantId(e.target.value)}
-                disabled={loadingTenants}
+                disabled={loading}
                 style={{
                   minWidth: '280px',
                   fontWeight: '600',
@@ -546,7 +546,7 @@ export default function TenantUserMapping({ onOpenBackup }) {
                   backgroundColor: '#ffffff'
                 }}
               >
-                {loadingTenants ? (
+                {loading ? (
                   <option value="" disabled>Fetching data...</option>
                 ) : tenants.length === 0 ? (
                   <option value="" disabled>No Data Available</option>
