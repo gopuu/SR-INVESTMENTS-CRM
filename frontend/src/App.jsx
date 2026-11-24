@@ -3,6 +3,7 @@ import { useAuth } from './context/AuthContext';
 import { startRealtimeSyncPoller, stopRealtimeSyncPoller } from './services/api';
 import Sidebar from './components/Sidebar';
 import BackupModal from './components/BackupModal';
+import GlobalDbLoader from './components/GlobalDbLoader';
 import ErrorBoundary from './components/ErrorBoundary';
 import Login from './pages/Login';
 import Home from './pages/Home';
@@ -70,7 +71,12 @@ export default function App() {
   }, [currentPage, hasPermission]);
 
   if (!user) {
-    return <Login />;
+    return (
+      <>
+        <Login />
+        <GlobalDbLoader />
+      </>
+    );
   }
 
   const openBackup = () => setIsBackupModalOpen(true);
@@ -114,6 +120,9 @@ export default function App() {
         isOpen={isBackupModalOpen}
         onClose={() => setIsBackupModalOpen(false)}
       />
+
+      {/* Global Excel/DB Transaction Loader (Bottom-Right) */}
+      <GlobalDbLoader />
     </div>
   );
 }

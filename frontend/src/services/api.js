@@ -845,6 +845,41 @@ export function subscribeCrmEvents(handler) {
 }
 
 /**
+ * Global DB / Excel Transaction Call Tracking System
+ */
+let activeDbCallsCount = 0;
+const dbCallSubscribers = new Set();
+
+export function subscribeDbCalls(listener) {
+  dbCallSubscribers.add(listener);
+  try {
+    listener(activeDbCallsCount > 0, activeDbCallsCount, '');
+  } catch (e) {}
+  return () => dbCallSubscribers.delete(listener);
+}
+
+export function notifyDbCallStart(action) {
+  if (action === 'checkTenantSync' || action === 'health') return;
+  activeDbCallsCount++;
+  dbCallSubscribers.forEach(fn => {
+    try {
+      fn(true, activeDbCallsCount, action);
+    } catch (e) {}
+  });
+}
+
+export function notifyDbCallEnd(action) {
+  if (action === 'checkTenantSync' || action === 'health') return;
+  activeDbCallsCount = Math.max(0, activeDbCallsCount - 1);
+  const isStillLoading = activeDbCallsCount > 0;
+  dbCallSubscribers.forEach(fn => {
+    try {
+      fn(isStillLoading, activeDbCallsCount, action);
+    } catch (e) {}
+  });
+}
+
+/**
  * Periodically polls Google Apps Script or Demo store to detect any CRUD changes
  * performed by OTHER users/systems of the SAME tenant, and reflects them instantly.
  */
@@ -1482,6 +1517,16 @@ export const crmApi = {
   },
 
   async call(action, payload = {}) {
+    const isTracked = action !== 'checkTenantSync' && action !== 'health' && !payload?._silent;
+    if (isTracked) notifyDbCallStart(action);
+    try {
+      return await this._executeCall(action, payload);
+    } finally {
+      if (isTracked) notifyDbCallEnd(action);
+    }
+  },
+
+  async _executeCall(action, payload = {}) {
     let currentUserEmail = 'admin@srinvestments.com';
     let currentUserName = 'Administrator';
     let currentTenantId = 'TEN001';

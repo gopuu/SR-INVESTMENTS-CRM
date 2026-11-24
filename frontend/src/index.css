@@ -451,3 +451,16 @@ body {
 .uppercase { text-transform: uppercase; }
 .cursor-pointer { cursor: pointer; }
 
+/* Global Excel DB Loader Animation */
+@keyframes slideUpExcelLoader {
+  from {
+    transform: translateY(24px) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+
