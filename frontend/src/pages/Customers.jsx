@@ -58,6 +58,16 @@ export default function Customers({ onOpenBackup }) {
   const [isDraftsModalOpen, setIsDraftsModalOpen] = useState(false);
   const [activeDraftKey, setActiveDraftKey] = useState(null);
 
+  // Background Draft Queue State (Non-blocking fast step progression)
+  const [bgDraftStatus, setBgDraftStatus] = useState(null); // { step, status: 'saving'|'saved'|'error', text }
+  const draftQueueRef = useRef([]);
+  const isProcessingDraftRef = useRef(false);
+  const currentDraftKeyRef = useRef(null);
+
+  useEffect(() => {
+    currentDraftKeyRef.current = activeDraftKey;
+  }, [activeDraftKey]);
+
   // 7-Step Wizard state
   const [currentStep, setCurrentStep] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -215,6 +225,9 @@ export default function Customers({ onOpenBackup }) {
     setEditingCustomer(null);
     setIsCodeManual(false);
     setActiveDraftKey(null);
+    currentDraftKeyRef.current = null;
+    draftQueueRef.current = [];
+    setBgDraftStatus(null);
     setCurrentStep(1);
     setValidationErrors({});
     const genCode = 'SR' + Math.floor(10000 + Math.random() * 90000);
@@ -232,6 +245,9 @@ export default function Customers({ onOpenBackup }) {
     setEditingCustomer(cust);
     setIsCodeManual(true);
     setActiveDraftKey(null);
+    currentDraftKeyRef.current = null;
+    draftQueueRef.current = [];
+    setBgDraftStatus(null);
     setCurrentStep(1);
     setValidationErrors({});
 
@@ -569,25 +585,76 @@ export default function Customers({ onOpenBackup }) {
     return Object.keys(errs).length === 0;
   };
 
-  // ================= SAVE AS DRAFT =================
+  // Helper styling for inputs and error messages
+  const getInputStyle = (errorKey, extra = {}) => ({
+    width: '100%',
+    padding: '0.55rem 0.75rem',
+    fontSize: '0.825rem',
+    borderRadius: '8px',
+    border: validationErrors[errorKey] ? '1.5px solid #ef4444' : '1px solid #cbd5e1',
+    backgroundColor: validationErrors[errorKey] ? '#fff5f5' : '#ffffff',
+    color: '#1e293b',
+    outline: 'none',
+    boxSizing: 'border-box',
+    transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+    boxShadow: validationErrors[errorKey] ? '0 0 0 2px rgba(239, 68, 68, 0.15)' : 'none',
+    ...extra
+  });
+
+  const renderFieldError = (errorKey) => {
+    if (!validationErrors[errorKey]) return null;
+    return (
+      <p style={{
+        color: '#ef4444',
+        fontSize: '0.75rem',
+        marginTop: '0.3rem',
+        marginBottom: 0,
+        fontWeight: '500',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px'
+      }}>
+        <AlertCircle size={12} />
+        <span>{validationErrors[errorKey]}</span>
+      </p>
+    );
+  };
+
+  const renderFieldLabel = (label, isRequired) => (
+    <label style={{
+      display: 'block',
+      fontSize: '0.75rem',
+      fontWeight: '600',
+      color: '#475569',
+      textTransform: 'uppercase',
+      letterSpacing: '0.02em',
+      marginBottom: '0.35rem'
+    }}>
+      {label} {isRequired && <span style={{ color: '#ef4444' }}>*</span>}
+    </label>
+  );
+
+  // ================= SAVE AS DRAFT & BACKGROUND QUEUE =================
   const handleSaveDraft = async (silent = false) => {
     try {
       setSavingDraft(true);
       const custName = formData.FullName || [formData.FirstName, formData.LastName].filter(Boolean).join(' ') || 'Customer Draft';
+      const keyToUse = currentDraftKeyRef.current || activeDraftKey;
       const payload = {
-        DraftKey: activeDraftKey,
+        DraftKey: keyToUse,
         CurrentStep: currentStep,
         CustomerName: custName,
         userEmail: user?.email,
         DraftData: {
           ...formData,
-          DraftKey: activeDraftKey,
+          DraftKey: keyToUse,
           CurrentStep: currentStep
         }
       };
 
       const res = await crmApi.call('saveCustomerDraft', payload);
       if (res?.data?.DraftKey) {
+        currentDraftKeyRef.current = res.data.DraftKey;
         setActiveDraftKey(res.data.DraftKey);
       }
       await loadDrafts();
@@ -605,18 +672,92 @@ export default function Customers({ onOpenBackup }) {
     }
   };
 
-  // Next Step Action
-  const handleNextStep = async () => {
+  // Queue background draft save without blocking step navigation
+  const queueDraftSave = (stepNumber, formSnapshot) => {
+    draftQueueRef.current.push({ step: stepNumber, data: { ...formSnapshot } });
+    processDraftQueue();
+  };
+
+  const processDraftQueue = async () => {
+    if (isProcessingDraftRef.current) return;
+    if (draftQueueRef.current.length === 0) return;
+
+    isProcessingDraftRef.current = true;
+    const task = draftQueueRef.current.shift();
+
+    setBgDraftStatus({
+      step: task.step,
+      status: 'saving',
+      text: `Draft (Step ${task.step}) saving...`
+    });
+
+    try {
+      const custName = task.data.FullName || [task.data.FirstName, task.data.LastName].filter(Boolean).join(' ') || 'Customer Draft';
+      const keyToUse = currentDraftKeyRef.current || activeDraftKey;
+      const payload = {
+        DraftKey: keyToUse,
+        CurrentStep: task.step,
+        CustomerName: custName,
+        userEmail: user?.email,
+        DraftData: {
+          ...task.data,
+          DraftKey: keyToUse,
+          CurrentStep: task.step
+        }
+      };
+
+      const res = await crmApi.call('saveCustomerDraft', payload);
+      if (res?.data?.DraftKey) {
+        currentDraftKeyRef.current = res.data.DraftKey;
+        setActiveDraftKey(res.data.DraftKey);
+      }
+      loadDrafts();
+
+      setBgDraftStatus({
+        step: task.step,
+        status: 'saved',
+        text: `Draft (Step ${task.step}) saved`
+      });
+
+      setTimeout(() => {
+        setBgDraftStatus(prev => {
+          if (prev?.step === task.step && prev?.status === 'saved' && draftQueueRef.current.length === 0) {
+            return null;
+          }
+          return prev;
+        });
+      }, 2500);
+    } catch (err) {
+      console.warn('Background draft save error:', err);
+      setBgDraftStatus({
+        step: task.step,
+        status: 'error',
+        text: `Draft (Step ${task.step}) failed`
+      });
+      setTimeout(() => {
+        setBgDraftStatus(null);
+      }, 3000);
+    } finally {
+      isProcessingDraftRef.current = false;
+      if (draftQueueRef.current.length > 0) {
+        processDraftQueue();
+      }
+    }
+  };
+
+  // Next Step Action: Immediate forward navigation + background queue!
+  const handleNextStep = () => {
     if (!validateStep(currentStep)) return;
-    
-    // Auto-save draft on step transition
-    if (!editingCustomer) {
-      await handleSaveDraft(true);
+
+    const completedStep = currentStep;
+    if (currentStep < 7) {
+      setCurrentStep(prev => prev + 1);
+      setValidationErrors({});
     }
 
-    if (currentStep < 7) {
-      setCurrentStep(currentStep + 1);
-      setValidationErrors({});
+    // Auto-save draft asynchronously in background queue without blocking UI
+    if (!editingCustomer) {
+      queueDraftSave(completedStep, formData);
     }
   };
 
@@ -668,6 +809,9 @@ export default function Customers({ onOpenBackup }) {
     setIsDraftsModalOpen(false);
     const dData = draft.DraftData || {};
     setActiveDraftKey(draft.DraftKey);
+    currentDraftKeyRef.current = draft.DraftKey;
+    draftQueueRef.current = [];
+    setBgDraftStatus(null);
     setEditingCustomer(null);
     setCurrentStep(1); // per user instruction: resume starts at 1st step prefilled, review & go next
     setValidationErrors({});
@@ -813,7 +957,7 @@ export default function Customers({ onOpenBackup }) {
                   }}
                 >
                   <Plus size={16} />
-                  <span>+ Add Customer</span>
+                  <span>Add Customer</span>
                 </button>
               )}
             </div>
@@ -959,28 +1103,34 @@ export default function Customers({ onOpenBackup }) {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        maxWidth="900px"
+        maxWidth="740px"
         hideHeader={true}
       >
-        <div className="bg-white rounded-xl overflow-hidden -m-4 sm:-m-6 flex flex-col h-full max-h-[88vh] min-h-0">
-          {/* Custom Header with Primary Color (Fixed Top) */}
+        <div style={{
+          backgroundColor: '#ffffff',
+          borderRadius: '14px',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          maxHeight: '90vh'
+        }}>
+          {/* Custom Header with Primary Gradient & Background Draft Status (Fixed Top) */}
           <div style={{
             background: 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
             color: '#ffffff',
-            padding: '1.25rem 1.75rem',
+            padding: '1rem 1.5rem',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             flexShrink: 0,
-            borderTopLeftRadius: '12px',
-            borderTopRightRadius: '12px',
             boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
             zIndex: 10
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <div style={{
-                width: '40px',
-                height: '40px',
+                width: '38px',
+                height: '38px',
                 borderRadius: '10px',
                 backgroundColor: 'rgba(255, 255, 255, 0.18)',
                 backdropFilter: 'blur(8px)',
@@ -991,46 +1141,104 @@ export default function Customers({ onOpenBackup }) {
                 border: '1px solid rgba(255, 255, 255, 0.25)',
                 flexShrink: 0
               }}>
-                {editingCustomer ? <Edit3 size={20} /> : <UserPlus size={20} />}
+                {editingCustomer ? <Edit3 size={18} /> : <UserPlus size={18} />}
               </div>
               <div>
-                <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em' }}>
+                <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em' }}>
                   {editingCustomer ? `Edit Customer: ${editingCustomer.FullName || editingCustomer.EmployeeCode}` : 'Add Customer'}
                 </h2>
-                <p style={{ margin: '0.15rem 0 0', fontSize: '0.775rem', color: '#dbeafe', fontWeight: '400' }}>
+                <p style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: '#dbeafe', fontWeight: '400' }}>
                   7-Step KYC, Bank, Nominee & Investor Registration Wizard
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(false)}
-              aria-label="Close modal"
-              style={{
-                background: 'rgba(255, 255, 255, 0.15)',
-                border: '1px solid rgba(255, 255, 255, 0.25)',
-                color: '#ffffff',
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'; }}
-            >
-              <X size={18} />
-            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {/* Asynchronous Background Draft Queue Pill (Top-Right End) */}
+              {bgDraftStatus && (
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 10px',
+                  borderRadius: '999px',
+                  fontSize: '0.75rem',
+                  fontWeight: '600',
+                  backgroundColor: bgDraftStatus.status === 'saving' 
+                    ? 'rgba(255, 255, 255, 0.22)' 
+                    : bgDraftStatus.status === 'saved' 
+                      ? 'rgba(16, 185, 129, 0.35)' 
+                      : 'rgba(239, 68, 68, 0.35)',
+                  border: '1px solid rgba(255, 255, 255, 0.35)',
+                  color: '#ffffff',
+                  backdropFilter: 'blur(4px)',
+                  transition: 'all 0.2s ease'
+                }}>
+                  {bgDraftStatus.status === 'saving' && (
+                    <RefreshCw size={12} className="spin-animation" />
+                  )}
+                  {bgDraftStatus.status === 'saved' && (
+                    <Check size={12} strokeWidth={3} />
+                  )}
+                  {bgDraftStatus.status === 'error' && (
+                    <AlertCircle size={12} />
+                  )}
+                  <span>{bgDraftStatus.text}</span>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                aria-label="Close modal"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.15)',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                  color: '#ffffff',
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'; }}
+              >
+                <X size={16} />
+              </button>
+            </div>
           </div>
 
-          {/* 7-Step Progress Wizard Bar (Fixed) */}
-          <div className="bg-white border-b border-slate-200 px-4 sm:px-8 py-5 flex-shrink-0">
-            <div className="flex items-center justify-between relative">
-              {/* Connecting line */}
-              <div className="absolute left-6 right-6 top-4 -translate-y-1/2 h-0.5 bg-slate-200 -z-0" />
+          {/* 7-Step Progress Wizard Stepper Bar with Forward Progress Line (Fixed) */}
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderBottom: '1px solid #e2e8f0',
+            padding: '1rem 1.5rem',
+            flexShrink: 0
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
+              {/* Connecting background line & dynamic forward progress fill */}
+              <div style={{
+                position: 'absolute',
+                left: '20px',
+                right: '20px',
+                top: '16px',
+                height: '3px',
+                backgroundColor: '#f1f5f9',
+                borderRadius: '2px',
+                zIndex: 0
+              }}>
+                <div style={{
+                  height: '100%',
+                  width: `${((currentStep - 1) / 6) * 100}%`,
+                  background: 'linear-gradient(90deg, #10b981 0%, #ea580c 100%)',
+                  borderRadius: '2px',
+                  transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                }} />
+              </div>
 
               {stepsMeta.map((s) => {
                 const isActive = currentStep === s.num;
@@ -1039,28 +1247,56 @@ export default function Customers({ onOpenBackup }) {
                 return (
                   <div 
                     key={s.num} 
-                    className="flex flex-col items-center relative z-10 cursor-pointer"
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      position: 'relative',
+                      zIndex: 1,
+                      cursor: s.num <= currentStep ? 'pointer' : 'default',
+                      userSelect: 'none'
+                    }}
                     onClick={() => {
-                      // Allow jumping to steps <= currentStep or if valid
                       if (s.num <= currentStep) {
                         setCurrentStep(s.num);
                       }
                     }}
                   >
                     <div 
-                      className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm transition-all shadow-sm ${
-                        isActive 
-                          ? 'bg-[#ea580c] text-white ring-4 ring-orange-100 scale-105' 
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: '700',
+                        fontSize: '0.8rem',
+                        transition: 'all 0.2s ease',
+                        backgroundColor: isActive 
+                          ? '#ea580c' 
                           : isPassed 
-                            ? 'bg-[#16a34a] text-white' 
-                            : 'bg-slate-200 text-slate-600'
-                      }`}
+                            ? '#10b981' 
+                            : '#f8fafc',
+                        color: (isActive || isPassed) ? '#ffffff' : '#64748b',
+                        border: (isActive || isPassed) ? 'none' : '1.5px solid #cbd5e1',
+                        boxShadow: isActive 
+                          ? '0 0 0 4px rgba(234, 88, 12, 0.18), 0 2px 4px rgba(234, 88, 12, 0.3)' 
+                          : isPassed 
+                            ? '0 2px 4px rgba(16, 185, 129, 0.2)' 
+                            : 'none',
+                        transform: isActive ? 'scale(1.08)' : 'scale(1)'
+                      }}
                     >
-                      {s.num}
+                      {isPassed ? <Check size={15} strokeWidth={3} /> : s.num}
                     </div>
-                    <span className={`text-xs mt-1.5 font-medium ${
-                      isActive ? 'text-[#ea580c] font-bold' : isPassed ? 'text-[#16a34a]' : 'text-slate-500'
-                    }`}>
+                    <span style={{
+                      fontSize: '0.72rem',
+                      marginTop: '5px',
+                      fontWeight: isActive ? '700' : '500',
+                      color: isActive ? '#ea580c' : isPassed ? '#10b981' : '#64748b',
+                      transition: 'color 0.2s ease'
+                    }}>
                       {s.label}
                     </span>
                   </div>
@@ -1069,25 +1305,29 @@ export default function Customers({ onOpenBackup }) {
             </div>
           </div>
 
-          {/* Step Body (Scrollable) */}
-          <div className="p-6 flex-1 min-h-0 overflow-y-auto space-y-6">
+          {/* Step Body (Scrollable with Comfortable Padding & Red Validation Feedback) */}
+          <div style={{
+            padding: '1.25rem 1.5rem',
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto'
+          }}>
             
             {/* ================= STEP 1: BASIC DETAILS ================= */}
             {currentStep === 1 && (
               <div className="space-y-4">
-                <h3 className="text-base font-semibold text-slate-800 border-b pb-2">Basic Details</h3>
+                <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Users size={16} color="#3b82f6" />
+                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#1e293b' }}>Basic Details</h3>
+                </div>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      Title <span className="text-red-500">*</span>
-                    </label>
+                    {renderFieldLabel('Title', true)}
                     <select
                       value={formData.Title}
                       onChange={(e) => handleTitleChange(e.target.value)}
-                      className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                        validationErrors.Title ? 'border-red-500' : 'border-slate-300'
-                      } bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      style={getInputStyle('Title')}
                     >
                       <option value="">--Select--</option>
                       <option value="Mr">Mr</option>
@@ -1096,100 +1336,78 @@ export default function Customers({ onOpenBackup }) {
                       <option value="Minor">Minor</option>
                       <option value="HUF">HUF</option>
                     </select>
-                    {validationErrors.Title && <p className="text-xs text-red-500 mt-1">{validationErrors.Title}</p>}
+                    {renderFieldError('Title')}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      First Name <span className="text-red-500">*</span>
-                    </label>
+                    {renderFieldLabel('First Name', true)}
                     <input
                       type="text"
                       placeholder="e.g. RAHUL"
                       value={formData.FirstName}
                       onChange={(e) => handleNamePartChange('FirstName', e.target.value.toUpperCase())}
-                      className={`w-full px-3 py-2 text-sm rounded-lg border uppercase ${
-                        validationErrors.FirstName ? 'border-red-500' : 'border-slate-300'
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      style={getInputStyle('FirstName', { textTransform: 'uppercase' })}
                     />
-                    {validationErrors.FirstName && <p className="text-xs text-red-500 mt-1">{validationErrors.FirstName}</p>}
+                    {renderFieldError('FirstName')}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      Middle Name
-                    </label>
+                    {renderFieldLabel('Middle Name', false)}
                     <input
                       type="text"
                       placeholder="e.g. PRAKASH"
                       value={formData.MiddleName}
                       onChange={(e) => handleNamePartChange('MiddleName', e.target.value.toUpperCase())}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 uppercase focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      style={getInputStyle('MiddleName', { textTransform: 'uppercase' })}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      Last Name <span className="text-red-500">*</span>
-                    </label>
+                    {renderFieldLabel('Last Name', true)}
                     <input
                       type="text"
                       placeholder="e.g. KUMAR"
                       value={formData.LastName}
                       onChange={(e) => handleNamePartChange('LastName', e.target.value.toUpperCase())}
-                      className={`w-full px-3 py-2 text-sm rounded-lg border uppercase ${
-                        validationErrors.LastName ? 'border-red-500' : 'border-slate-300'
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      style={getInputStyle('LastName', { textTransform: 'uppercase' })}
                     />
-                    {validationErrors.LastName && <p className="text-xs text-red-500 mt-1">{validationErrors.LastName}</p>}
+                    {renderFieldError('LastName')}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      Gender <span className="text-red-500">*</span>
-                    </label>
+                    {renderFieldLabel('Gender', true)}
                     <select
                       value={formData.Gender}
                       onChange={(e) => setFormData({ ...formData, Gender: e.target.value })}
-                      className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                        validationErrors.Gender ? 'border-red-500' : 'border-slate-300'
-                      } bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      style={getInputStyle('Gender')}
                     >
                       <option value="">--Select--</option>
                       <option value="Male">Male</option>
                       <option value="Female">Female</option>
                       <option value="Other">Other</option>
                     </select>
-                    {validationErrors.Gender && <p className="text-xs text-red-500 mt-1">{validationErrors.Gender}</p>}
+                    {renderFieldError('Gender')}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      Birth Date <span className="text-red-500">*</span>
-                    </label>
+                    {renderFieldLabel('Birth Date', true)}
                     <input
                       type="date"
                       value={formData.DateOfBirth}
                       onChange={(e) => setFormData({ ...formData, DateOfBirth: e.target.value })}
-                      className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                        validationErrors.DateOfBirth ? 'border-red-500' : 'border-slate-300'
-                      } bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      style={getInputStyle('DateOfBirth')}
                     />
-                    {validationErrors.DateOfBirth && <p className="text-xs text-red-500 mt-1">{validationErrors.DateOfBirth}</p>}
+                    {renderFieldError('DateOfBirth')}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      Occupation {formData.Title !== 'Minor' && <span className="text-red-500">*</span>}
-                    </label>
+                    {renderFieldLabel('Occupation', formData.Title !== 'Minor')}
                     <select
                       value={formData.Occupation}
                       onChange={(e) => setFormData({ ...formData, Occupation: e.target.value })}
-                      className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                        validationErrors.Occupation ? 'border-red-500' : 'border-slate-300'
-                      } bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      style={getInputStyle('Occupation')}
                     >
                       <option value="">--Select--</option>
                       <option value="Business">Business</option>
@@ -1201,19 +1419,15 @@ export default function Customers({ onOpenBackup }) {
                       <option value="Retired">Retired</option>
                       <option value="Others">Others</option>
                     </select>
-                    {validationErrors.Occupation && <p className="text-xs text-red-500 mt-1">{validationErrors.Occupation}</p>}
+                    {renderFieldError('Occupation')}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      Annual Income {formData.Title !== 'Minor' && <span className="text-red-500">*</span>}
-                    </label>
+                    {renderFieldLabel('Annual Income', formData.Title !== 'Minor')}
                     <select
                       value={formData.AnnualIncome}
                       onChange={(e) => setFormData({ ...formData, AnnualIncome: e.target.value })}
-                      className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                        validationErrors.AnnualIncome ? 'border-red-500' : 'border-slate-300'
-                      } bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      style={getInputStyle('AnnualIncome')}
                     >
                       <option value="">--Select--</option>
                       <option value="Below 1 Lakh">Below 1 Lakh</option>
@@ -1223,7 +1437,7 @@ export default function Customers({ onOpenBackup }) {
                       <option value="25 Lakhs - 1 Crore">25 Lakhs - 1 Crore</option>
                       <option value="Above 1 Crore">Above 1 Crore</option>
                     </select>
-                    {validationErrors.AnnualIncome && <p className="text-xs text-red-500 mt-1">{validationErrors.AnnualIncome}</p>}
+                    {renderFieldError('AnnualIncome')}
                   </div>
                 </div>
               </div>
@@ -1232,76 +1446,63 @@ export default function Customers({ onOpenBackup }) {
             {/* ================= STEP 2: CONTACT & KYC ================= */}
             {currentStep === 2 && (
               <div className="space-y-4">
-                <h3 className="text-base font-semibold text-slate-800 border-b pb-2">Contact & KYC</h3>
+                <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <ShieldCheck size={16} color="#3b82f6" />
+                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#1e293b' }}>Contact & KYC Details</h3>
+                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      Mobile <span className="text-red-500">*</span>
-                    </label>
+                    {renderFieldLabel('Primary Mobile Number', true)}
                     <input
                       type="text"
                       maxLength={10}
                       placeholder="10-digit mobile number"
                       value={formData.Mobile}
                       onChange={(e) => setFormData({ ...formData, Mobile: e.target.value.replace(/\D/g, '') })}
-                      className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                        validationErrors.Mobile ? 'border-red-500' : 'border-slate-300'
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      style={getInputStyle('Mobile')}
                     />
-                    {validationErrors.Mobile && <p className="text-xs text-red-500 mt-1">{validationErrors.Mobile}</p>}
+                    {renderFieldError('Mobile')}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      Email <span className="text-red-500">*</span>
-                    </label>
+                    {renderFieldLabel('Email Address', true)}
                     <input
                       type="email"
                       placeholder="e.g. rahul@example.com"
                       value={formData.Email}
                       onChange={(e) => setFormData({ ...formData, Email: e.target.value.trim() })}
-                      className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                        validationErrors.Email ? 'border-red-500' : 'border-slate-300'
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      style={getInputStyle('Email')}
                     />
-                    {validationErrors.Email && <p className="text-xs text-red-500 mt-1">{validationErrors.Email}</p>}
+                    {renderFieldError('Email')}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      PAN <span className="text-red-500">*</span>
-                    </label>
+                    {renderFieldLabel('PAN Number', true)}
                     <input
                       type="text"
                       maxLength={10}
                       placeholder="e.g. ABCDE1234F"
                       value={formData.PanNumber}
                       onChange={(e) => setFormData({ ...formData, PanNumber: e.target.value.toUpperCase().trim() })}
-                      className={`w-full px-3 py-2 text-sm rounded-lg border uppercase ${
-                        validationErrors.PanNumber ? 'border-red-500' : 'border-slate-300'
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      style={getInputStyle('PanNumber', { textTransform: 'uppercase', fontFamily: 'monospace' })}
                     />
-                    {validationErrors.PanNumber && <p className="text-xs text-red-500 mt-1">{validationErrors.PanNumber}</p>}
+                    {renderFieldError('PanNumber')}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      Aadhaar <span className="text-red-500">*</span>
-                    </label>
+                    {renderFieldLabel('Aadhaar Number', true)}
                     <input
                       type="text"
                       maxLength={12}
                       placeholder="12-digit Aadhaar number"
                       value={formData.AadharNo}
                       onChange={(e) => setFormData({ ...formData, AadharNo: e.target.value.replace(/\D/g, '') })}
-                      className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                        validationErrors.AadharNo ? 'border-red-500' : 'border-slate-300'
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      style={getInputStyle('AadharNo', { fontFamily: 'monospace' })}
                     />
-                    {validationErrors.AadharNo && <p className="text-xs text-red-500 mt-1">{validationErrors.AadharNo}</p>}
+                    {renderFieldError('AadharNo')}
                   </div>
                 </div>
               </div>
@@ -1310,90 +1511,73 @@ export default function Customers({ onOpenBackup }) {
             {/* ================= STEP 3: ADDRESS DETAILS ================= */}
             {currentStep === 3 && (
               <div className="space-y-4">
-                <h3 className="text-base font-semibold text-slate-800 border-b pb-2">Address Details</h3>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                    Address <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    rows={2}
-                    placeholder="House/Flat No, Building, Street Address"
-                    value={formData.Address}
-                    onChange={(e) => setFormData({ ...formData, Address: e.target.value })}
-                    className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                      validationErrors.Address ? 'border-red-500' : 'border-slate-300'
-                    } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
-                  />
-                  {validationErrors.Address && <p className="text-xs text-red-500 mt-1">{validationErrors.Address}</p>}
+                <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Building size={16} color="#3b82f6" />
+                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#1e293b' }}>Address Details</h3>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  {renderFieldLabel('Full Residential Address', true)}
+                  <textarea
+                    rows={2}
+                    placeholder="House/Flat No, Building Name, Street Address"
+                    value={formData.Address}
+                    onChange={(e) => setFormData({ ...formData, Address: e.target.value })}
+                    style={getInputStyle('Address')}
+                  />
+                  {renderFieldError('Address')}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      Pincode <span className="text-red-500">*</span>
-                    </label>
+                    {renderFieldLabel('Postal Pincode', true)}
                     <input
                       type="text"
                       maxLength={6}
                       placeholder="6-digit Pincode (Auto-fills Area & City)"
                       value={formData.Pincode}
                       onChange={(e) => handlePincodeChange(e.target.value)}
-                      className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                        validationErrors.Pincode ? 'border-red-500' : 'border-slate-300'
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      style={getInputStyle('Pincode', { fontFamily: 'monospace' })}
                     />
-                    {validationErrors.Pincode && <p className="text-xs text-red-500 mt-1">{validationErrors.Pincode}</p>}
+                    {renderFieldError('Pincode')}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      Area / Locality <span className="text-red-500">*</span>
-                    </label>
+                    {renderFieldLabel('Area / Locality', true)}
                     <input
                       type="text"
-                      placeholder="e.g. Bamroli, Vesu"
+                      placeholder="e.g. Vesu, Althan"
                       value={formData.Area}
                       onChange={(e) => setFormData({ ...formData, Area: e.target.value })}
-                      className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                        validationErrors.Area ? 'border-red-500' : 'border-slate-300'
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      style={getInputStyle('Area')}
                     />
-                    {validationErrors.Area && <p className="text-xs text-red-500 mt-1">{validationErrors.Area}</p>}
+                    {renderFieldError('Area')}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      City / District <span className="text-red-500">*</span>
-                    </label>
+                    {renderFieldLabel('City / District', true)}
                     <input
                       type="text"
                       placeholder="e.g. Surat"
                       value={formData.City}
                       onChange={(e) => setFormData({ ...formData, City: e.target.value })}
-                      className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                        validationErrors.City ? 'border-red-500' : 'border-slate-300'
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      style={getInputStyle('City')}
                     />
-                    {validationErrors.City && <p className="text-xs text-red-500 mt-1">{validationErrors.City}</p>}
+                    {renderFieldError('City')}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      State <span className="text-red-500">*</span>
-                    </label>
+                    {renderFieldLabel('State', true)}
                     <input
                       type="text"
                       placeholder="e.g. Gujarat"
                       value={formData.State}
                       onChange={(e) => setFormData({ ...formData, State: e.target.value })}
-                      className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                        validationErrors.State ? 'border-red-500' : 'border-slate-300'
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      style={getInputStyle('State')}
                     />
-                    {validationErrors.State && <p className="text-xs text-red-500 mt-1">{validationErrors.State}</p>}
+                    {renderFieldError('State')}
                   </div>
                 </div>
               </div>
@@ -1402,75 +1586,64 @@ export default function Customers({ onOpenBackup }) {
             {/* ================= STEP 4: SYSTEM DETAILS ================= */}
             {currentStep === 4 && (
               <div className="space-y-4">
-                <h3 className="text-base font-semibold text-slate-800 border-b pb-2">System Details</h3>
+                <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <FileText size={16} color="#3b82f6" />
+                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#1e293b' }}>System & Integration IDs</h3>
+                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      BSE UCC
-                    </label>
+                    {renderFieldLabel('BSE UCC', false)}
                     <input
                       type="text"
                       maxLength={15}
                       placeholder="BSE UCC (Max 15 Alphanumeric)"
                       value={formData.BseUcc}
                       onChange={(e) => setFormData({ ...formData, BseUcc: e.target.value.toUpperCase().trim() })}
-                      className={`w-full px-3 py-2 text-sm rounded-lg border uppercase ${
-                        validationErrors.BseUcc ? 'border-red-500' : 'border-slate-300'
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      style={getInputStyle('BseUcc', { textTransform: 'uppercase' })}
                     />
-                    {validationErrors.BseUcc && <p className="text-xs text-red-500 mt-1">{validationErrors.BseUcc}</p>}
+                    {renderFieldError('BseUcc')}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      SK CUSTID
-                    </label>
+                    {renderFieldLabel('SK CUSTID', false)}
                     <input
                       type="text"
                       placeholder="SK CustId (Numeric)"
                       value={formData.SkCustId}
                       onChange={(e) => setFormData({ ...formData, SkCustId: e.target.value.replace(/\D/g, '') })}
-                      className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                        validationErrors.SkCustId ? 'border-red-500' : 'border-slate-300'
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                      style={getInputStyle('SkCustId')}
                     />
-                    {validationErrors.SkCustId && <p className="text-xs text-red-500 mt-1">{validationErrors.SkCustId}</p>}
+                    {renderFieldError('SkCustId')}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      SK DP ID
-                    </label>
+                    {renderFieldLabel('SK DP ID', false)}
                     <input
                       type="text"
                       placeholder="SK DP ID (Alphanumeric)"
                       value={formData.SkDpId}
                       onChange={(e) => setFormData({ ...formData, SkDpId: e.target.value.toUpperCase().trim() })}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 uppercase focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      style={getInputStyle('SkDpId', { textTransform: 'uppercase' })}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                      SK CLIENT ID
-                    </label>
+                    {renderFieldLabel('SK CLIENT ID', false)}
                     <input
                       type="text"
                       placeholder="SK Client ID (Alphanumeric)"
                       value={formData.SkClientId}
                       onChange={(e) => setFormData({ ...formData, SkClientId: e.target.value.toUpperCase().trim() })}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 uppercase focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      style={getInputStyle('SkClientId', { textTransform: 'uppercase' })}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                    SK ID / Customer Unique ID <span className="text-red-500">*</span>
-                  </label>
+                  {renderFieldLabel('Customer Code / Unique ID', true)}
                   <input
                     type="text"
                     placeholder="Customer Code or SR Unique ID"
@@ -1483,11 +1656,9 @@ export default function Customers({ onOpenBackup }) {
                         SR_UniqueId: e.target.value.toUpperCase().trim()
                       });
                     }}
-                    className={`w-full px-3 py-2 text-sm rounded-lg border uppercase font-mono ${
-                      validationErrors.SR_UniqueId ? 'border-red-500' : 'border-slate-300'
-                    } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                    style={getInputStyle('SR_UniqueId', { textTransform: 'uppercase', fontFamily: 'monospace' })}
                   />
-                  {validationErrors.SR_UniqueId && <p className="text-xs text-red-500 mt-1">{validationErrors.SR_UniqueId}</p>}
+                  {renderFieldError('SR_UniqueId')}
                 </div>
               </div>
             )}
@@ -1495,62 +1666,91 @@ export default function Customers({ onOpenBackup }) {
             {/* ================= STEP 5: BANK DETAILS (Customer_Bank Sheet) ================= */}
             {currentStep === 5 && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between border-b pb-2">
-                  <h3 className="text-base font-semibold text-slate-800">
-                    Bank Details <span className="text-xs font-normal text-slate-500">(Max 3 banks allowed)</span>
-                  </h3>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <CreditCard size={16} color="#3b82f6" />
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#1e293b' }}>
+                        Bank Accounts
+                      </h3>
+                      <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Max 3 bank accounts allowed</span>
+                    </div>
+                  </div>
+
                   {formData.banks.length < 3 && (
                     <button
                       type="button"
                       onClick={addBankRow}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '0.35rem 0.75rem',
+                        fontSize: '0.75rem',
+                        fontWeight: '600',
+                        borderRadius: '6px',
+                        backgroundColor: '#10b981',
+                        color: '#ffffff',
+                        border: 'none',
+                        cursor: 'pointer'
+                      }}
                     >
-                      <Plus size={14} /> + Add Bank
+                      <Plus size={13} />
+                      <span>Add Bank</span>
                     </button>
                   )}
                 </div>
 
                 {formData.banks.map((b, idx) => (
-                  <div key={idx} className="bg-slate-50 p-4 rounded-xl border border-slate-200 relative space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-                        Bank #{idx + 1} {idx === 0 && <span className="text-emerald-600">(Primary Mandate)</span>}
+                  <div key={idx} style={{
+                    backgroundColor: '#f8fafc',
+                    padding: '0.85rem 1rem',
+                    borderRadius: '10px',
+                    border: '1px solid #e2e8f0',
+                    marginBottom: '0.75rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#334155', textTransform: 'uppercase' }}>
+                        Bank Account #{idx + 1} {idx === 0 && <span style={{ color: '#059669', fontWeight: '600' }}>(Primary Mandate)</span>}
                       </span>
                       {idx > 0 && (
                         <button
                           type="button"
                           onClick={() => removeBankRow(idx)}
-                          className="text-red-600 hover:text-red-700 text-xs font-semibold flex items-center gap-1"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            color: '#dc2626',
+                            background: 'none',
+                            border: 'none',
+                            fontSize: '0.72rem',
+                            fontWeight: '600',
+                            cursor: 'pointer'
+                          }}
                         >
-                          <Trash2 size={14} /> Remove
+                          <Trash2 size={13} />
+                          <span>Remove</span>
                         </button>
                       )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                          IFSC Code <span className="text-red-500">*</span>
-                        </label>
+                        {renderFieldLabel('IFSC Code', true)}
                         <input
                           type="text"
                           maxLength={11}
                           placeholder="e.g. SBIN0001234"
                           value={b.IfscCode}
                           onChange={(e) => handleIfscChange(idx, e.target.value)}
-                          className={`w-full px-3 py-2 text-sm rounded-lg border uppercase font-mono ${
-                            validationErrors[`bank_${idx}_IfscCode`] ? 'border-red-500' : 'border-slate-300'
-                          } bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                          style={getInputStyle(`bank_${idx}_IfscCode`, { textTransform: 'uppercase', fontFamily: 'monospace' })}
                         />
-                        {validationErrors[`bank_${idx}_IfscCode`] && (
-                          <p className="text-xs text-red-500 mt-1">{validationErrors[`bank_${idx}_IfscCode`]}</p>
-                        )}
+                        {renderFieldError(`bank_${idx}_IfscCode`)}
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                          Bank Name <span className="text-red-500">*</span>
-                        </label>
+                        {renderFieldLabel('Bank Name', true)}
                         <input
                           type="text"
                           placeholder="State Bank of India"
@@ -1560,19 +1760,13 @@ export default function Customers({ onOpenBackup }) {
                             nb[idx].BankName = e.target.value;
                             setFormData({ ...formData, banks: nb });
                           }}
-                          className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                            validationErrors[`bank_${idx}_BankName`] ? 'border-red-500' : 'border-slate-300'
-                          } bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                          style={getInputStyle(`bank_${idx}_BankName`)}
                         />
-                        {validationErrors[`bank_${idx}_BankName`] && (
-                          <p className="text-xs text-red-500 mt-1">{validationErrors[`bank_${idx}_BankName`]}</p>
-                        )}
+                        {renderFieldError(`bank_${idx}_BankName`)}
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                          A/C Number <span className="text-red-500">*</span>
-                        </label>
+                        {renderFieldLabel('A/C Number', true)}
                         <input
                           type="text"
                           placeholder="Bank Account Number"
@@ -1582,21 +1776,15 @@ export default function Customers({ onOpenBackup }) {
                             nb[idx].AccountNumber = e.target.value.trim();
                             setFormData({ ...formData, banks: nb });
                           }}
-                          className={`w-full px-3 py-2 text-sm rounded-lg border font-mono ${
-                            validationErrors[`bank_${idx}_AccountNumber`] ? 'border-red-500' : 'border-slate-300'
-                          } bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                          style={getInputStyle(`bank_${idx}_AccountNumber`, { fontFamily: 'monospace' })}
                         />
-                        {validationErrors[`bank_${idx}_AccountNumber`] && (
-                          <p className="text-xs text-red-500 mt-1">{validationErrors[`bank_${idx}_AccountNumber`]}</p>
-                        )}
+                        {renderFieldError(`bank_${idx}_AccountNumber`)}
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" style={{ marginTop: '0.65rem' }}>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                          Account Type <span className="text-red-500">*</span>
-                        </label>
+                        {renderFieldLabel('Account Type', true)}
                         <select
                           value={b.AccountType}
                           onChange={(e) => {
@@ -1604,24 +1792,18 @@ export default function Customers({ onOpenBackup }) {
                             nb[idx].AccountType = e.target.value;
                             setFormData({ ...formData, banks: nb });
                           }}
-                          className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                            validationErrors[`bank_${idx}_AccountType`] ? 'border-red-500' : 'border-slate-300'
-                          } bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                          style={getInputStyle(`bank_${idx}_AccountType`)}
                         >
                           <option value="Saving">Saving</option>
                           <option value="Current">Current</option>
                           <option value="NRE">NRE</option>
                           <option value="NRO">NRO</option>
                         </select>
-                        {validationErrors[`bank_${idx}_AccountType`] && (
-                          <p className="text-xs text-red-500 mt-1">{validationErrors[`bank_${idx}_AccountType`]}</p>
-                        )}
+                        {renderFieldError(`bank_${idx}_AccountType`)}
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                          MICR Code
-                        </label>
+                        {renderFieldLabel('MICR Code', false)}
                         <input
                           type="text"
                           maxLength={9}
@@ -1632,7 +1814,7 @@ export default function Customers({ onOpenBackup }) {
                             nb[idx].MicrCode = e.target.value.replace(/\D/g, '');
                             setFormData({ ...formData, banks: nb });
                           }}
-                          className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                          style={getInputStyle(`bank_${idx}_MicrCode`, { fontFamily: 'monospace' })}
                         />
                       </div>
                     </div>
@@ -1644,55 +1826,97 @@ export default function Customers({ onOpenBackup }) {
             {/* ================= STEP 6: NOMINEE DETAILS (Customer_Nominee Sheet) ================= */}
             {currentStep === 6 && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between border-b pb-2">
-                  <div>
-                    <h3 className="text-base font-semibold text-slate-800">
-                      {getNomineeStepLabel()} Details 
-                      <span className="text-xs font-normal text-slate-500 ml-2">
-                        (Max {getMaxNominees()} allowed, Total Share must sum to 100%)
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <UserCheck size={16} color="#3b82f6" />
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#1e293b' }}>
+                        {getNomineeStepLabel()} Details
+                      </h3>
+                      <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                        Max {getMaxNominees()} allowed, Total share must equal 100%
                       </span>
-                    </h3>
+                    </div>
                   </div>
+
                   {formData.nominees.length < getMaxNominees() && (
                     <button
                       type="button"
                       onClick={addNomineeRow}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '0.35rem 0.75rem',
+                        fontSize: '0.75rem',
+                        fontWeight: '600',
+                        borderRadius: '6px',
+                        backgroundColor: '#10b981',
+                        color: '#ffffff',
+                        border: 'none',
+                        cursor: 'pointer'
+                      }}
                     >
-                      <Plus size={14} /> + Add {getNomineeStepLabel()}
+                      <Plus size={13} />
+                      <span>Add {getNomineeStepLabel()}</span>
                     </button>
                   )}
                 </div>
 
                 {validationErrors.NomineeTotalShare && (
-                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg flex items-center gap-2">
-                    <AlertCircle size={16} />
+                  <div style={{
+                    padding: '0.65rem 0.85rem',
+                    backgroundColor: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    color: '#b91c1c',
+                    fontSize: '0.75rem',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}>
+                    <AlertCircle size={15} />
                     <span>{validationErrors.NomineeTotalShare}</span>
                   </div>
                 )}
 
                 {formData.nominees.map((n, idx) => (
-                  <div key={idx} className="bg-slate-50 p-4 rounded-xl border border-slate-200 relative space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                  <div key={idx} style={{
+                    backgroundColor: '#f8fafc',
+                    padding: '0.85rem 1rem',
+                    borderRadius: '10px',
+                    border: '1px solid #e2e8f0',
+                    marginBottom: '0.75rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#334155', textTransform: 'uppercase' }}>
                         {getNomineeStepLabel()} #{idx + 1}
                       </span>
                       {idx > 0 && (
                         <button
                           type="button"
                           onClick={() => removeNomineeRow(idx)}
-                          className="text-red-600 hover:text-red-700 text-xs font-semibold flex items-center gap-1"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            color: '#dc2626',
+                            background: 'none',
+                            border: 'none',
+                            fontSize: '0.72rem',
+                            fontWeight: '600',
+                            cursor: 'pointer'
+                          }}
                         >
-                          <Trash2 size={14} /> Remove
+                          <Trash2 size={13} />
+                          <span>Remove</span>
                         </button>
                       )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                          {getNomineeStepLabel()} Name <span className="text-red-500">*</span>
-                        </label>
+                        {renderFieldLabel(`${getNomineeStepLabel()} Name`, true)}
                         <input
                           type="text"
                           placeholder="Full Name of Nominee"
@@ -1702,19 +1926,13 @@ export default function Customers({ onOpenBackup }) {
                             nn[idx].NomineeName = e.target.value.toUpperCase();
                             setFormData({ ...formData, nominees: nn });
                           }}
-                          className={`w-full px-3 py-2 text-sm rounded-lg border uppercase ${
-                            validationErrors[`nominee_${idx}_NomineeName`] ? 'border-red-500' : 'border-slate-300'
-                          } bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                          style={getInputStyle(`nominee_${idx}_NomineeName`, { textTransform: 'uppercase' })}
                         />
-                        {validationErrors[`nominee_${idx}_NomineeName`] && (
-                          <p className="text-xs text-red-500 mt-1">{validationErrors[`nominee_${idx}_NomineeName`]}</p>
-                        )}
+                        {renderFieldError(`nominee_${idx}_NomineeName`)}
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                          Relation <span className="text-red-500">*</span>
-                        </label>
+                        {renderFieldLabel('Relation', true)}
                         <select
                           value={n.Relation}
                           onChange={(e) => {
@@ -1722,9 +1940,7 @@ export default function Customers({ onOpenBackup }) {
                             nn[idx].Relation = e.target.value;
                             setFormData({ ...formData, nominees: nn });
                           }}
-                          className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                            validationErrors[`nominee_${idx}_Relation`] ? 'border-red-500' : 'border-slate-300'
-                          } bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                          style={getInputStyle(`nominee_${idx}_Relation`)}
                         >
                           <option value="">--Select--</option>
                           <option value="Father">Father</option>
@@ -1737,16 +1953,12 @@ export default function Customers({ onOpenBackup }) {
                           <option value="Guardian">Guardian</option>
                           <option value="Other">Other</option>
                         </select>
-                        {validationErrors[`nominee_${idx}_Relation`] && (
-                          <p className="text-xs text-red-500 mt-1">{validationErrors[`nominee_${idx}_Relation`]}</p>
-                        )}
+                        {renderFieldError(`nominee_${idx}_Relation`)}
                       </div>
 
                       {n.Relation === 'Other' && (
                         <div>
-                          <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                            Specify Relation <span className="text-red-500">*</span>
-                          </label>
+                          {renderFieldLabel('Specify Relation', true)}
                           <input
                             type="text"
                             placeholder="Specify relation"
@@ -1756,17 +1968,14 @@ export default function Customers({ onOpenBackup }) {
                               nn[idx].RelationOther = e.target.value;
                               setFormData({ ...formData, nominees: nn });
                             }}
-                            className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                              validationErrors[`nominee_${idx}_RelationOther`] ? 'border-red-500' : 'border-slate-300'
-                            } bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                            style={getInputStyle(`nominee_${idx}_RelationOther`)}
                           />
+                          {renderFieldError(`nominee_${idx}_RelationOther`)}
                         </div>
                       )}
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                          DOB <span className="text-red-500">*</span>
-                        </label>
+                        {renderFieldLabel('DOB', true)}
                         <input
                           type="date"
                           value={n.DateOfBirth}
@@ -1775,21 +1984,15 @@ export default function Customers({ onOpenBackup }) {
                             nn[idx].DateOfBirth = e.target.value;
                             setFormData({ ...formData, nominees: nn });
                           }}
-                          className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                            validationErrors[`nominee_${idx}_DateOfBirth`] ? 'border-red-500' : 'border-slate-300'
-                          } bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                          style={getInputStyle(`nominee_${idx}_DateOfBirth`)}
                         />
-                        {validationErrors[`nominee_${idx}_DateOfBirth`] && (
-                          <p className="text-xs text-red-500 mt-1">{validationErrors[`nominee_${idx}_DateOfBirth`]}</p>
-                        )}
+                        {renderFieldError(`nominee_${idx}_DateOfBirth`)}
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" style={{ marginTop: '0.65rem' }}>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                          Occupation <span className="text-red-500">*</span>
-                        </label>
+                        {renderFieldLabel('Occupation', true)}
                         <select
                           value={n.Occupation}
                           onChange={(e) => {
@@ -1797,9 +2000,7 @@ export default function Customers({ onOpenBackup }) {
                             nn[idx].Occupation = e.target.value;
                             setFormData({ ...formData, nominees: nn });
                           }}
-                          className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                            validationErrors[`nominee_${idx}_Occupation`] ? 'border-red-500' : 'border-slate-300'
-                          } bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                          style={getInputStyle(`nominee_${idx}_Occupation`)}
                         >
                           <option value="">--Select--</option>
                           <option value="Business">Business</option>
@@ -1811,15 +2012,11 @@ export default function Customers({ onOpenBackup }) {
                           <option value="Retired">Retired</option>
                           <option value="Other">Other</option>
                         </select>
-                        {validationErrors[`nominee_${idx}_Occupation`] && (
-                          <p className="text-xs text-red-500 mt-1">{validationErrors[`nominee_${idx}_Occupation`]}</p>
-                        )}
+                        {renderFieldError(`nominee_${idx}_Occupation`)}
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                          ID Proof Type <span className="text-red-500">*</span>
-                        </label>
+                        {renderFieldLabel('ID Proof Type', true)}
                         <select
                           value={n.IdProofType}
                           onChange={(e) => {
@@ -1827,9 +2024,7 @@ export default function Customers({ onOpenBackup }) {
                             nn[idx].IdProofType = e.target.value;
                             setFormData({ ...formData, nominees: nn });
                           }}
-                          className={`w-full px-3 py-2 text-sm rounded-lg border ${
-                            validationErrors[`nominee_${idx}_IdProofType`] ? 'border-red-500' : 'border-slate-300'
-                          } bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                          style={getInputStyle(`nominee_${idx}_IdProofType`)}
                         >
                           <option value="">--Select--</option>
                           <option value="PAN">PAN</option>
@@ -1839,15 +2034,11 @@ export default function Customers({ onOpenBackup }) {
                           <option value="Voter ID">Voter ID</option>
                           <option value="Other">Other</option>
                         </select>
-                        {validationErrors[`nominee_${idx}_IdProofType`] && (
-                          <p className="text-xs text-red-500 mt-1">{validationErrors[`nominee_${idx}_IdProofType`]}</p>
-                        )}
+                        {renderFieldError(`nominee_${idx}_IdProofType`)}
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                          Document No <span className="text-red-500">*</span>
-                        </label>
+                        {renderFieldLabel('Document No', true)}
                         <input
                           type="text"
                           placeholder="ID Document Number"
@@ -1857,21 +2048,15 @@ export default function Customers({ onOpenBackup }) {
                             nn[idx].DocumentNo = e.target.value.toUpperCase().trim();
                             setFormData({ ...formData, nominees: nn });
                           }}
-                          className={`w-full px-3 py-2 text-sm rounded-lg border uppercase ${
-                            validationErrors[`nominee_${idx}_DocumentNo`] ? 'border-red-500' : 'border-slate-300'
-                          } bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                          style={getInputStyle(`nominee_${idx}_DocumentNo`, { textTransform: 'uppercase' })}
                         />
-                        {validationErrors[`nominee_${idx}_DocumentNo`] && (
-                          <p className="text-xs text-red-500 mt-1">{validationErrors[`nominee_${idx}_DocumentNo`]}</p>
-                        )}
+                        {renderFieldError(`nominee_${idx}_DocumentNo`)}
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3" style={{ marginTop: '0.65rem' }}>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                          Mobile
-                        </label>
+                        {renderFieldLabel('Mobile', false)}
                         <input
                           type="text"
                           maxLength={10}
@@ -1882,14 +2067,12 @@ export default function Customers({ onOpenBackup }) {
                             nn[idx].Mobile = e.target.value.replace(/\D/g, '');
                             setFormData({ ...formData, nominees: nn });
                           }}
-                          className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                          style={getInputStyle(`nominee_${idx}_Mobile`)}
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                          Email
-                        </label>
+                        {renderFieldLabel('Email', false)}
                         <input
                           type="email"
                           placeholder="Email address"
@@ -1899,14 +2082,12 @@ export default function Customers({ onOpenBackup }) {
                             nn[idx].Email = e.target.value.trim();
                             setFormData({ ...formData, nominees: nn });
                           }}
-                          className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                          style={getInputStyle(`nominee_${idx}_Email`)}
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                          Address
-                        </label>
+                        {renderFieldLabel('Address', false)}
                         <input
                           type="text"
                           placeholder="Nominee address"
@@ -1916,14 +2097,12 @@ export default function Customers({ onOpenBackup }) {
                             nn[idx].Address = e.target.value;
                             setFormData({ ...formData, nominees: nn });
                           }}
-                          className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                          style={getInputStyle(`nominee_${idx}_Address`)}
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                          Share % <span className="text-red-500">*</span>
-                        </label>
+                        {renderFieldLabel('Share %', true)}
                         <input
                           type="number"
                           min={1}
@@ -1935,7 +2114,7 @@ export default function Customers({ onOpenBackup }) {
                             nn[idx].SharePercentage = e.target.value;
                             setFormData({ ...formData, nominees: nn });
                           }}
-                          className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white font-bold text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                          style={getInputStyle(`nominee_${idx}_SharePercentage`, { fontWeight: '700', color: '#1d4ed8' })}
                         />
                       </div>
                     </div>
@@ -1947,154 +2126,224 @@ export default function Customers({ onOpenBackup }) {
             {/* ================= STEP 7: DOCUMENTS UPLOAD ================= */}
             {currentStep === 7 && (
               <div className="space-y-4">
-                <h3 className="text-base font-semibold text-slate-800 border-b pb-2">Documents Upload</h3>
+                <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <FileCheck size={16} color="#3b82f6" />
+                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#1e293b' }}>Required Documents Upload</h3>
+                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* PAN Card */}
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-700 uppercase">
-                        PAN Card <span className="text-red-500">*</span>
-                      </span>
+                  <div style={{
+                    padding: '0.85rem',
+                    backgroundColor: '#f8fafc',
+                    border: validationErrors.PanDoc ? '1.5px solid #ef4444' : '1px solid #e2e8f0',
+                    borderRadius: '10px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      {renderFieldLabel('PAN Card', true)}
                       {formData.PanDocUrl && (
                         <button
                           type="button"
                           onClick={() => removeFile('PanDoc')}
-                          className="text-red-600 hover:text-red-700 text-xs"
+                          style={{ color: '#dc2626', background: 'none', border: 'none', fontSize: '0.72rem', cursor: 'pointer', fontWeight: '600' }}
                         >
                           Remove
                         </button>
                       )}
                     </div>
                     {formData.PanDocUrl ? (
-                      <div className="h-28 bg-white border rounded-lg flex items-center justify-center overflow-hidden">
-                        <img src={formData.PanDocUrl} alt="PAN Preview" className="h-full object-contain" />
+                      <div style={{ height: '90px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                        <img src={formData.PanDocUrl} alt="PAN Preview" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
                       </div>
                     ) : (
-                      <label className="h-28 border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-colors">
-                        <Upload size={20} className="text-slate-400 mb-1" />
-                        <span className="text-xs text-slate-500">Upload PAN Copy (JPG/PNG)</span>
-                        <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => handleFileUpload('PanDoc', e)} />
+                      <label style={{
+                        height: '90px',
+                        border: '2px dashed #cbd5e1',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        backgroundColor: '#ffffff'
+                      }}>
+                        <Upload size={18} color="#94a3b8" style={{ marginBottom: '4px' }} />
+                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Upload PAN (JPG/PNG)</span>
+                        <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={(e) => handleFileUpload('PanDoc', e)} />
                       </label>
                     )}
-                    {validationErrors.PanDoc && <p className="text-xs text-red-500">{validationErrors.PanDoc}</p>}
+                    {renderFieldError('PanDoc')}
                   </div>
 
                   {/* Aadhaar Card */}
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-700 uppercase">
-                        Aadhaar Card <span className="text-red-500">*</span>
-                      </span>
+                  <div style={{
+                    padding: '0.85rem',
+                    backgroundColor: '#f8fafc',
+                    border: validationErrors.AadharDoc ? '1.5px solid #ef4444' : '1px solid #e2e8f0',
+                    borderRadius: '10px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      {renderFieldLabel('Aadhaar Card', true)}
                       {formData.AadharDocUrl && (
                         <button
                           type="button"
                           onClick={() => removeFile('AadharDoc')}
-                          className="text-red-600 hover:text-red-700 text-xs"
+                          style={{ color: '#dc2626', background: 'none', border: 'none', fontSize: '0.72rem', cursor: 'pointer', fontWeight: '600' }}
                         >
                           Remove
                         </button>
                       )}
                     </div>
                     {formData.AadharDocUrl ? (
-                      <div className="h-28 bg-white border rounded-lg flex items-center justify-center overflow-hidden">
-                        <img src={formData.AadharDocUrl} alt="Aadhaar Preview" className="h-full object-contain" />
+                      <div style={{ height: '90px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                        <img src={formData.AadharDocUrl} alt="Aadhaar Preview" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
                       </div>
                     ) : (
-                      <label className="h-28 border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-colors">
-                        <Upload size={20} className="text-slate-400 mb-1" />
-                        <span className="text-xs text-slate-500">Upload Aadhaar Copy</span>
-                        <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => handleFileUpload('AadharDoc', e)} />
+                      <label style={{
+                        height: '90px',
+                        border: '2px dashed #cbd5e1',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        backgroundColor: '#ffffff'
+                      }}>
+                        <Upload size={18} color="#94a3b8" style={{ marginBottom: '4px' }} />
+                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Upload Aadhaar Copy</span>
+                        <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={(e) => handleFileUpload('AadharDoc', e)} />
                       </label>
                     )}
-                    {validationErrors.AadharDoc && <p className="text-xs text-red-500">{validationErrors.AadharDoc}</p>}
+                    {renderFieldError('AadharDoc')}
                   </div>
 
                   {/* Bank Cheque */}
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-700 uppercase">Bank Cheque / Passbook</span>
+                  <div style={{
+                    padding: '0.85rem',
+                    backgroundColor: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '10px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      {renderFieldLabel('Bank Cheque / Passbook', false)}
                       {formData.BankChequeDocUrl && (
                         <button
                           type="button"
                           onClick={() => removeFile('BankChequeDoc')}
-                          className="text-red-600 hover:text-red-700 text-xs"
+                          style={{ color: '#dc2626', background: 'none', border: 'none', fontSize: '0.72rem', cursor: 'pointer', fontWeight: '600' }}
                         >
                           Remove
                         </button>
                       )}
                     </div>
                     {formData.BankChequeDocUrl ? (
-                      <div className="h-28 bg-white border rounded-lg flex items-center justify-center overflow-hidden">
-                        <img src={formData.BankChequeDocUrl} alt="Cheque Preview" className="h-full object-contain" />
+                      <div style={{ height: '90px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                        <img src={formData.BankChequeDocUrl} alt="Cheque Preview" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
                       </div>
                     ) : (
-                      <label className="h-28 border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-colors">
-                        <Upload size={20} className="text-slate-400 mb-1" />
-                        <span className="text-xs text-slate-500">Cancelled Cheque Copy</span>
-                        <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => handleFileUpload('BankChequeDoc', e)} />
+                      <label style={{
+                        height: '90px',
+                        border: '2px dashed #cbd5e1',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        backgroundColor: '#ffffff'
+                      }}>
+                        <Upload size={18} color="#94a3b8" style={{ marginBottom: '4px' }} />
+                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Cancelled Cheque (Optional)</span>
+                        <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={(e) => handleFileUpload('BankChequeDoc', e)} />
                       </label>
                     )}
                   </div>
 
                   {/* Nominee Proof */}
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-700 uppercase">
-                        Nominee ID Proof <span className="text-red-500">*</span>
-                      </span>
+                  <div style={{
+                    padding: '0.85rem',
+                    backgroundColor: '#f8fafc',
+                    border: validationErrors.NomineeProofDoc ? '1.5px solid #ef4444' : '1px solid #e2e8f0',
+                    borderRadius: '10px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      {renderFieldLabel('Nominee ID Proof', true)}
                       {formData.NomineeProofDocUrl && (
                         <button
                           type="button"
                           onClick={() => removeFile('NomineeProofDoc')}
-                          className="text-red-600 hover:text-red-700 text-xs"
+                          style={{ color: '#dc2626', background: 'none', border: 'none', fontSize: '0.72rem', cursor: 'pointer', fontWeight: '600' }}
                         >
                           Remove
                         </button>
                       )}
                     </div>
                     {formData.NomineeProofDocUrl ? (
-                      <div className="h-28 bg-white border rounded-lg flex items-center justify-center overflow-hidden">
-                        <img src={formData.NomineeProofDocUrl} alt="Nominee Proof Preview" className="h-full object-contain" />
+                      <div style={{ height: '90px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                        <img src={formData.NomineeProofDocUrl} alt="Nominee Proof Preview" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
                       </div>
                     ) : (
-                      <label className="h-28 border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-colors">
-                        <Upload size={20} className="text-slate-400 mb-1" />
-                        <span className="text-xs text-slate-500">Upload Nominee Proof</span>
-                        <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => handleFileUpload('NomineeProofDoc', e)} />
+                      <label style={{
+                        height: '90px',
+                        border: '2px dashed #cbd5e1',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        backgroundColor: '#ffffff'
+                      }}>
+                        <Upload size={18} color="#94a3b8" style={{ marginBottom: '4px' }} />
+                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Upload Nominee Proof</span>
+                        <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={(e) => handleFileUpload('NomineeProofDoc', e)} />
                       </label>
                     )}
-                    {validationErrors.NomineeProofDoc && <p className="text-xs text-red-500">{validationErrors.NomineeProofDoc}</p>}
+                    {renderFieldError('NomineeProofDoc')}
                   </div>
 
                   {/* Customer Signature Upload */}
-                  <div className="sm:col-span-2 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-700 uppercase">
-                        Customer Signature <span className="text-red-500">*</span>
-                      </span>
+                  <div className="sm:col-span-2" style={{
+                    padding: '0.85rem',
+                    backgroundColor: '#f8fafc',
+                    border: validationErrors.SignDoc ? '1.5px solid #ef4444' : '1px solid #e2e8f0',
+                    borderRadius: '10px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      {renderFieldLabel('Customer Signature', true)}
                       {formData.SignDocUrl && (
                         <button
                           type="button"
                           onClick={() => removeFile('SignDoc')}
-                          className="text-red-600 hover:text-red-700 text-xs"
+                          style={{ color: '#dc2626', background: 'none', border: 'none', fontSize: '0.72rem', cursor: 'pointer', fontWeight: '600' }}
                         >
                           Remove
                         </button>
                       )}
                     </div>
                     {formData.SignDocUrl ? (
-                      <div className="h-24 bg-white border rounded-lg flex items-center justify-center overflow-hidden">
-                        <img src={formData.SignDocUrl} alt="Signature Preview" className="h-full object-contain" />
+                      <div style={{ height: '80px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                        <img src={formData.SignDocUrl} alt="Signature Preview" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
                       </div>
                     ) : (
-                      <label className="h-24 border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-colors">
-                        <Upload size={20} className="text-slate-400 mb-1" />
-                        <span className="text-xs text-slate-500">Upload Signature Copy (PNG / JPG)</span>
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('SignDoc', e)} />
+                      <label style={{
+                        height: '80px',
+                        border: '2px dashed #cbd5e1',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        backgroundColor: '#ffffff'
+                      }}>
+                        <Upload size={18} color="#94a3b8" style={{ marginBottom: '4px' }} />
+                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Upload Signature Image (PNG / JPG)</span>
+                        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleFileUpload('SignDoc', e)} />
                       </label>
                     )}
-                    {validationErrors.SignDoc && <p className="text-xs text-red-500">{validationErrors.SignDoc}</p>}
+                    {renderFieldError('SignDoc')}
                   </div>
                 </div>
               </div>
@@ -2102,19 +2351,46 @@ export default function Customers({ onOpenBackup }) {
           </div>
 
           {/* Modal Footer Bar (Pinned Non-scrolling: Next, Prev, Save as Draft, Submit) */}
-          <div className="bg-white border-t border-slate-200 px-6 py-4 flex items-center justify-between flex-shrink-0 shadow-[0_-2px_10px_rgba(0,0,0,0.04)] z-10">
-            <span className="text-xs text-slate-500">* Required fields</span>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderTop: '1px solid #e2e8f0',
+            padding: '0.85rem 1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0,
+            boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.04)',
+            zIndex: 10
+          }}>
+            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+              <span style={{ color: '#ef4444' }}>*</span> Required fields
+            </span>
 
-            <div className="flex items-center gap-2">
-              {/* Save Draft Button - enabled on any step */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {/* Save Draft Button */}
               {!editingCustomer && (
                 <button
                   type="button"
                   disabled={savingDraft}
                   onClick={() => handleSaveDraft(false)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition-colors"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '0.5rem 0.9rem',
+                    fontSize: '0.785rem',
+                    fontWeight: '600',
+                    borderRadius: '8px',
+                    backgroundColor: '#fffbeb',
+                    color: '#b45309',
+                    border: '1px solid #fde68a',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fef3c7'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#fffbeb'; }}
                 >
-                  <Save size={14} />
+                  <Bookmark size={14} />
                   <span>{savingDraft ? 'Saving Draft...' : 'Save Draft'}</span>
                 </button>
               )}
@@ -2124,9 +2400,25 @@ export default function Customers({ onOpenBackup }) {
                 <button
                   type="button"
                   onClick={handlePrevStep}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '0.5rem 1.1rem',
+                    fontSize: '0.785rem',
+                    fontWeight: '600',
+                    borderRadius: '8px',
+                    backgroundColor: '#ffffff',
+                    color: '#334155',
+                    border: '1px solid #cbd5e1',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
                 >
-                  <ArrowLeft size={14} /> Previous
+                  <ArrowLeft size={14} />
+                  <span>Previous</span>
                 </button>
               )}
 
@@ -2135,9 +2427,26 @@ export default function Customers({ onOpenBackup }) {
                 <button
                   type="button"
                   onClick={handleNextStep}
-                  className="inline-flex items-center gap-1.5 px-6 py-2 text-xs font-bold rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors shadow-sm"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '0.5rem 1.4rem',
+                    fontSize: '0.8rem',
+                    fontWeight: '700',
+                    borderRadius: '8px',
+                    backgroundColor: '#16a34a',
+                    color: '#ffffff',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(22, 163, 74, 0.25)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#15803d'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#16a34a'; }}
                 >
-                  Next <ArrowRight size={14} />
+                  <span>Next</span>
+                  <ArrowRight size={14} />
                 </button>
               ) : (
                 /* Save & Submit Button (Step 7) */
@@ -2145,9 +2454,26 @@ export default function Customers({ onOpenBackup }) {
                   type="button"
                   disabled={saving}
                   onClick={handleSubmit}
-                  className="inline-flex items-center gap-1.5 px-6 py-2 text-xs font-bold rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors shadow-sm disabled:opacity-50"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '0.5rem 1.4rem',
+                    fontSize: '0.8rem',
+                    fontWeight: '700',
+                    borderRadius: '8px',
+                    backgroundColor: '#16a34a',
+                    color: '#ffffff',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(22, 163, 74, 0.25)',
+                    opacity: saving ? 0.65 : 1,
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { if (!saving) e.currentTarget.style.backgroundColor = '#15803d'; }}
+                  onMouseLeave={(e) => { if (!saving) e.currentTarget.style.backgroundColor = '#16a34a'; }}
                 >
-                  <Check size={16} />
+                  <Check size={16} strokeWidth={2.5} />
                   <span>{saving ? 'Saving...' : 'Save & Submit'}</span>
                 </button>
               )}
