@@ -84,9 +84,9 @@ export default function App() {
   return (
     <div className="app-container">
       {/* Navigation Sidebar */}
-      <Sidebar 
-        currentPage={currentPage} 
-        onNavigate={setCurrentPage} 
+      <Sidebar
+        currentPage={currentPage}
+        onNavigate={setCurrentPage}
       />
 
       {/* Main Dynamic Workspace */}
@@ -97,12 +97,12 @@ export default function App() {
           {currentPage === 'staff' && <Staff onOpenBackup={openBackup} />}
           {currentPage === 'user-rights' && <RolesRights onOpenBackup={openBackup} />}
           {(currentPage === 'masters' || currentPage === 'departments' || currentPage === 'designations' || currentPage === 'roles') && (
-            <MasterHub 
+            <MasterHub
               initialTab={
-                currentPage === 'designations' ? 'designations' : 
-                currentPage === 'roles' ? 'roles' : 'departments'
-              } 
-              onOpenBackup={openBackup} 
+                currentPage === 'designations' ? 'designations' :
+                  currentPage === 'roles' ? 'roles' : 'departments'
+              }
+              onOpenBackup={openBackup}
             />
           )}
           {currentPage === 'sip' && <SipCalculator onOpenBackup={openBackup} />}

@@ -587,19 +587,20 @@ export default function Customers({ onOpenBackup }) {
     return Object.keys(errs).length === 0;
   };
 
-  // Helper styling for inputs and error messages
+  // Helper styling for inputs and error messages (Generous width and comfortable height)
   const getInputStyle = (errorKey, extra = {}) => ({
     width: '100%',
-    padding: '0.55rem 0.75rem',
-    fontSize: '0.825rem',
+    padding: '0.65rem 0.9rem',
+    fontSize: '0.875rem',
     borderRadius: '8px',
     border: validationErrors[errorKey] ? '1.5px solid #ef4444' : '1px solid #cbd5e1',
     backgroundColor: validationErrors[errorKey] ? '#fff5f5' : '#ffffff',
-    color: '#1e293b',
+    color: '#0f172a',
     outline: 'none',
     boxSizing: 'border-box',
     transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
     boxShadow: validationErrors[errorKey] ? '0 0 0 2px rgba(239, 68, 68, 0.15)' : 'none',
+    minHeight: '42px',
     ...extra
   });
 
@@ -609,7 +610,7 @@ export default function Customers({ onOpenBackup }) {
       <p style={{
         color: '#ef4444',
         fontSize: '0.75rem',
-        marginTop: '0.3rem',
+        marginTop: '0.35rem',
         marginBottom: 0,
         fontWeight: '500',
         display: 'flex',
@@ -625,12 +626,12 @@ export default function Customers({ onOpenBackup }) {
   const renderFieldLabel = (label, isRequired) => (
     <label style={{
       display: 'block',
-      fontSize: '0.75rem',
+      fontSize: '0.785rem',
       fontWeight: '600',
       color: '#475569',
       textTransform: 'uppercase',
-      letterSpacing: '0.02em',
-      marginBottom: '0.35rem'
+      letterSpacing: '0.025em',
+      marginBottom: '0.4rem'
     }}>
       {label} {isRequired && <span style={{ color: '#ef4444' }}>*</span>}
     </label>
@@ -1105,23 +1106,24 @@ export default function Customers({ onOpenBackup }) {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        maxWidth="740px"
+        maxWidth="1140px"
         hideHeader={true}
       >
         <div style={{
           backgroundColor: '#ffffff',
-          borderRadius: '14px',
+          borderRadius: '16px',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
           height: '100%',
-          maxHeight: '90vh'
+          maxHeight: '92vh',
+          width: '100%'
         }}>
           {/* Custom Header with Primary Gradient & Background Draft Status (Fixed Top) */}
           <div style={{
             background: 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
             color: '#ffffff',
-            padding: '1rem 1.5rem',
+            padding: '1.25rem 2.25rem',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -1129,11 +1131,11 @@ export default function Customers({ onOpenBackup }) {
             boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
             zIndex: 10
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
               <div style={{
-                width: '38px',
-                height: '38px',
-                borderRadius: '10px',
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
                 backgroundColor: 'rgba(255, 255, 255, 0.18)',
                 backdropFilter: 'blur(8px)',
                 display: 'flex',
@@ -1143,28 +1145,28 @@ export default function Customers({ onOpenBackup }) {
                 border: '1px solid rgba(255, 255, 255, 0.25)',
                 flexShrink: 0
               }}>
-                {editingCustomer ? <Edit3 size={18} /> : <UserPlus size={18} />}
+                {editingCustomer ? <Edit3 size={20} /> : <UserPlus size={20} />}
               </div>
               <div>
-                <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em' }}>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em' }}>
                   {editingCustomer ? `Edit Customer: ${editingCustomer.FullName || editingCustomer.EmployeeCode}` : 'Add Customer'}
                 </h2>
-                <p style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: '#dbeafe', fontWeight: '400' }}>
+                <p style={{ margin: '0.15rem 0 0', fontSize: '0.825rem', color: '#dbeafe', fontWeight: '400' }}>
                   7-Step KYC, Bank, Nominee & Investor Registration Wizard
                 </p>
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
               {/* Asynchronous Background Draft Queue Pill (Top-Right End) */}
               {bgDraftStatus && (
                 <div style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '6px',
-                  padding: '4px 10px',
+                  padding: '5px 12px',
                   borderRadius: '999px',
-                  fontSize: '0.75rem',
+                  fontSize: '0.785rem',
                   fontWeight: '600',
                   backgroundColor: bgDraftStatus.status === 'saving' 
                     ? 'rgba(255, 255, 255, 0.22)' 
@@ -1177,13 +1179,13 @@ export default function Customers({ onOpenBackup }) {
                   transition: 'all 0.2s ease'
                 }}>
                   {bgDraftStatus.status === 'saving' && (
-                    <RefreshCw size={12} className="spin-animation" />
+                    <RefreshCw size={13} className="spin-animation" />
                   )}
                   {bgDraftStatus.status === 'saved' && (
-                    <Check size={12} strokeWidth={3} />
+                    <Check size={13} strokeWidth={3} />
                   )}
                   {bgDraftStatus.status === 'error' && (
-                    <AlertCircle size={12} />
+                    <AlertCircle size={13} />
                   )}
                   <span>{bgDraftStatus.text}</span>
                 </div>
@@ -1197,9 +1199,9 @@ export default function Customers({ onOpenBackup }) {
                   background: 'rgba(255, 255, 255, 0.15)',
                   border: '1px solid rgba(255, 255, 255, 0.25)',
                   color: '#ffffff',
-                  width: '30px',
-                  height: '30px',
-                  borderRadius: '8px',
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '10px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1209,7 +1211,7 @@ export default function Customers({ onOpenBackup }) {
                 onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'; }}
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
           </div>
@@ -1218,16 +1220,16 @@ export default function Customers({ onOpenBackup }) {
           <div style={{
             backgroundColor: '#ffffff',
             borderBottom: '1px solid #e2e8f0',
-            padding: '1rem 1.5rem',
+            padding: '1.25rem 3.5rem',
             flexShrink: 0
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
               {/* Connecting background line & dynamic forward progress fill */}
               <div style={{
                 position: 'absolute',
-                left: '20px',
-                right: '20px',
-                top: '16px',
+                left: '26px',
+                right: '26px',
+                top: '19px',
                 height: '3px',
                 backgroundColor: '#f1f5f9',
                 borderRadius: '2px',
@@ -1266,14 +1268,14 @@ export default function Customers({ onOpenBackup }) {
                   >
                     <div 
                       style={{
-                        width: '32px',
-                        height: '32px',
+                        width: '38px',
+                        height: '38px',
                         borderRadius: '50%',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontWeight: '700',
-                        fontSize: '0.8rem',
+                        fontSize: '0.875rem',
                         transition: 'all 0.2s ease',
                         backgroundColor: isActive 
                           ? '#ea580c' 
@@ -1290,11 +1292,11 @@ export default function Customers({ onOpenBackup }) {
                         transform: isActive ? 'scale(1.08)' : 'scale(1)'
                       }}
                     >
-                      {isPassed ? <Check size={15} strokeWidth={3} /> : s.num}
+                      {isPassed ? <Check size={16} strokeWidth={3} /> : s.num}
                     </div>
                     <span style={{
-                      fontSize: '0.72rem',
-                      marginTop: '5px',
+                      fontSize: '0.8rem',
+                      marginTop: '6px',
                       fontWeight: isActive ? '700' : '500',
                       color: isActive ? '#ea580c' : isPassed ? '#10b981' : '#64748b',
                       transition: 'color 0.2s ease'
@@ -1309,7 +1311,7 @@ export default function Customers({ onOpenBackup }) {
 
           {/* Step Body (Scrollable with Comfortable Padding & Red Validation Feedback) */}
           <div style={{
-            padding: '1.25rem 1.5rem',
+            padding: '1.75rem 2.5rem',
             flex: 1,
             minHeight: 0,
             overflowY: 'auto'
@@ -1318,12 +1320,12 @@ export default function Customers({ onOpenBackup }) {
             {/* ================= STEP 1: BASIC DETAILS ================= */}
             {currentStep === 1 && (
               <div className="space-y-4">
-                <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Users size={16} color="#3b82f6" />
-                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#1e293b' }}>Basic Details</h3>
+                <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Users size={18} color="#2563eb" />
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '700', color: '#0f172a' }}>Basic Details</h3>
                 </div>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                   <div>
                     {renderFieldLabel('Title', true)}
                     <select
@@ -1377,7 +1379,7 @@ export default function Customers({ onOpenBackup }) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                   <div>
                     {renderFieldLabel('Gender', true)}
                     <select
@@ -1447,13 +1449,13 @@ export default function Customers({ onOpenBackup }) {
 
             {/* ================= STEP 2: CONTACT & KYC ================= */}
             {currentStep === 2 && (
-              <div className="space-y-4">
-                <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <ShieldCheck size={16} color="#3b82f6" />
-                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#1e293b' }}>Contact & KYC Details</h3>
+              <div className="space-y-5">
+                <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <ShieldCheck size={18} color="#2563eb" />
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '700', color: '#0f172a' }}>Contact & KYC Details</h3>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     {renderFieldLabel('Primary Mobile Number', true)}
                     <input
@@ -1480,7 +1482,7 @@ export default function Customers({ onOpenBackup }) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     {renderFieldLabel('PAN Number', true)}
                     <input
@@ -1512,25 +1514,25 @@ export default function Customers({ onOpenBackup }) {
 
             {/* ================= STEP 3: ADDRESS DETAILS ================= */}
             {currentStep === 3 && (
-              <div className="space-y-4">
-                <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Building size={16} color="#3b82f6" />
-                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#1e293b' }}>Address Details</h3>
+              <div className="space-y-5">
+                <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Building size={18} color="#2563eb" />
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '700', color: '#0f172a' }}>Address Details</h3>
                 </div>
 
                 <div>
                   {renderFieldLabel('Full Residential Address', true)}
                   <textarea
-                    rows={2}
+                    rows={3}
                     placeholder="House/Flat No, Building Name, Street Address"
                     value={formData.Address}
                     onChange={(e) => setFormData({ ...formData, Address: e.target.value })}
-                    style={getInputStyle('Address')}
+                    style={getInputStyle('Address', { minHeight: '70px' })}
                   />
                   {renderFieldError('Address')}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     {renderFieldLabel('Postal Pincode', true)}
                     <input
@@ -1557,7 +1559,7 @@ export default function Customers({ onOpenBackup }) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     {renderFieldLabel('City / District', true)}
                     <input
@@ -1587,13 +1589,13 @@ export default function Customers({ onOpenBackup }) {
 
             {/* ================= STEP 4: SYSTEM DETAILS ================= */}
             {currentStep === 4 && (
-              <div className="space-y-4">
-                <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <FileText size={16} color="#3b82f6" />
-                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#1e293b' }}>System & Integration IDs</h3>
+              <div className="space-y-5">
+                <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <FileText size={18} color="#2563eb" />
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '700', color: '#0f172a' }}>System & Integration IDs</h3>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     {renderFieldLabel('BSE UCC', false)}
                     <input
@@ -1620,7 +1622,7 @@ export default function Customers({ onOpenBackup }) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     {renderFieldLabel('SK DP ID', false)}
                     <input
@@ -1667,15 +1669,15 @@ export default function Customers({ onOpenBackup }) {
 
             {/* ================= STEP 5: BANK DETAILS (Customer_Bank Sheet) ================= */}
             {currentStep === 5 && (
-              <div className="space-y-4">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <CreditCard size={16} color="#3b82f6" />
+              <div className="space-y-5">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.65rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                    <CreditCard size={18} color="#2563eb" />
                     <div>
-                      <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#1e293b' }}>
+                      <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '700', color: '#0f172a' }}>
                         Bank Accounts
                       </h3>
-                      <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Max 3 bank accounts allowed</span>
+                      <span style={{ fontSize: '0.785rem', color: '#64748b' }}>Max 3 bank accounts allowed</span>
                     </div>
                   </div>
 
@@ -1686,18 +1688,22 @@ export default function Customers({ onOpenBackup }) {
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '4px',
-                        padding: '0.35rem 0.75rem',
-                        fontSize: '0.75rem',
+                        gap: '6px',
+                        padding: '0.45rem 0.95rem',
+                        fontSize: '0.8rem',
                         fontWeight: '600',
-                        borderRadius: '6px',
+                        borderRadius: '8px',
                         backgroundColor: '#10b981',
                         color: '#ffffff',
                         border: 'none',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        boxShadow: '0 1px 3px rgba(16, 185, 129, 0.25)',
+                        transition: 'background-color 0.15s ease'
                       }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#059669'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#10b981'; }}
                     >
-                      <Plus size={13} />
+                      <Plus size={15} />
                       <span>Add Bank</span>
                     </button>
                   )}
@@ -1706,13 +1712,14 @@ export default function Customers({ onOpenBackup }) {
                 {formData.banks.map((b, idx) => (
                   <div key={idx} style={{
                     backgroundColor: '#f8fafc',
-                    padding: '0.85rem 1rem',
-                    borderRadius: '10px',
+                    padding: '1.25rem 1.5rem',
+                    borderRadius: '12px',
                     border: '1px solid #e2e8f0',
-                    marginBottom: '0.75rem'
+                    marginBottom: '1rem',
+                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#334155', textTransform: 'uppercase' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+                      <span style={{ fontSize: '0.825rem', fontWeight: '700', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.025em' }}>
                         Bank Account #{idx + 1} {idx === 0 && <span style={{ color: '#059669', fontWeight: '600' }}>(Primary Mandate)</span>}
                       </span>
                       {idx > 0 && (
@@ -1724,12 +1731,17 @@ export default function Customers({ onOpenBackup }) {
                             alignItems: 'center',
                             gap: '4px',
                             color: '#dc2626',
-                            background: 'none',
-                            border: 'none',
-                            fontSize: '0.72rem',
+                            background: '#fee2e2',
+                            border: '1px solid #fecaca',
+                            padding: '0.25rem 0.65rem',
+                            borderRadius: '6px',
+                            fontSize: '0.75rem',
                             fontWeight: '600',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
                           }}
+                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fca5a5'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#fee2e2'; }}
                         >
                           <Trash2 size={13} />
                           <span>Remove</span>
@@ -1737,7 +1749,7 @@ export default function Customers({ onOpenBackup }) {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
                         {renderFieldLabel('IFSC Code', true)}
                         <input
@@ -1784,7 +1796,7 @@ export default function Customers({ onOpenBackup }) {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" style={{ marginTop: '0.65rem' }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ marginTop: '0.85rem' }}>
                       <div>
                         {renderFieldLabel('Account Type', true)}
                         <select
@@ -1827,15 +1839,15 @@ export default function Customers({ onOpenBackup }) {
 
             {/* ================= STEP 6: NOMINEE DETAILS (Customer_Nominee Sheet) ================= */}
             {currentStep === 6 && (
-              <div className="space-y-4">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <UserCheck size={16} color="#3b82f6" />
+              <div className="space-y-5">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.65rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                    <UserCheck size={18} color="#2563eb" />
                     <div>
-                      <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#1e293b' }}>
+                      <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '700', color: '#0f172a' }}>
                         {getNomineeStepLabel()} Details
                       </h3>
-                      <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                      <span style={{ fontSize: '0.785rem', color: '#64748b' }}>
                         Max {getMaxNominees()} allowed, Total share must equal 100%
                       </span>
                     </div>
@@ -1848,18 +1860,22 @@ export default function Customers({ onOpenBackup }) {
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '4px',
-                        padding: '0.35rem 0.75rem',
-                        fontSize: '0.75rem',
+                        gap: '6px',
+                        padding: '0.45rem 0.95rem',
+                        fontSize: '0.8rem',
                         fontWeight: '600',
-                        borderRadius: '6px',
+                        borderRadius: '8px',
                         backgroundColor: '#10b981',
                         color: '#ffffff',
                         border: 'none',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        boxShadow: '0 1px 3px rgba(16, 185, 129, 0.25)',
+                        transition: 'background-color 0.15s ease'
                       }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#059669'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#10b981'; }}
                     >
-                      <Plus size={13} />
+                      <Plus size={15} />
                       <span>Add {getNomineeStepLabel()}</span>
                     </button>
                   )}
@@ -1867,17 +1883,17 @@ export default function Customers({ onOpenBackup }) {
 
                 {validationErrors.NomineeTotalShare && (
                   <div style={{
-                    padding: '0.65rem 0.85rem',
+                    padding: '0.75rem 1rem',
                     backgroundColor: '#fef2f2',
                     border: '1px solid #fecaca',
                     color: '#b91c1c',
-                    fontSize: '0.75rem',
+                    fontSize: '0.8rem',
                     borderRadius: '8px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px'
+                    gap: '8px'
                   }}>
-                    <AlertCircle size={15} />
+                    <AlertCircle size={16} />
                     <span>{validationErrors.NomineeTotalShare}</span>
                   </div>
                 )}
@@ -1885,13 +1901,14 @@ export default function Customers({ onOpenBackup }) {
                 {formData.nominees.map((n, idx) => (
                   <div key={idx} style={{
                     backgroundColor: '#f8fafc',
-                    padding: '0.85rem 1rem',
-                    borderRadius: '10px',
+                    padding: '1.25rem 1.5rem',
+                    borderRadius: '12px',
                     border: '1px solid #e2e8f0',
-                    marginBottom: '0.75rem'
+                    marginBottom: '1rem',
+                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#334155', textTransform: 'uppercase' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+                      <span style={{ fontSize: '0.825rem', fontWeight: '700', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.025em' }}>
                         {getNomineeStepLabel()} #{idx + 1}
                       </span>
                       {idx > 0 && (
@@ -1903,12 +1920,17 @@ export default function Customers({ onOpenBackup }) {
                             alignItems: 'center',
                             gap: '4px',
                             color: '#dc2626',
-                            background: 'none',
-                            border: 'none',
-                            fontSize: '0.72rem',
+                            background: '#fee2e2',
+                            border: '1px solid #fecaca',
+                            padding: '0.25rem 0.65rem',
+                            borderRadius: '6px',
+                            fontSize: '0.75rem',
                             fontWeight: '600',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
                           }}
+                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fca5a5'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#fee2e2'; }}
                         >
                           <Trash2 size={13} />
                           <span>Remove</span>
@@ -1916,7 +1938,7 @@ export default function Customers({ onOpenBackup }) {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
                         {renderFieldLabel(`${getNomineeStepLabel()} Name`, true)}
                         <input
@@ -1992,7 +2014,7 @@ export default function Customers({ onOpenBackup }) {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" style={{ marginTop: '0.65rem' }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4" style={{ marginTop: '0.85rem' }}>
                       <div>
                         {renderFieldLabel('Occupation', true)}
                         <select
@@ -2056,7 +2078,7 @@ export default function Customers({ onOpenBackup }) {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3" style={{ marginTop: '0.65rem' }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4" style={{ marginTop: '0.85rem' }}>
                       <div>
                         {renderFieldLabel('Mobile', false)}
                         <input
@@ -2127,39 +2149,39 @@ export default function Customers({ onOpenBackup }) {
 
             {/* ================= STEP 7: DOCUMENTS UPLOAD ================= */}
             {currentStep === 7 && (
-              <div className="space-y-4">
-                <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <FileCheck size={16} color="#3b82f6" />
-                  <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#1e293b' }}>Required Documents Upload</h3>
+              <div className="space-y-5">
+                <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <FileCheck size={18} color="#2563eb" />
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '700', color: '#0f172a' }}>Required Documents Upload</h3>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* PAN Card */}
                   <div style={{
-                    padding: '0.85rem',
+                    padding: '1.15rem',
                     backgroundColor: '#f8fafc',
                     border: validationErrors.PanDoc ? '1.5px solid #ef4444' : '1px solid #e2e8f0',
-                    borderRadius: '10px'
+                    borderRadius: '12px'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
                       {renderFieldLabel('PAN Card', true)}
                       {formData.PanDocUrl && (
                         <button
                           type="button"
                           onClick={() => removeFile('PanDoc')}
-                          style={{ color: '#dc2626', background: 'none', border: 'none', fontSize: '0.72rem', cursor: 'pointer', fontWeight: '600' }}
+                          style={{ color: '#dc2626', background: 'none', border: 'none', fontSize: '0.75rem', cursor: 'pointer', fontWeight: '600' }}
                         >
                           Remove
                         </button>
                       )}
                     </div>
                     {formData.PanDocUrl ? (
-                      <div style={{ height: '90px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      <div style={{ height: '115px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                         <img src={formData.PanDocUrl} alt="PAN Preview" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
                       </div>
                     ) : (
                       <label style={{
-                        height: '90px',
+                        height: '115px',
                         border: '2px dashed #cbd5e1',
                         borderRadius: '8px',
                         display: 'flex',
@@ -2167,10 +2189,11 @@ export default function Customers({ onOpenBackup }) {
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: 'pointer',
-                        backgroundColor: '#ffffff'
+                        backgroundColor: '#ffffff',
+                        transition: 'border-color 0.15s ease'
                       }}>
-                        <Upload size={18} color="#94a3b8" style={{ marginBottom: '4px' }} />
-                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Upload PAN (JPG/PNG)</span>
+                        <Upload size={22} color="#94a3b8" style={{ marginBottom: '6px' }} />
+                        <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: '500' }}>Upload PAN (JPG/PNG/PDF)</span>
                         <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={(e) => handleFileUpload('PanDoc', e)} />
                       </label>
                     )}
@@ -2179,30 +2202,30 @@ export default function Customers({ onOpenBackup }) {
 
                   {/* Aadhaar Card */}
                   <div style={{
-                    padding: '0.85rem',
+                    padding: '1.15rem',
                     backgroundColor: '#f8fafc',
                     border: validationErrors.AadharDoc ? '1.5px solid #ef4444' : '1px solid #e2e8f0',
-                    borderRadius: '10px'
+                    borderRadius: '12px'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
                       {renderFieldLabel('Aadhaar Card', true)}
                       {formData.AadharDocUrl && (
                         <button
                           type="button"
                           onClick={() => removeFile('AadharDoc')}
-                          style={{ color: '#dc2626', background: 'none', border: 'none', fontSize: '0.72rem', cursor: 'pointer', fontWeight: '600' }}
+                          style={{ color: '#dc2626', background: 'none', border: 'none', fontSize: '0.75rem', cursor: 'pointer', fontWeight: '600' }}
                         >
                           Remove
                         </button>
                       )}
                     </div>
                     {formData.AadharDocUrl ? (
-                      <div style={{ height: '90px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      <div style={{ height: '115px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                         <img src={formData.AadharDocUrl} alt="Aadhaar Preview" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
                       </div>
                     ) : (
                       <label style={{
-                        height: '90px',
+                        height: '115px',
                         border: '2px dashed #cbd5e1',
                         borderRadius: '8px',
                         display: 'flex',
@@ -2210,10 +2233,11 @@ export default function Customers({ onOpenBackup }) {
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: 'pointer',
-                        backgroundColor: '#ffffff'
+                        backgroundColor: '#ffffff',
+                        transition: 'border-color 0.15s ease'
                       }}>
-                        <Upload size={18} color="#94a3b8" style={{ marginBottom: '4px' }} />
-                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Upload Aadhaar Copy</span>
+                        <Upload size={22} color="#94a3b8" style={{ marginBottom: '6px' }} />
+                        <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: '500' }}>Upload Aadhaar Copy</span>
                         <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={(e) => handleFileUpload('AadharDoc', e)} />
                       </label>
                     )}
@@ -2222,30 +2246,30 @@ export default function Customers({ onOpenBackup }) {
 
                   {/* Bank Cheque */}
                   <div style={{
-                    padding: '0.85rem',
+                    padding: '1.15rem',
                     backgroundColor: '#f8fafc',
                     border: '1px solid #e2e8f0',
-                    borderRadius: '10px'
+                    borderRadius: '12px'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
                       {renderFieldLabel('Bank Cheque / Passbook', false)}
                       {formData.BankChequeDocUrl && (
                         <button
                           type="button"
                           onClick={() => removeFile('BankChequeDoc')}
-                          style={{ color: '#dc2626', background: 'none', border: 'none', fontSize: '0.72rem', cursor: 'pointer', fontWeight: '600' }}
+                          style={{ color: '#dc2626', background: 'none', border: 'none', fontSize: '0.75rem', cursor: 'pointer', fontWeight: '600' }}
                         >
                           Remove
                         </button>
                       )}
                     </div>
                     {formData.BankChequeDocUrl ? (
-                      <div style={{ height: '90px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      <div style={{ height: '115px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                         <img src={formData.BankChequeDocUrl} alt="Cheque Preview" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
                       </div>
                     ) : (
                       <label style={{
-                        height: '90px',
+                        height: '115px',
                         border: '2px dashed #cbd5e1',
                         borderRadius: '8px',
                         display: 'flex',
@@ -2253,10 +2277,11 @@ export default function Customers({ onOpenBackup }) {
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: 'pointer',
-                        backgroundColor: '#ffffff'
+                        backgroundColor: '#ffffff',
+                        transition: 'border-color 0.15s ease'
                       }}>
-                        <Upload size={18} color="#94a3b8" style={{ marginBottom: '4px' }} />
-                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Cancelled Cheque (Optional)</span>
+                        <Upload size={22} color="#94a3b8" style={{ marginBottom: '6px' }} />
+                        <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: '500' }}>Cancelled Cheque (Optional)</span>
                         <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={(e) => handleFileUpload('BankChequeDoc', e)} />
                       </label>
                     )}
@@ -2264,30 +2289,30 @@ export default function Customers({ onOpenBackup }) {
 
                   {/* Nominee Proof */}
                   <div style={{
-                    padding: '0.85rem',
+                    padding: '1.15rem',
                     backgroundColor: '#f8fafc',
                     border: validationErrors.NomineeProofDoc ? '1.5px solid #ef4444' : '1px solid #e2e8f0',
-                    borderRadius: '10px'
+                    borderRadius: '12px'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
                       {renderFieldLabel('Nominee ID Proof', true)}
                       {formData.NomineeProofDocUrl && (
                         <button
                           type="button"
                           onClick={() => removeFile('NomineeProofDoc')}
-                          style={{ color: '#dc2626', background: 'none', border: 'none', fontSize: '0.72rem', cursor: 'pointer', fontWeight: '600' }}
+                          style={{ color: '#dc2626', background: 'none', border: 'none', fontSize: '0.75rem', cursor: 'pointer', fontWeight: '600' }}
                         >
                           Remove
                         </button>
                       )}
                     </div>
                     {formData.NomineeProofDocUrl ? (
-                      <div style={{ height: '90px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      <div style={{ height: '115px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                         <img src={formData.NomineeProofDocUrl} alt="Nominee Proof Preview" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
                       </div>
                     ) : (
                       <label style={{
-                        height: '90px',
+                        height: '115px',
                         border: '2px dashed #cbd5e1',
                         borderRadius: '8px',
                         display: 'flex',
@@ -2295,10 +2320,11 @@ export default function Customers({ onOpenBackup }) {
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: 'pointer',
-                        backgroundColor: '#ffffff'
+                        backgroundColor: '#ffffff',
+                        transition: 'border-color 0.15s ease'
                       }}>
-                        <Upload size={18} color="#94a3b8" style={{ marginBottom: '4px' }} />
-                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Upload Nominee Proof</span>
+                        <Upload size={22} color="#94a3b8" style={{ marginBottom: '6px' }} />
+                        <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: '500' }}>Upload Nominee Proof</span>
                         <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={(e) => handleFileUpload('NomineeProofDoc', e)} />
                       </label>
                     )}
@@ -2307,30 +2333,30 @@ export default function Customers({ onOpenBackup }) {
 
                   {/* Customer Signature Upload */}
                   <div className="sm:col-span-2" style={{
-                    padding: '0.85rem',
+                    padding: '1.15rem',
                     backgroundColor: '#f8fafc',
                     border: validationErrors.SignDoc ? '1.5px solid #ef4444' : '1px solid #e2e8f0',
-                    borderRadius: '10px'
+                    borderRadius: '12px'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
                       {renderFieldLabel('Customer Signature', true)}
                       {formData.SignDocUrl && (
                         <button
                           type="button"
                           onClick={() => removeFile('SignDoc')}
-                          style={{ color: '#dc2626', background: 'none', border: 'none', fontSize: '0.72rem', cursor: 'pointer', fontWeight: '600' }}
+                          style={{ color: '#dc2626', background: 'none', border: 'none', fontSize: '0.75rem', cursor: 'pointer', fontWeight: '600' }}
                         >
                           Remove
                         </button>
                       )}
                     </div>
                     {formData.SignDocUrl ? (
-                      <div style={{ height: '80px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      <div style={{ height: '100px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                         <img src={formData.SignDocUrl} alt="Signature Preview" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} />
                       </div>
                     ) : (
                       <label style={{
-                        height: '80px',
+                        height: '100px',
                         border: '2px dashed #cbd5e1',
                         borderRadius: '8px',
                         display: 'flex',
@@ -2338,10 +2364,11 @@ export default function Customers({ onOpenBackup }) {
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: 'pointer',
-                        backgroundColor: '#ffffff'
+                        backgroundColor: '#ffffff',
+                        transition: 'border-color 0.15s ease'
                       }}>
-                        <Upload size={18} color="#94a3b8" style={{ marginBottom: '4px' }} />
-                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Upload Signature Image (PNG / JPG)</span>
+                        <Upload size={22} color="#94a3b8" style={{ marginBottom: '6px' }} />
+                        <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: '500' }}>Upload Signature Image (PNG / JPG)</span>
                         <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleFileUpload('SignDoc', e)} />
                       </label>
                     )}
@@ -2356,7 +2383,7 @@ export default function Customers({ onOpenBackup }) {
           <div style={{
             backgroundColor: '#ffffff',
             borderTop: '1px solid #e2e8f0',
-            padding: '0.85rem 1.5rem',
+            padding: '1.15rem 2.25rem',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -2364,11 +2391,11 @@ export default function Customers({ onOpenBackup }) {
             boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.04)',
             zIndex: 10
           }}>
-            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-              <span style={{ color: '#ef4444' }}>*</span> Required fields
+            <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '500' }}>
+              <span style={{ color: '#ef4444', fontWeight: '700' }}>*</span> Required fields
             </span>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               {/* Save Draft Button */}
               {!editingCustomer && (
                 <button
@@ -2378,9 +2405,9 @@ export default function Customers({ onOpenBackup }) {
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    padding: '0.5rem 0.9rem',
-                    fontSize: '0.785rem',
+                    gap: '8px',
+                    padding: '0.65rem 1.25rem',
+                    fontSize: '0.85rem',
                     fontWeight: '600',
                     borderRadius: '8px',
                     backgroundColor: '#fffbeb',
@@ -2392,7 +2419,7 @@ export default function Customers({ onOpenBackup }) {
                   onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fef3c7'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#fffbeb'; }}
                 >
-                  <Bookmark size={14} />
+                  <Bookmark size={15} />
                   <span>{savingDraft ? 'Saving Draft...' : 'Save Draft'}</span>
                 </button>
               )}
@@ -2405,9 +2432,9 @@ export default function Customers({ onOpenBackup }) {
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    padding: '0.5rem 1.1rem',
-                    fontSize: '0.785rem',
+                    gap: '8px',
+                    padding: '0.65rem 1.35rem',
+                    fontSize: '0.85rem',
                     fontWeight: '600',
                     borderRadius: '8px',
                     backgroundColor: '#ffffff',
@@ -2419,7 +2446,7 @@ export default function Customers({ onOpenBackup }) {
                   onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
                 >
-                  <ArrowLeft size={14} />
+                  <ArrowLeft size={15} />
                   <span>Previous</span>
                 </button>
               )}
@@ -2432,23 +2459,23 @@ export default function Customers({ onOpenBackup }) {
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    padding: '0.5rem 1.4rem',
-                    fontSize: '0.8rem',
+                    gap: '8px',
+                    padding: '0.65rem 1.85rem',
+                    fontSize: '0.875rem',
                     fontWeight: '700',
                     borderRadius: '8px',
                     backgroundColor: '#16a34a',
                     color: '#ffffff',
                     border: 'none',
                     cursor: 'pointer',
-                    boxShadow: '0 2px 4px rgba(22, 163, 74, 0.25)',
+                    boxShadow: '0 2px 6px rgba(22, 163, 74, 0.25)',
                     transition: 'all 0.15s ease'
                   }}
                   onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#15803d'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#16a34a'; }}
                 >
                   <span>Next</span>
-                  <ArrowRight size={14} />
+                  <ArrowRight size={15} />
                 </button>
               ) : (
                 /* Save & Submit Button (Step 7) */
@@ -2459,16 +2486,16 @@ export default function Customers({ onOpenBackup }) {
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    padding: '0.5rem 1.4rem',
-                    fontSize: '0.8rem',
+                    gap: '8px',
+                    padding: '0.65rem 1.85rem',
+                    fontSize: '0.875rem',
                     fontWeight: '700',
                     borderRadius: '8px',
                     backgroundColor: '#16a34a',
                     color: '#ffffff',
                     border: 'none',
                     cursor: 'pointer',
-                    boxShadow: '0 2px 4px rgba(22, 163, 74, 0.25)',
+                    boxShadow: '0 2px 6px rgba(22, 163, 74, 0.25)',
                     opacity: saving ? 0.65 : 1,
                     transition: 'all 0.15s ease'
                   }}
@@ -2476,7 +2503,7 @@ export default function Customers({ onOpenBackup }) {
                   onMouseLeave={(e) => { if (!saving) e.currentTarget.style.backgroundColor = '#16a34a'; }}
                 >
                   <Check size={16} strokeWidth={2.5} />
-                  <span>{saving ? 'Saving...' : 'Save & Submit'}</span>
+                  <span>{saving ? 'Registering...' : editingCustomer ? 'Update Customer' : 'Submit Registration'}</span>
                 </button>
               )}
             </div>
@@ -2490,7 +2517,7 @@ export default function Customers({ onOpenBackup }) {
       <Modal
         isOpen={isDraftsModalOpen}
         onClose={() => setIsDraftsModalOpen(false)}
-        maxWidth="850px"
+        maxWidth="920px"
         hideHeader={true}
       >
         <div style={{
