@@ -59,6 +59,7 @@ export default function Customers({ onOpenBackup }) {
   const [draftCount, setDraftCount] = useState(0);
   const [isDraftsModalOpen, setIsDraftsModalOpen] = useState(false);
   const [activeDraftKey, setActiveDraftKey] = useState(null);
+  const [selectedDraftKeys, setSelectedDraftKeys] = useState([]);
 
   // Background Draft Queue State (Non-blocking fast step progression)
   const [bgDraftStatus, setBgDraftStatus] = useState(null); // { step, status: 'saving'|'saved'|'error', text }
@@ -901,26 +902,54 @@ export default function Customers({ onOpenBackup }) {
     setIsModalOpen(true);
   };
 
-  const handleDeleteDraft = async (draft) => {
+  // Multi-select & Batch Delete Drafts Handlers
+  const toggleSelectAllDrafts = () => {
+    if (drafts.length === 0) return;
+    if (selectedDraftKeys.length === drafts.length) {
+      setSelectedDraftKeys([]);
+    } else {
+      setSelectedDraftKeys(drafts.map(d => d.DraftKey).filter(Boolean));
+    }
+  };
+
+  const toggleSelectDraft = (draftKey) => {
+    if (!draftKey) return;
+    setSelectedDraftKeys(prev => 
+      prev.includes(draftKey) 
+        ? prev.filter(k => k !== draftKey) 
+        : [...prev, draftKey]
+    );
+  };
+
+  const handleDeleteSelectedDrafts = async () => {
+    if (selectedDraftKeys.length === 0) return;
+    const count = selectedDraftKeys.length;
     const confirmed = await showConfirm(
-      'Delete Draft?',
-      `Delete draft for "${draft.CustomerName || draft.DraftKey}"?`
+      'Delete Selected Drafts?',
+      `Are you sure you want to delete ${count} selected draft${count === 1 ? '' : 's'}? This action cannot be undone.`
     );
     if (!confirmed) return;
     try {
-      await crmApi.call('deleteCustomerDraft', {
-        draftKey: draft.DraftKey,
-        userEmail: user?.email
-      }).catch(() => {});
+      // 1. Delete in parallel from backend
+      await Promise.allSettled(
+        selectedDraftKeys.map(key => 
+          crmApi.call('deleteCustomerDraft', { draftKey: key, userEmail: user?.email }).catch(() => {})
+        )
+      );
+
+      // 2. Remove from local storage mirror
       try {
         const localDrafts = JSON.parse(localStorage.getItem('sr_crm_customer_drafts') || '[]');
-        const filtered = localDrafts.filter(d => d.DraftKey !== draft.DraftKey);
+        const keySet = new Set(selectedDraftKeys);
+        const filtered = localDrafts.filter(d => !keySet.has(d.DraftKey));
         localStorage.setItem('sr_crm_customer_drafts', JSON.stringify(filtered));
       } catch (e) {}
-      showSuccess('Draft Deleted', 'Customer draft deleted successfully.');
+
+      showSuccess('Drafts Deleted', `${count} customer draft${count === 1 ? '' : 's'} deleted successfully.`);
+      setSelectedDraftKeys([]);
       await loadDrafts();
     } catch (err) {
-      showError('Failed', err.message || 'Could not delete draft');
+      showError('Failed', err.message || 'Could not delete selected drafts');
     }
   };
 
@@ -2704,6 +2733,65 @@ export default function Customers({ onOpenBackup }) {
               </div>
             </div>
 
+            {/* Selection Action Bar (when drafts exist) */}
+            {drafts.length > 0 && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '0.85rem',
+                padding: '0.55rem 0.85rem',
+                backgroundColor: selectedDraftKeys.length > 0 ? '#fef2f2' : '#f8fafc',
+                border: selectedDraftKeys.length > 0 ? '1px solid #fecaca' : '1px solid #e2e8f0',
+                borderRadius: '8px',
+                transition: 'all 0.15s ease'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.785rem', color: '#475569', fontWeight: '600' }}>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={drafts.length > 0 && selectedDraftKeys.length === drafts.length}
+                      onChange={toggleSelectAllDrafts}
+                      style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563eb' }}
+                    />
+                    <span>{selectedDraftKeys.length === drafts.length ? 'Deselect All' : 'Select All'} ({drafts.length})</span>
+                  </label>
+                  {selectedDraftKeys.length > 0 && (
+                    <span style={{ color: '#dc2626', fontWeight: '700' }}>
+                      • {selectedDraftKeys.length} draft{selectedDraftKeys.length === 1 ? '' : 's'} selected
+                    </span>
+                  )}
+                </div>
+
+                {/* 1 Single Delete Button */}
+                <button
+                  type="button"
+                  disabled={selectedDraftKeys.length === 0}
+                  onClick={handleDeleteSelectedDrafts}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '0.45rem 1rem',
+                    fontSize: '0.785rem',
+                    fontWeight: '700',
+                    borderRadius: '6px',
+                    backgroundColor: selectedDraftKeys.length > 0 ? '#dc2626' : '#f1f5f9',
+                    color: selectedDraftKeys.length > 0 ? '#ffffff' : '#94a3b8',
+                    border: selectedDraftKeys.length > 0 ? 'none' : '1px solid #cbd5e1',
+                    cursor: selectedDraftKeys.length > 0 ? 'pointer' : 'not-allowed',
+                    boxShadow: selectedDraftKeys.length > 0 ? '0 2px 5px rgba(220, 38, 38, 0.25)' : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { if (selectedDraftKeys.length > 0) e.currentTarget.style.backgroundColor = '#b91c1c'; }}
+                  onMouseLeave={(e) => { if (selectedDraftKeys.length > 0) e.currentTarget.style.backgroundColor = '#dc2626'; }}
+                >
+                  <Trash2 size={13} />
+                  <span>Delete Selected {selectedDraftKeys.length > 0 ? `(${selectedDraftKeys.length})` : ''}</span>
+                </button>
+              </div>
+            )}
+
             {/* Redesigned Grid Table */}
             <div style={{
               border: '1px solid #e2e8f0',
@@ -2715,11 +2803,19 @@ export default function Customers({ onOpenBackup }) {
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    <th style={{ padding: '0.75rem 0.85rem', textAlign: 'center', width: '48px', fontWeight: '700' }}>#</th>
+                    <th style={{ padding: '0.75rem 0.65rem', textAlign: 'center', width: '60px', fontWeight: '700' }}>
+                      <input
+                        type="checkbox"
+                        checked={drafts.length > 0 && selectedDraftKeys.length === drafts.length}
+                        onChange={toggleSelectAllDrafts}
+                        title="Select All Drafts"
+                        style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563eb' }}
+                      />
+                    </th>
                     <th style={{ padding: '0.75rem 1rem', fontWeight: '700' }}>Customer / Draft Key</th>
                     <th style={{ padding: '0.75rem 1rem', fontWeight: '700', width: '220px' }}>Step Progress</th>
                     <th style={{ padding: '0.75rem 1rem', fontWeight: '700' }}>Last Modified</th>
-                    <th style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: '700', width: '190px' }}>Action</th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: '700', width: '130px' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2737,34 +2833,43 @@ export default function Customers({ onOpenBackup }) {
                       const total = Number(d.TotalSteps || 7);
                       const pct = Math.min(100, Math.max(14, Math.round((step / total) * 100)));
                       const currentStepMeta = stepsMeta[step - 1] || stepsMeta[0];
+                      const isSelected = selectedDraftKeys.includes(d.DraftKey);
 
                       return (
                         <tr
                           key={d.DraftKey || idx}
                           style={{
                             borderBottom: idx === drafts.length - 1 ? 'none' : '1px solid #f1f5f9',
+                            backgroundColor: isSelected ? '#f8faff' : 'transparent',
                             transition: 'background-color 0.15s ease'
                           }}
-                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                          onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = isSelected ? '#f8faff' : 'transparent'; }}
                         >
-                          {/* Row Number */}
-                          <td style={{ padding: '0.85rem 0.85rem', textAlign: 'center' }}>
-                            <div style={{
-                              width: '26px',
-                              height: '26px',
-                              borderRadius: '50%',
-                              backgroundColor: '#f1f5f9',
-                              color: '#475569',
-                              fontWeight: '700',
-                              fontSize: '0.75rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              margin: '0 auto',
-                              fontFamily: 'monospace'
-                            }}>
-                              {idx + 1}
+                          {/* Checkbox & Row Number in 1st Column */}
+                          <td style={{ padding: '0.85rem 0.65rem', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleSelectDraft(d.DraftKey)}
+                                style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563eb' }}
+                              />
+                              <span style={{
+                                width: '22px',
+                                height: '22px',
+                                borderRadius: '50%',
+                                backgroundColor: isSelected ? '#dbeafe' : '#f1f5f9',
+                                color: isSelected ? '#1e40af' : '#475569',
+                                fontWeight: '700',
+                                fontSize: '0.7rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontFamily: 'monospace'
+                              }}>
+                                {idx + 1}
+                              </span>
                             </div>
                           </td>
 
@@ -2850,66 +2955,33 @@ export default function Customers({ onOpenBackup }) {
                             </div>
                           </td>
 
-                          {/* Action Buttons (Resume & Delete) */}
+                          {/* Action Button: ONLY Resume */}
                           <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                              <button
-                                type="button"
-                                onClick={() => handleResumeDraft(d)}
-                                title="Resume Customer Registration"
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '5px',
-                                  padding: '6px 12px',
-                                  fontSize: '0.75rem',
-                                  fontWeight: '700',
-                                  borderRadius: '6px',
-                                  backgroundColor: '#2563eb',
-                                  color: '#ffffff',
-                                  border: 'none',
-                                  cursor: 'pointer',
-                                  boxShadow: '0 1px 3px rgba(37, 99, 235, 0.25)',
-                                  transition: 'all 0.15s ease'
-                                }}
-                                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1d4ed8'; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#2563eb'; }}
-                              >
-                                <Play size={12} fill="#ffffff" />
-                                <span>Resume</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteDraft(d)}
-                                title="Delete Draft"
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  padding: '6px 9px',
-                                  fontSize: '0.75rem',
-                                  fontWeight: '600',
-                                  borderRadius: '6px',
-                                  backgroundColor: '#fef2f2',
-                                  color: '#dc2626',
-                                  border: '1px solid #fecaca',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.15s ease'
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.backgroundColor = '#fee2e2';
-                                  e.currentTarget.style.borderColor = '#f87171';
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.backgroundColor = '#fef2f2';
-                                  e.currentTarget.style.borderColor = '#fecaca';
-                                }}
-                              >
-                                <Trash2 size={13} />
-                                <span>Delete</span>
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleResumeDraft(d)}
+                              title="Resume Customer Registration"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '7px 14px',
+                                fontSize: '0.775rem',
+                                fontWeight: '700',
+                                borderRadius: '7px',
+                                backgroundColor: '#2563eb',
+                                color: '#ffffff',
+                                border: 'none',
+                                cursor: 'pointer',
+                                boxShadow: '0 1px 3px rgba(37, 99, 235, 0.25)',
+                                transition: 'all 0.15s ease'
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1d4ed8'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#2563eb'; }}
+                            >
+                              <Play size={13} fill="#ffffff" />
+                              <span>Resume</span>
+                            </button>
                           </td>
                         </tr>
                       );
@@ -2930,29 +3002,73 @@ export default function Customers({ onOpenBackup }) {
             justifyContent: 'space-between',
             flexShrink: 0
           }}>
-            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-              Showing <strong>{drafts.length}</strong> active draft{drafts.length === 1 ? '' : 's'}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                Showing <strong>{drafts.length}</strong> active draft{drafts.length === 1 ? '' : 's'}
+              </span>
+              {selectedDraftKeys.length > 0 && (
+                <span style={{
+                  fontSize: '0.72rem',
+                  color: '#dc2626',
+                  fontWeight: '700',
+                  backgroundColor: '#fef2f2',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  border: '1px solid #fecaca'
+                }}>
+                  {selectedDraftKeys.length} selected
+                </span>
+              )}
+            </div>
 
-            <button
-              type="button"
-              onClick={() => setIsDraftsModalOpen(false)}
-              style={{
-                padding: '0.45rem 1.15rem',
-                fontSize: '0.775rem',
-                fontWeight: '600',
-                borderRadius: '8px',
-                backgroundColor: '#f8fafc',
-                color: '#334155',
-                border: '1px solid #cbd5e1',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; }}
-            >
-              Close
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {selectedDraftKeys.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleDeleteSelectedDrafts}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '0.45rem 1rem',
+                    fontSize: '0.775rem',
+                    fontWeight: '700',
+                    borderRadius: '8px',
+                    backgroundColor: '#dc2626',
+                    color: '#ffffff',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 3px rgba(220, 38, 38, 0.25)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#b91c1c'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#dc2626'; }}
+                >
+                  <Trash2 size={13} />
+                  <span>Delete Selected ({selectedDraftKeys.length})</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsDraftsModalOpen(false)}
+                style={{
+                  padding: '0.45rem 1.15rem',
+                  fontSize: '0.775rem',
+                  fontWeight: '600',
+                  borderRadius: '8px',
+                  backgroundColor: '#f8fafc',
+                  color: '#334155',
+                  border: '1px solid #cbd5e1',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       </Modal>
