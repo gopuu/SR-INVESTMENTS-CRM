@@ -29,7 +29,9 @@ import {
   Eye,
   FileCheck,
   ShieldCheck,
-  Bookmark
+  Bookmark,
+  User,
+  Mail
 } from 'lucide-react';
 import { crmApi, subscribeCrmEvents, getInitialsCode } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -2483,95 +2485,368 @@ export default function Customers({ onOpenBackup }) {
       </Modal>
 
       {/* ========================================================================= */}
-      {/* CUSTOMER DRAFTS MODAL (Matching User Screenshot media_1795372118128_96a7)   */}
+      {/* CUSTOMER DRAFTS MODAL (Expert UI/UX Redesign)                             */}
       {/* ========================================================================= */}
       <Modal
         isOpen={isDraftsModalOpen}
         onClose={() => setIsDraftsModalOpen(false)}
-        maxWidth="750px"
-        title="Customer Drafts"
+        maxWidth="850px"
+        hideHeader={true}
       >
-        <div className="space-y-4">
-          <p className="text-xs text-slate-500">
-            Resuming a draft will pre-fill the customer form at Step 1, letting you review previous values and advance seamlessly.
-          </p>
+        <div style={{
+          backgroundColor: '#ffffff',
+          borderRadius: '14px',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          maxHeight: '88vh'
+        }}>
+          {/* Custom Header with Primary Gradient */}
+          <div style={{
+            background: 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)',
+            color: '#ffffff',
+            padding: '1rem 1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0,
+            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+            zIndex: 10
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
+                backgroundColor: 'rgba(255, 255, 255, 0.18)',
+                backdropFilter: 'blur(8px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ffffff',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                flexShrink: 0
+              }}>
+                <Bookmark size={18} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.01em' }}>
+                    Customer Drafts
+                  </h2>
+                  <span style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+                    border: '1px solid rgba(255, 255, 255, 0.35)',
+                    color: '#ffffff',
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    fontSize: '0.7rem',
+                    fontWeight: '700'
+                  }}>
+                    {drafts.length} {drafts.length === 1 ? 'Draft' : 'Drafts'}
+                  </span>
+                </div>
+                <p style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: '#dbeafe', fontWeight: '400' }}>
+                  Resume any in-progress customer registration from where you left off
+                </p>
+              </div>
+            </div>
 
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase font-semibold text-slate-600">
-                <tr>
-                  <th className="px-4 py-3 text-center w-12">Id</th>
-                  <th className="px-4 py-3">Customer / Draft Key</th>
-                  <th className="px-4 py-3 text-center w-40">Step Progress</th>
-                  <th className="px-4 py-3 text-center">Last Modified</th>
-                  <th className="px-4 py-3 text-center w-28">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {drafts.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-slate-400 text-xs">
-                      No active drafts available.
-                    </td>
+            <button
+              type="button"
+              onClick={() => setIsDraftsModalOpen(false)}
+              aria-label="Close modal"
+              style={{
+                background: 'rgba(255, 255, 255, 0.15)',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                color: '#ffffff',
+                width: '30px',
+                height: '30px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'; }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Modal Body */}
+          <div style={{ padding: '1.25rem 1.5rem', overflowY: 'auto', flex: 1 }}>
+            {/* Informational Guidance Banner */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+              padding: '0.75rem 1rem',
+              backgroundColor: '#eff6ff',
+              border: '1px solid #bfdbfe',
+              borderRadius: '10px',
+              marginBottom: '1rem',
+              color: '#1e40af',
+              fontSize: '0.785rem',
+              lineHeight: '1.45'
+            }}>
+              <AlertCircle size={16} color="#2563eb" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <div>
+                <strong style={{ fontWeight: '700' }}>Fast Resume:</strong> Clicking <strong>Resume</strong> pre-fills the 7-step customer registration wizard starting from Step 1, allowing you to review previously entered information and advance forward. Submitting at the final step automatically archives the draft.
+              </div>
+            </div>
+
+            {/* Redesigned Grid Table */}
+            <div style={{
+              border: '1px solid #e2e8f0',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+              backgroundColor: '#ffffff'
+            }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <th style={{ padding: '0.75rem 0.85rem', textAlign: 'center', width: '48px', fontWeight: '700' }}>#</th>
+                    <th style={{ padding: '0.75rem 1rem', fontWeight: '700' }}>Customer / Draft Key</th>
+                    <th style={{ padding: '0.75rem 1rem', fontWeight: '700', width: '220px' }}>Step Progress</th>
+                    <th style={{ padding: '0.75rem 1rem', fontWeight: '700' }}>Last Modified</th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: '700', width: '190px' }}>Action</th>
                   </tr>
-                ) : (
-                  drafts.map((d, idx) => {
-                    const step = d.StepNo || 1;
-                    const total = d.TotalSteps || 7;
-                    const pct = Math.round((step / total) * 100);
+                </thead>
+                <tbody>
+                  {drafts.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} style={{ padding: '3rem 1rem', textAlign: 'center', color: '#94a3b8' }}>
+                        <Bookmark size={32} color="#cbd5e1" style={{ margin: '0 auto 0.5rem' }} />
+                        <p style={{ margin: 0, fontWeight: '600', fontSize: '0.875rem', color: '#475569' }}>No Active Drafts Found</p>
+                        <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem' }}>Drafts are automatically created whenever you fill out customer steps.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    drafts.map((d, idx) => {
+                      const step = Number(d.StepNo || d.CurrentStep || d.DraftData?.CurrentStep || 1);
+                      const total = Number(d.TotalSteps || 7);
+                      const pct = Math.min(100, Math.max(14, Math.round((step / total) * 100)));
+                      const currentStepMeta = stepsMeta[step - 1] || stepsMeta[0];
 
-                    return (
-                      <tr key={d.DraftKey || idx} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="px-4 py-3 text-center text-xs text-slate-500 font-mono">
-                          {idx + 1}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="font-semibold text-slate-800 text-xs">{d.CustomerName}</div>
-                          <div className="text-[10px] text-slate-400 font-mono">{d.DraftKey}</div>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <div className="text-xs font-medium text-slate-700 mb-1">
-                            Step {step} of {total}
-                          </div>
-                          <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                            <div 
-                              className="bg-blue-600 h-1.5 rounded-full transition-all" 
-                              style={{ width: `${pct}%` }} 
-                            />
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-center text-xs text-slate-600">
-                          <div>{d.LastModifiedBy || 'Admin'}</div>
-                          <div className="text-[10px] text-slate-400">
-                            {d.LastModifiedOn ? new Date(d.LastModifiedOn).toLocaleString() : '-'}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleResumeDraft(d)}
-                              title="Resume Draft"
-                              className="p-1.5 text-blue-600 hover:bg-blue-50 border border-blue-200 rounded-md transition-colors"
-                            >
-                              <Play size={14} className="fill-blue-600" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteDraft(d)}
-                              title="Delete Draft"
-                              className="p-1.5 text-red-600 hover:bg-red-50 border border-red-200 rounded-md transition-colors"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                      return (
+                        <tr
+                          key={d.DraftKey || idx}
+                          style={{
+                            borderBottom: idx === drafts.length - 1 ? 'none' : '1px solid #f1f5f9',
+                            transition: 'background-color 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                        >
+                          {/* Row Number */}
+                          <td style={{ padding: '0.85rem 0.85rem', textAlign: 'center' }}>
+                            <div style={{
+                              width: '26px',
+                              height: '26px',
+                              borderRadius: '50%',
+                              backgroundColor: '#f1f5f9',
+                              color: '#475569',
+                              fontWeight: '700',
+                              fontSize: '0.75rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              margin: '0 auto',
+                              fontFamily: 'monospace'
+                            }}>
+                              {idx + 1}
+                            </div>
+                          </td>
+
+                          {/* Customer Name & Draft Key Badge */}
+                          <td style={{ padding: '0.85rem 1rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <User size={14} color="#2563eb" />
+                              <span style={{ fontWeight: '700', color: '#0f172a', fontSize: '0.85rem' }}>
+                                {d.CustomerName || 'Unnamed Customer'}
+                              </span>
+                            </div>
+                            <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                backgroundColor: '#f1f5f9',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '4px',
+                                padding: '1px 6px',
+                                fontSize: '0.7rem',
+                                color: '#475569',
+                                fontFamily: 'monospace',
+                                fontWeight: '600'
+                              }}>
+                                <Bookmark size={10} color="#64748b" />
+                                {d.DraftKey}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Step Progress & Visual Bar */}
+                          <td style={{ padding: '0.85rem 1rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '0.775rem', fontWeight: '700', color: '#1e293b' }}>
+                                Step {step} of {total}
+                              </span>
+                              <span style={{
+                                fontSize: '0.675rem',
+                                fontWeight: '700',
+                                color: '#2563eb',
+                                backgroundColor: '#eff6ff',
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                border: '1px solid #dbeafe'
+                              }}>
+                                {currentStepMeta.label}
+                              </span>
+                            </div>
+                            <div style={{ width: '100%', backgroundColor: '#e2e8f0', borderRadius: '999px', height: '6px', overflow: 'hidden' }}>
+                              <div
+                                style={{
+                                  height: '100%',
+                                  width: `${pct}%`,
+                                  background: 'linear-gradient(90deg, #2563eb 0%, #10b981 100%)',
+                                  borderRadius: '999px',
+                                  transition: 'width 0.3s ease'
+                                }}
+                              />
+                            </div>
+                            <span style={{ fontSize: '0.675rem', color: '#64748b', fontWeight: '600', marginTop: '3px', display: 'block' }}>
+                              {pct}% Completed
+                            </span>
+                          </td>
+
+                          {/* Last Modified */}
+                          <td style={{ padding: '0.85rem 1rem' }}>
+                            <div style={{ fontSize: '0.775rem', fontWeight: '600', color: '#334155', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <Mail size={12} color="#94a3b8" />
+                              <span>{d.LastModifiedBy || 'Admin'}</span>
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Clock size={11} color="#94a3b8" />
+                              <span>
+                                {d.LastModifiedOn ? new Date(d.LastModifiedOn).toLocaleString('en-IN', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                }) : '-'}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Action Buttons (Resume & Delete) */}
+                          <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleResumeDraft(d)}
+                                title="Resume Customer Registration"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                  padding: '6px 12px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: '700',
+                                  borderRadius: '6px',
+                                  backgroundColor: '#2563eb',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  boxShadow: '0 1px 3px rgba(37, 99, 235, 0.25)',
+                                  transition: 'all 0.15s ease'
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1d4ed8'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#2563eb'; }}
+                              >
+                                <Play size={12} fill="#ffffff" />
+                                <span>Resume</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteDraft(d)}
+                                title="Delete Draft"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '6px 9px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: '600',
+                                  borderRadius: '6px',
+                                  backgroundColor: '#fef2f2',
+                                  color: '#dc2626',
+                                  border: '1px solid #fecaca',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#fee2e2';
+                                  e.currentTarget.style.borderColor = '#f87171';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#fef2f2';
+                                  e.currentTarget.style.borderColor = '#fecaca';
+                                }}
+                              >
+                                <Trash2 size={13} />
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Modal Footer (Pinned) */}
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderTop: '1px solid #e2e8f0',
+            padding: '0.75rem 1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0
+          }}>
+            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+              Showing <strong>{drafts.length}</strong> active draft{drafts.length === 1 ? '' : 's'}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setIsDraftsModalOpen(false)}
+              style={{
+                padding: '0.45rem 1.15rem',
+                fontSize: '0.775rem',
+                fontWeight: '600',
+                borderRadius: '8px',
+                backgroundColor: '#f8fafc',
+                color: '#334155',
+                border: '1px solid #cbd5e1',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+            >
+              Close
+            </button>
           </div>
         </div>
       </Modal>
