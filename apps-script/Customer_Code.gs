@@ -447,18 +447,29 @@ function saveCustomer_(data) {
     }
   }
 
-  // Audit Log & Notification
-  logAudit_(userEmail, isNew ? "CREATE" : "UPDATE", "Customers", code,
-    (isNew ? "Registered new investor: " : "Updated investor: ") + fullName + " (" + code + ")");
+  // Audit Log & Notification (safely handled so audit/notif errors never abort investor creation)
+  try {
+    logAudit_(userEmail, isNew ? "CREATE" : "UPDATE", "Customers", code,
+      (isNew ? "Registered new investor: " : "Updated investor: ") + fullName + " (" + code + ")");
+  } catch (e) {
+    Logger.log("logAudit_ error: " + e.message);
+  }
 
-  createNotification_({
-    title: isNew ? "New Investor Onboarded" : "Investor Record Updated",
-    message: `${fullName} (${code}) ${isNew ? 'registered' : 'updated'} by ${userEmail}`,
-    type: "INFO",
-    module: "Customers",
-    targetUserEmail: userEmail,
-    tenantId: tenantId
-  });
+  try {
+    sendNotification_({
+      actorEmail: userEmail,
+      title: isNew ? "New Investor Onboarded" : "Investor Record Updated",
+      message: `${fullName} (${code}) ${isNew ? 'registered' : 'updated'} by ${userEmail}`,
+      action: isNew ? "CREATE" : "UPDATE",
+      module: "Customers",
+      recordId: code,
+      targetUserEmail: userEmail,
+      targetRoute: "/customers",
+      tenantId: tenantId
+    });
+  } catch (e) {
+    Logger.log("sendNotification_ error: " + e.message);
+  }
 
   return {
     status: "Success",

@@ -2492,22 +2492,34 @@ function sendNotification_(payload) {
   const rowValues = [
     id,
     now,
-    payload.actorEmail || "",
+    payload.actorEmail || payload.targetUserEmail || "",
     payload.actorName || "",
     payload.actorRole || "Staff",
     isActorAdmin,
     targetAudience,
-    payload.action || "UPDATE",
+    payload.action || (payload.type === "INFO" ? "INFO" : "UPDATE"),
     payload.module || "General",
-    payload.recordId || "",
+    payload.recordId || payload.code || "",
     payload.title || "Activity Alert",
     payload.message || "",
-    payload.targetRoute || "/home",
+    payload.targetRoute || "/customers",
     ""
   ];
 
   sheet.appendRow(rowValues);
   return { success: true, notifId: id, targetAudience: targetAudience };
+}
+
+/**
+ * Universal safe helper / alias for createNotification_
+ */
+function createNotification_(payload) {
+  try {
+    return sendNotification_(payload);
+  } catch (e) {
+    Logger.log("createNotification_ error: " + e.message);
+    return { success: false, error: e.message };
+  }
 }
 
 /**
