@@ -199,8 +199,24 @@ export default function Customers({ onOpenBackup }) {
 
   const loadDrafts = async () => {
     try {
-      const draftList = await crmApi.call('getCustomerDrafts', {});
-      const validDrafts = Array.isArray(draftList) ? draftList : [];
+      const serverDrafts = await crmApi.call('getCustomerDrafts', { _silent: true }).catch(() => []);
+      let localDrafts = [];
+      try {
+        localDrafts = JSON.parse(localStorage.getItem('sr_crm_customer_drafts') || '[]');
+      } catch (e) {}
+
+      const mergedMap = new Map();
+      if (Array.isArray(serverDrafts)) {
+        serverDrafts.forEach(d => { if (d.DraftKey) mergedMap.set(d.DraftKey, d); });
+      }
+      if (Array.isArray(localDrafts)) {
+        localDrafts.forEach(d => {
+          if (d.DraftKey && !mergedMap.has(d.DraftKey)) {
+            mergedMap.set(d.DraftKey, d);
+          }
+        });
+      }
+      const validDrafts = Array.from(mergedMap.values());
       setDrafts(validDrafts);
       setDraftCount(validDrafts.length);
     } catch (err) {
@@ -638,28 +654,64 @@ export default function Customers({ onOpenBackup }) {
   );
 
   // ================= SAVE AS DRAFT & BACKGROUND QUEUE =================
+  const persistLocalDraft = (key, step, custName, data) => {
+    try {
+      const drafts = JSON.parse(localStorage.getItem('sr_crm_customer_drafts') || '[]');
+      const dKey = key || ('DKEY_' + Math.random().toString(36).substring(2, 9).toUpperCase());
+      const existingIdx = drafts.findIndex(d => d.DraftKey === dKey);
+      const now = new Date().toISOString();
+      const entry = {
+        DraftKey: dKey,
+        CustomerName: custName,
+        StepNo: step,
+        TotalSteps: 7,
+        LastModifiedBy: user?.email || 'User',
+        LastModifiedOn: now,
+        DraftData: { ...data, DraftKey: dKey, CurrentStep: step }
+      };
+      if (existingIdx >= 0) drafts[existingIdx] = entry;
+      else drafts.unshift(entry);
+      localStorage.setItem('sr_crm_customer_drafts', JSON.stringify(drafts));
+      return dKey;
+    } catch (e) {
+      return key;
+    }
+  };
+
   const handleSaveDraft = async (silent = false) => {
     try {
       setSavingDraft(true);
       const custName = formData.FullName || [formData.FirstName, formData.LastName].filter(Boolean).join(' ') || 'Customer Draft';
       const keyToUse = currentDraftKeyRef.current || activeDraftKey;
+      const assignedKey = persistLocalDraft(keyToUse, currentStep, custName, formData);
+      if (assignedKey) {
+        currentDraftKeyRef.current = assignedKey;
+        setActiveDraftKey(assignedKey);
+      }
+
       const payload = {
-        DraftKey: keyToUse,
+        DraftKey: assignedKey,
         CurrentStep: currentStep,
         CustomerName: custName,
         userEmail: user?.email,
+        _silent: silent,
         DraftData: {
           ...formData,
-          DraftKey: keyToUse,
+          DraftKey: assignedKey,
           CurrentStep: currentStep
         }
       };
 
-      const res = await crmApi.call('saveCustomerDraft', payload);
-      if (res?.data?.DraftKey) {
-        currentDraftKeyRef.current = res.data.DraftKey;
-        setActiveDraftKey(res.data.DraftKey);
+      try {
+        const res = await crmApi.call('saveCustomerDraft', payload);
+        if (res?.data?.DraftKey) {
+          currentDraftKeyRef.current = res.data.DraftKey;
+          setActiveDraftKey(res.data.DraftKey);
+        }
+      } catch (cloudErr) {
+        console.warn('Cloud draft save notice (saved locally):', cloudErr?.message || cloudErr);
       }
+
       await loadDrafts();
       if (!silent) {
         showSuccess('Draft Saved', `Draft for "${custName}" (Step ${currentStep} of 7) has been saved.`);
@@ -697,23 +749,38 @@ export default function Customers({ onOpenBackup }) {
     try {
       const custName = task.data.FullName || [task.data.FirstName, task.data.LastName].filter(Boolean).join(' ') || 'Customer Draft';
       const keyToUse = currentDraftKeyRef.current || activeDraftKey;
+
+      // 1. Instant local persistence (ensures user data is never lost)
+      const assignedKey = persistLocalDraft(keyToUse, task.step, custName, task.data);
+      if (assignedKey) {
+        currentDraftKeyRef.current = assignedKey;
+        setActiveDraftKey(assignedKey);
+      }
+
+      // 2. Background cloud synchronization (with _silent: true so it doesn't conflict with global bottom toast)
       const payload = {
-        DraftKey: keyToUse,
+        DraftKey: assignedKey,
         CurrentStep: task.step,
         CustomerName: custName,
         userEmail: user?.email,
+        _silent: true,
         DraftData: {
           ...task.data,
-          DraftKey: keyToUse,
+          DraftKey: assignedKey,
           CurrentStep: task.step
         }
       };
 
-      const res = await crmApi.call('saveCustomerDraft', payload);
-      if (res?.data?.DraftKey) {
-        currentDraftKeyRef.current = res.data.DraftKey;
-        setActiveDraftKey(res.data.DraftKey);
+      try {
+        const res = await crmApi.call('saveCustomerDraft', payload);
+        if (res?.data?.DraftKey) {
+          currentDraftKeyRef.current = res.data.DraftKey;
+          setActiveDraftKey(res.data.DraftKey);
+        }
+      } catch (cloudErr) {
+        console.warn('Cloud draft sync notice (stored locally):', cloudErr?.message || cloudErr);
       }
+
       loadDrafts();
 
       setBgDraftStatus({
@@ -796,6 +863,13 @@ export default function Customers({ onOpenBackup }) {
 
       await crmApi.call('saveCustomer', payload);
       showSuccess(`Customer "${formData.FullName}" saved successfully!`);
+      if (activeDraftKey) {
+        try {
+          const localDrafts = JSON.parse(localStorage.getItem('sr_crm_customer_drafts') || '[]');
+          const filtered = localDrafts.filter(d => d.DraftKey !== activeDraftKey);
+          localStorage.setItem('sr_crm_customer_drafts', JSON.stringify(filtered));
+        } catch (e) {}
+      }
       setIsModalOpen(false);
       setActiveDraftKey(null);
       await loadCustomers();
@@ -837,7 +911,12 @@ export default function Customers({ onOpenBackup }) {
       await crmApi.call('deleteCustomerDraft', {
         draftKey: draft.DraftKey,
         userEmail: user?.email
-      });
+      }).catch(() => {});
+      try {
+        const localDrafts = JSON.parse(localStorage.getItem('sr_crm_customer_drafts') || '[]');
+        const filtered = localDrafts.filter(d => d.DraftKey !== draft.DraftKey);
+        localStorage.setItem('sr_crm_customer_drafts', JSON.stringify(filtered));
+      } catch (e) {}
       showSuccess('Draft Deleted', 'Customer draft deleted successfully.');
       await loadDrafts();
     } catch (err) {

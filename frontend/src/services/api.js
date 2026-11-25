@@ -868,13 +868,13 @@ export function notifyDbCallStart(action) {
   });
 }
 
-export function notifyDbCallEnd(action) {
+export function notifyDbCallEnd(action, success = true, error = null) {
   if (action === 'checkTenantSync' || action === 'health') return;
   activeDbCallsCount = Math.max(0, activeDbCallsCount - 1);
   const isStillLoading = activeDbCallsCount > 0;
   dbCallSubscribers.forEach(fn => {
     try {
-      fn(isStillLoading, activeDbCallsCount, action);
+      fn(isStillLoading, activeDbCallsCount, action, success, error);
     } catch (e) {}
   });
 }
@@ -1519,10 +1519,17 @@ export const crmApi = {
   async call(action, payload = {}) {
     const isTracked = action !== 'checkTenantSync' && action !== 'health' && !payload?._silent;
     if (isTracked) notifyDbCallStart(action);
+    let callSuccess = false;
+    let callError = null;
     try {
-      return await this._executeCall(action, payload);
+      const res = await this._executeCall(action, payload);
+      callSuccess = true;
+      return res;
+    } catch (err) {
+      callError = err;
+      throw err;
     } finally {
-      if (isTracked) notifyDbCallEnd(action);
+      if (isTracked) notifyDbCallEnd(action, callSuccess, callError);
     }
   },
 

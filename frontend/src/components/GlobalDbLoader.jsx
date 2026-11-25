@@ -1,30 +1,39 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FileSpreadsheet, RefreshCw, Check } from 'lucide-react';
+import { Cloud, RefreshCw, Check, AlertCircle } from 'lucide-react';
 import { subscribeDbCalls } from '../services/api';
 
 export default function GlobalDbLoader() {
   const [active, setActive] = useState(false);
   const [seconds, setSeconds] = useState(1);
-  const [justCompleted, setJustCompleted] = useState(false);
+  const [statusState, setStatusState] = useState(null); // 'success' | 'error' | null
   const timerRef = useRef(null);
   const completeTimerRef = useRef(null);
 
   useEffect(() => {
-    const unsubscribe = subscribeDbCalls((isLoading) => {
+    const unsubscribe = subscribeDbCalls((isLoading, activeCount, action, success = true, error = null) => {
       if (isLoading) {
         if (completeTimerRef.current) {
           clearTimeout(completeTimerRef.current);
           completeTimerRef.current = null;
         }
-        setJustCompleted(false);
+        setStatusState(null);
         setActive(true);
       } else {
         setActive(false);
-        setJustCompleted(true);
-        completeTimerRef.current = setTimeout(() => {
-          setJustCompleted(false);
-          setSeconds(1);
-        }, 900);
+        if (success !== false && !error) {
+          setStatusState('success');
+          completeTimerRef.current = setTimeout(() => {
+            setStatusState(null);
+            setSeconds(1);
+          }, 1200);
+        } else {
+          // If transaction failed, NEVER show false "Synced" checkmark!
+          setStatusState('error');
+          completeTimerRef.current = setTimeout(() => {
+            setStatusState(null);
+            setSeconds(1);
+          }, 1500);
+        }
       }
     });
 
@@ -56,9 +65,12 @@ export default function GlobalDbLoader() {
     };
   }, [active]);
 
-  if (!active && !justCompleted) {
+  if (!active && !statusState) {
     return null;
   }
+
+  const isSuccess = statusState === 'success';
+  const isError = statusState === 'error';
 
   return (
     <div
@@ -71,46 +83,56 @@ export default function GlobalDbLoader() {
         color: '#ffffff',
         padding: '12px 18px',
         borderRadius: '14px',
-        boxShadow: '0 12px 32px -4px rgba(0, 0, 0, 0.45), 0 4px 16px rgba(16, 124, 65, 0.3)',
-        border: justCompleted 
+        boxShadow: '0 12px 32px -4px rgba(0, 0, 0, 0.45), 0 4px 16px rgba(37, 99, 235, 0.25)',
+        border: isSuccess 
           ? '1px solid rgba(16, 185, 129, 0.7)' 
-          : '1px solid rgba(16, 124, 65, 0.5)',
+          : isError
+          ? '1px solid rgba(239, 68, 68, 0.7)'
+          : '1px solid rgba(59, 130, 246, 0.45)',
         display: 'flex',
         alignItems: 'center',
         gap: '12px',
         fontFamily: 'inherit',
         animation: 'slideUpExcelLoader 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
-        maxWidth: '390px',
+        maxWidth: '410px',
         pointerEvents: 'none',
         userSelect: 'none'
       }}
     >
-      {/* Excel Icon Badge with Status Indicator */}
+      {/* Cloud Icon Badge with Status Indicator */}
       <div
         style={{
           position: 'relative',
           width: '38px',
           height: '38px',
           borderRadius: '10px',
-          backgroundColor: justCompleted ? '#10b981' : '#107c41', // Official Excel Green
+          backgroundColor: isSuccess 
+            ? '#10b981' 
+            : isError
+            ? '#ef4444'
+            : '#2563eb', // Royal Blue Cloud Sync
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-          boxShadow: justCompleted 
+          boxShadow: isSuccess 
             ? '0 2px 8px rgba(16, 185, 129, 0.4)' 
-            : '0 2px 8px rgba(16, 124, 65, 0.45)',
+            : isError
+            ? '0 2px 8px rgba(239, 68, 68, 0.4)'
+            : '0 2px 8px rgba(37, 99, 235, 0.4)',
           transition: 'background-color 0.2s ease'
         }}
       >
-        {justCompleted ? (
+        {isSuccess ? (
           <Check size={20} color="#ffffff" strokeWidth={3} />
+        ) : isError ? (
+          <AlertCircle size={20} color="#ffffff" strokeWidth={2.5} />
         ) : (
-          <FileSpreadsheet size={20} color="#ffffff" />
+          <Cloud size={20} color="#ffffff" />
         )}
 
         {/* Live Pulse Dot */}
-        {!justCompleted && (
+        {active && (
           <span
             style={{
               position: 'absolute',
@@ -119,7 +141,7 @@ export default function GlobalDbLoader() {
               width: '10px',
               height: '10px',
               borderRadius: '50%',
-              backgroundColor: '#34d399',
+              backgroundColor: '#38bdf8',
               border: '2px solid #0f172a'
             }}
           />
@@ -129,22 +151,30 @@ export default function GlobalDbLoader() {
       {/* Message and Live Seconds Counter */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          {!justCompleted ? (
-            <RefreshCw size={12} className="spin-animation" style={{ color: '#34d399' }} />
-          ) : (
+          {active ? (
+            <RefreshCw size={12} className="spin-animation" style={{ color: '#38bdf8' }} />
+          ) : isSuccess ? (
             <Check size={12} style={{ color: '#34d399' }} strokeWidth={3} />
+          ) : (
+            <AlertCircle size={12} style={{ color: '#f87171' }} strokeWidth={2.5} />
           )}
           <span style={{ fontSize: '0.825rem', fontWeight: '700', color: '#f8fafc', letterSpacing: '-0.01em' }}>
-            {justCompleted ? 'Excel DB Synced' : 'Syncing with Excel DB...'}
+            {isSuccess 
+              ? 'Cloud Synced' 
+              : isError 
+              ? 'Sync Interrupted' 
+              : 'Syncing with Cloud...'}
           </span>
         </div>
 
         <p style={{ margin: '3px 0 0', fontSize: '0.75rem', color: '#94a3b8', lineHeight: '1.35' }}>
-          {justCompleted ? (
-            <span style={{ color: '#6ee7b7', fontWeight: '500' }}>Transaction completed in {seconds}s</span>
+          {isSuccess ? (
+            <span style={{ color: '#6ee7b7', fontWeight: '500' }}>Saved securely in {seconds}s</span>
+          ) : isError ? (
+            <span style={{ color: '#fca5a5', fontWeight: '500' }}>Connection notice in {seconds}s</span>
           ) : (
             <>
-              backend is excel, it'll take some time, wait{' '}
+              Securely saving your records, please hold on...{' '}
               <strong style={{ color: '#38bdf8', fontFamily: 'monospace', fontSize: '0.85rem' }}>
                 {seconds}s
               </strong>
@@ -154,7 +184,7 @@ export default function GlobalDbLoader() {
       </div>
 
       {/* Prominent Seconds Counter Badge */}
-      {!justCompleted && (
+      {active && (
         <div
           style={{
             padding: '4px 10px',
