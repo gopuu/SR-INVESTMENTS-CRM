@@ -89,42 +89,44 @@ export default function TenantUserMapping({ onOpenBackup }) {
 
       // Auto-select first active tenant if none selected
       setSelectedTenantId(prev => {
-        const nextId = (prev && tList.some(t => t.TenantId === prev))
+        return (prev && tList.some(t => t.TenantId === prev))
           ? prev
           : (tList.find(t => (t.Status || 'Active').toLowerCase() === 'active') || tList[0])?.TenantId || '';
-
-        // Auto-sync current user session if already mapped in this tenant
-        if (nextId && user && syncUserTenantRole) {
-          const curEmail = String(user?.email || '').trim().toLowerCase();
-          const curUid = String(user?.userId || '').trim().toLowerCase();
-
-          // Resolve matching central user record for logged in user
-          const myCu = uList.find(cu => {
-            const e = String(cu.Email || '').trim().toLowerCase();
-            const id = String(cu.UserId || '').trim().toLowerCase();
-            const altEmails = String(cu.AlternateEmailsList || cu.GoogleEmails || '').toLowerCase().split(',').map(s => s.trim());
-            return (e && e === curEmail) || (id && id === curUid) || altEmails.includes(curEmail) || (isSuperAdmin && Boolean(cu.IsSuperAdmin));
-          });
-          const targetId = myCu ? myCu.UserId : (user?.userId || user?.email);
-
-          const myActiveMapping = mList.find(m =>
-            String(m.TenantId || '').toUpperCase() === String(nextId).toUpperCase() &&
-            !m.IsDeleted && String(m.Status || 'Active').toLowerCase() === 'active' &&
-            (String(m.UserId || '').trim().toLowerCase() === String(targetId).trim().toLowerCase() ||
-              String(m.UserId || '').trim().toLowerCase() === curEmail ||
-              String(m.UserId || '').trim().toLowerCase() === curUid)
-          );
-
-          if (myActiveMapping && myActiveMapping.Role) {
-            syncUserTenantRole(nextId, myActiveMapping.Role);
-          } else if (isSuperAdmin && (!myActiveMapping || String(user.role || '').toLowerCase() !== 'admin')) {
-            // SuperAdmin not in tenant -> unlock with master Admin role
-            syncUserTenantRole(nextId, 'Admin');
-          }
-        }
-
-        return nextId;
       });
+
+      // Safely auto-sync current user session if already mapped in this tenant (deferred outside render)
+      const nextId = (selectedTenantId && tList.some(t => t.TenantId === selectedTenantId))
+        ? selectedTenantId
+        : (tList.find(t => (t.Status || 'Active').toLowerCase() === 'active') || tList[0])?.TenantId || '';
+
+      if (nextId && user && syncUserTenantRole) {
+        const curEmail = String(user?.email || '').trim().toLowerCase();
+        const curUid = String(user?.userId || '').trim().toLowerCase();
+
+        // Resolve matching central user record for logged in user
+        const myCu = uList.find(cu => {
+          const e = String(cu.Email || '').trim().toLowerCase();
+          const id = String(cu.UserId || '').trim().toLowerCase();
+          const altEmails = String(cu.AlternateEmailsList || cu.GoogleEmails || '').toLowerCase().split(',').map(s => s.trim());
+          return (e && e === curEmail) || (id && id === curUid) || altEmails.includes(curEmail) || (isSuperAdmin && Boolean(cu.IsSuperAdmin));
+        });
+        const targetId = myCu ? myCu.UserId : (user?.userId || user?.email);
+
+        const myActiveMapping = mList.find(m =>
+          String(m.TenantId || '').toUpperCase() === String(nextId).toUpperCase() &&
+          !(m.IsDeleted === true || String(m.IsDeleted).toLowerCase() === 'true') &&
+          String(m.Status || 'Active').toLowerCase() === 'active' &&
+          (String(m.UserId || '').trim().toLowerCase() === String(targetId).trim().toLowerCase() ||
+            String(m.UserId || '').trim().toLowerCase() === curEmail ||
+            String(m.UserId || '').trim().toLowerCase() === curUid)
+        );
+
+        if (myActiveMapping && myActiveMapping.Role && myActiveMapping.Role !== user.role) {
+          setTimeout(() => syncUserTenantRole(nextId, myActiveMapping.Role), 0);
+        } else if (isSuperAdmin && (!myActiveMapping || String(user.role || '').toLowerCase() !== 'admin') && user.role !== 'Admin') {
+          setTimeout(() => syncUserTenantRole(nextId, 'Admin'), 0);
+        }
+      }
 
     } catch (err) {
       console.error('Error loading Tenant-User Mapping data:', err);
