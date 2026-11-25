@@ -1562,7 +1562,7 @@ export const crmApi = {
 
     const enrichedPayload = {
       ...payload,
-      tenantId: payload.tenantId || currentTenantId,
+      tenantId: payload.tenantId !== undefined ? payload.tenantId : currentTenantId,
       userEmail: payload.userEmail || currentUserEmail,
       userName: payload.userName || currentUserName,
       userId: payload.userId || currentUserId,

@@ -584,6 +584,17 @@ function getSheetRowsAsObjects_(sheet, fallbackSchema) {
         }
       }
 
+      // 5. Boolean fields normalization: convert sheet text "FALSE"/"TRUE" to real JavaScript booleans
+      if (obj.IsDeleted !== undefined) {
+        obj.IsDeleted = (obj.IsDeleted === true || String(obj.IsDeleted).trim().toLowerCase() === "true" || obj.IsDeleted === 1 || String(obj.IsDeleted).trim().toLowerCase() === "yes");
+      }
+      if (obj.IsSuperAdmin !== undefined) {
+        obj.IsSuperAdmin = (obj.IsSuperAdmin === true || String(obj.IsSuperAdmin).trim().toLowerCase() === "true" || obj.IsSuperAdmin === 1);
+      }
+      if (obj.IsActive !== undefined) {
+        obj.IsActive = (obj.IsActive === true || String(obj.IsActive).trim().toLowerCase() === "true" || obj.IsActive === 1);
+      }
+
       return obj;
     });
 }
@@ -3057,12 +3068,12 @@ function getTenantUserMappings_(payload) {
   const userSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.USER_MASTER, CRM_SCHEMAS.USER_MASTER);
   const users = getSheetRowsAsObjects_(userSheet, CRM_SCHEMAS.USER_MASTER);
 
-  if (tenantId) {
+  if (tenantId && tenantId.toLowerCase() !== "all") {
     mappings = mappings.filter(m => String(m.TenantId || "").trim().toUpperCase() === tenantId.toUpperCase());
   }
 
   if (!showDeleted) {
-    mappings = mappings.filter(m => !m.IsDeleted && String(m.IsDeleted).toLowerCase() !== "true");
+    mappings = mappings.filter(m => !m.IsDeleted);
   }
 
   return mappings.map(m => {

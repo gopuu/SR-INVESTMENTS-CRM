@@ -156,7 +156,8 @@ export default function TenantUserMapping({ onOpenBackup }) {
 
     const currentTenantMappings = allMappings.filter(
       m => String(m.TenantId || '').toUpperCase() === selectedTenantId.toUpperCase() &&
-        !m.IsDeleted && String(m.Status || 'Active').toLowerCase() === 'active'
+        !(m.IsDeleted === true || String(m.IsDeleted).toLowerCase() === 'true') &&
+        String(m.Status || 'Active').toLowerCase() === 'active'
     );
 
     const mappedMap = {};
@@ -368,7 +369,8 @@ export default function TenantUserMapping({ onOpenBackup }) {
   const filteredTableMappings = useMemo(() => {
     const q = tableSearchQuery.toLowerCase().trim();
     return allMappings.filter(m => {
-      if (m.IsDeleted) return false;
+      const isDel = m.IsDeleted === true || String(m.IsDeleted).toLowerCase() === 'true';
+      if (isDel) return false;
 
       const matchTenant = tableTenantFilter === 'all' ||
         String(m.TenantId || '').toUpperCase() === tableTenantFilter.toUpperCase();
@@ -390,7 +392,7 @@ export default function TenantUserMapping({ onOpenBackup }) {
 
   // Statistics KPI
   const stats = useMemo(() => {
-    const activeMappings = allMappings.filter(m => !m.IsDeleted && String(m.Status || 'Active').toLowerCase() === 'active');
+    const activeMappings = allMappings.filter(m => !(m.IsDeleted === true || String(m.IsDeleted).toLowerCase() === 'true') && String(m.Status || 'Active').toLowerCase() === 'active');
     const mappedUserIds = new Set(activeMappings.map(m => String(m.UserId || '').trim().toLowerCase()));
     const unmappedUsersCount = centralUsers.filter(u => !mappedUserIds.has(String(u.UserId || '').trim().toLowerCase())).length;
     const configuredTenantsCount = new Set(activeMappings.map(m => String(m.TenantId || '').trim().toUpperCase())).size;
