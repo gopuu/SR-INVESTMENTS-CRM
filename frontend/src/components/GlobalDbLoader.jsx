@@ -160,15 +160,8 @@ export default function GlobalDbLoader() {
   const currentSubtitle = isSuccess 
     ? config.successSubtitle(seconds)
     : isError 
-    ? `Operation notice in ${seconds}s` 
-    : (
-      <>
-        {config.loadingSubtitle}{' '}
-        <strong style={{ color: config.accentColor, fontFamily: 'monospace', fontSize: '0.85rem' }}>
-          {seconds}s
-        </strong>
-      </>
-    );
+    ? 'Unable to complete cloud operation' 
+    : config.loadingSubtitle;
 
   const containerBorder = isSuccess 
     ? '1px solid rgba(16, 185, 129, 0.7)' 
