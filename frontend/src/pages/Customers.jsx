@@ -2733,65 +2733,6 @@ export default function Customers({ onOpenBackup }) {
               </div>
             </div>
 
-            {/* Selection Action Bar (when drafts exist) */}
-            {drafts.length > 0 && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '0.85rem',
-                padding: '0.55rem 0.85rem',
-                backgroundColor: selectedDraftKeys.length > 0 ? '#fef2f2' : '#f8fafc',
-                border: selectedDraftKeys.length > 0 ? '1px solid #fecaca' : '1px solid #e2e8f0',
-                borderRadius: '8px',
-                transition: 'all 0.15s ease'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.785rem', color: '#475569', fontWeight: '600' }}>
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={drafts.length > 0 && selectedDraftKeys.length === drafts.length}
-                      onChange={toggleSelectAllDrafts}
-                      style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563eb' }}
-                    />
-                    <span>{selectedDraftKeys.length === drafts.length ? 'Deselect All' : 'Select All'} ({drafts.length})</span>
-                  </label>
-                  {selectedDraftKeys.length > 0 && (
-                    <span style={{ color: '#dc2626', fontWeight: '700' }}>
-                      • {selectedDraftKeys.length} draft{selectedDraftKeys.length === 1 ? '' : 's'} selected
-                    </span>
-                  )}
-                </div>
-
-                {/* 1 Single Delete Button */}
-                <button
-                  type="button"
-                  disabled={selectedDraftKeys.length === 0}
-                  onClick={handleDeleteSelectedDrafts}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '0.45rem 1rem',
-                    fontSize: '0.785rem',
-                    fontWeight: '700',
-                    borderRadius: '6px',
-                    backgroundColor: selectedDraftKeys.length > 0 ? '#dc2626' : '#f1f5f9',
-                    color: selectedDraftKeys.length > 0 ? '#ffffff' : '#94a3b8',
-                    border: selectedDraftKeys.length > 0 ? 'none' : '1px solid #cbd5e1',
-                    cursor: selectedDraftKeys.length > 0 ? 'pointer' : 'not-allowed',
-                    boxShadow: selectedDraftKeys.length > 0 ? '0 2px 5px rgba(220, 38, 38, 0.25)' : 'none',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => { if (selectedDraftKeys.length > 0) e.currentTarget.style.backgroundColor = '#b91c1c'; }}
-                  onMouseLeave={(e) => { if (selectedDraftKeys.length > 0) e.currentTarget.style.backgroundColor = '#dc2626'; }}
-                >
-                  <Trash2 size={13} />
-                  <span>Delete Selected {selectedDraftKeys.length > 0 ? `(${selectedDraftKeys.length})` : ''}</span>
-                </button>
-              </div>
-            )}
-
             {/* Redesigned Grid Table */}
             <div style={{
               border: '1px solid #e2e8f0',
