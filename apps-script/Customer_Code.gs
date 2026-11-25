@@ -139,7 +139,7 @@ function saveCustomer_(data) {
   const existingIndex = rows.findIndex(r => String(r.CustomerId || "").trim() === id);
   const existingRecord = existingIndex >= 0 ? rows[existingIndex] : null;
 
-  // Customer Code: Alphanumeric, defaults to SR Unique Id or initials
+  // Customer Code: Do not block or validate uniqueness; auto-generate safely if not provided
   let code = cleanStr_(data.CustomerCode || data.SR_UniqueId || "").trim().toUpperCase();
   if (!code) {
     if (existingRecord && existingRecord.CustomerCode) {
@@ -150,7 +150,7 @@ function saveCustomer_(data) {
     }
   }
 
-  // Strict Duplicate Customer Code check
+  // If code conflicts with another existing record, auto-disambiguate without throwing validation error
   const dupCode = rows.find(r => {
     const isDel = r.IsDeleted === true || r.IsDeleted === "TRUE" || String(r.IsDeleted).toLowerCase() === "true";
     if (isDel) return false;
@@ -158,7 +158,7 @@ function saveCustomer_(data) {
     return cleanStr_(r.CustomerCode).toLowerCase() === code.toLowerCase();
   });
   if (dupCode) {
-    throw new Error(`Duplicate Customer Code: '${code}' is already assigned to '${dupCode.FullName || dupCode.CustomerCode}'. Customer Code must be unique.`);
+    code = code + "_" + Math.floor(100 + Math.random() * 900);
   }
 
   // Audit Fields Management

@@ -55,12 +55,28 @@ export default function App() {
     };
   }, [user]);
 
-  // Guard SuperAdmin portals
+  // Guard SuperAdmin vs Modules Access (SuperAdmin=TRUE -> only SuperAdmin navbar; SuperAdmin=FALSE -> only Modules)
   useEffect(() => {
-    if ((currentPage === 'superadmin' || currentPage === 'user-master' || currentPage === 'subscription-plans' || currentPage === 'tenant-user-mapping') && !isSuperAdmin) {
-      setCurrentPage('home');
+    if (!user) return;
+    const isSuperAdminPortal = (
+      currentPage === 'superadmin' || 
+      currentPage === 'user-master' || 
+      currentPage === 'subscription-plans' || 
+      currentPage === 'tenant-user-mapping'
+    );
+
+    if (isSuperAdmin) {
+      // SuperAdmin is strictly restricted to Super Admin portals (and profile)
+      if (!isSuperAdminPortal && currentPage !== 'profile') {
+        setCurrentPage('superadmin');
+      }
+    } else {
+      // Non-SuperAdmin is strictly restricted to Modules (cannot access Super Admin portals)
+      if (isSuperAdminPortal) {
+        setCurrentPage('home');
+      }
     }
-  }, [currentPage, isSuperAdmin]);
+  }, [currentPage, isSuperAdmin, user]);
 
   // Guard Module Permissions for non-Admins
   useEffect(() => {

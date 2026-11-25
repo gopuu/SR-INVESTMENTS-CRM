@@ -538,9 +538,6 @@ export default function Customers({ onOpenBackup }) {
       if (formData.SkCustId && !/^\d+$/.test(formData.SkCustId)) {
         errs.SkCustId = 'SK CustId must be numeric';
       }
-      if (!formData.CustomerCode && !formData.SR_UniqueId) {
-        errs.SR_UniqueId = 'Customer Code / SR ID is required';
-      }
     }
 
     if (step === 5) {
@@ -1122,9 +1119,11 @@ export default function Customers({ onOpenBackup }) {
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#64748b', marginTop: '2px' }}>
-                          Code: {cust.CustomerCode || '-'} {cust.Title ? `(${cust.Title})` : ''}
-                        </div>
+                        {cust.Title && (
+                          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
+                            {cust.Title}
+                          </div>
+                        )}
                       </td>
 
                       <td style={{ padding: '0.85rem 1rem' }}>
@@ -1752,25 +1751,6 @@ export default function Customers({ onOpenBackup }) {
                       style={getInputStyle('SkClientId', { textTransform: 'uppercase' })}
                     />
                   </div>
-                </div>
-
-                <div>
-                  {renderFieldLabel('Customer Code / Unique ID', true)}
-                  <input
-                    type="text"
-                    placeholder="Customer Code or SR Unique ID"
-                    value={formData.CustomerCode || formData.SR_UniqueId}
-                    onChange={(e) => {
-                      setIsCodeManual(true);
-                      setFormData({ 
-                        ...formData, 
-                        CustomerCode: e.target.value.toUpperCase().trim(),
-                        SR_UniqueId: e.target.value.toUpperCase().trim()
-                      });
-                    }}
-                    style={getInputStyle('SR_UniqueId', { textTransform: 'uppercase', fontFamily: 'monospace' })}
-                  />
-                  {renderFieldError('SR_UniqueId')}
                 </div>
               </div>
             )}

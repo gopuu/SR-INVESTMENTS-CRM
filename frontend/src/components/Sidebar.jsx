@@ -72,12 +72,30 @@ export default function Sidebar({ currentPage, onNavigate }) {
     { id: 'subscription-plans', label: 'Subscription Plans', icon: CreditCard, module: null }
   ];
 
-  const renderNavItem = (item) => {
-    const canAccess = !item.module || hasPermission(item.module, 'CanView');
+  const renderNavItem = (item, isModuleSection = false) => {
+    // When isSuperAdmin=TRUE, Modules navbar is locked/disabled (only Super Admin navbar allowed)
+    // When isSuperAdmin=FALSE, vice-versa (Super Admin navbar is locked/hidden, only Modules allowed)
+    const isBlockedByRole = (isSuperAdmin && isModuleSection) || (!isSuperAdmin && !isModuleSection);
+    const hasModulePerm = !item.module || hasPermission(item.module, 'CanView');
+    const canAccess = !isBlockedByRole && hasModulePerm;
     const isActive = currentPage === item.id;
     const Icon = item.icon;
 
     const handleClick = () => {
+      if (isSuperAdmin && isModuleSection) {
+        showError(
+          'SuperAdmin Restricted',
+          'SuperAdmin accounts are restricted to the Super Admin navbar (Tenant Master, User Master, Tenant-User Mapping, Subscription Plans).'
+        );
+        return;
+      }
+      if (!isSuperAdmin && !isModuleSection) {
+        showError(
+          'Access Denied',
+          'Only SuperAdmin users can access the Super Admin section.'
+        );
+        return;
+      }
       if (item.module && !hasPermission(item.module, 'CanView')) {
         showError(
           'Access Denied',
@@ -92,6 +110,7 @@ export default function Sidebar({ currentPage, onNavigate }) {
       <button
         key={item.id}
         onClick={handleClick}
+        disabled={isBlockedByRole}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -101,25 +120,29 @@ export default function Sidebar({ currentPage, onNavigate }) {
           borderRadius: '8px',
           border: 'none',
           backgroundColor: isActive ? '#2563eb' : 'transparent',
-          color: isActive ? '#ffffff' : canAccess ? '#94a3b8' : '#64748b',
+          color: isActive ? '#ffffff' : canAccess ? '#94a3b8' : '#475569',
           fontWeight: isActive ? '600' : '500',
           fontSize: '0.85rem',
-          cursor: 'pointer',
+          cursor: isBlockedByRole ? 'not-allowed' : 'pointer',
           transition: 'all 0.15s ease',
           textAlign: 'left',
-          opacity: canAccess ? 1 : 0.65
+          opacity: canAccess ? 1 : 0.4
         }}
         onMouseEnter={(e) => {
-          if (!isActive) e.currentTarget.style.backgroundColor = '#1e293b';
-          if (!isActive) e.currentTarget.style.color = canAccess ? '#ffffff' : '#cbd5e1';
+          if (!isActive && canAccess) {
+            e.currentTarget.style.backgroundColor = '#1e293b';
+            e.currentTarget.style.color = '#ffffff';
+          }
         }}
         onMouseLeave={(e) => {
-          if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
-          if (!isActive) e.currentTarget.style.color = canAccess ? '#94a3b8' : '#64748b';
+          if (!isActive) {
+            e.currentTarget.style.backgroundColor = 'transparent';
+            e.currentTarget.style.color = canAccess ? '#94a3b8' : '#475569';
+          }
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <Icon size={18} color={isActive ? '#ffffff' : canAccess ? '#94a3b8' : '#64748b'} />
+          <Icon size={18} color={isActive ? '#ffffff' : canAccess ? '#94a3b8' : '#475569'} />
           <span>{item.label}</span>
           {item.badge && (
             <span style={{
@@ -136,7 +159,7 @@ export default function Sidebar({ currentPage, onNavigate }) {
           )}
         </div>
         {!canAccess ? (
-          <Lock size={13} color="#f87171" title="Access Restricted" />
+          <Lock size={13} color={isBlockedByRole ? "#ef4444" : "#f87171"} title={isBlockedByRole ? "Locked by SuperAdmin Rule" : "Access Restricted"} />
         ) : isActive ? (
           <ChevronRight size={14} color="#ffffff" />
         ) : null}
@@ -190,26 +213,47 @@ export default function Sidebar({ currentPage, onNavigate }) {
 
       {/* Navigation Links */}
       <nav style={{ padding: '1.25rem 0.85rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem', overflowY: 'auto' }}>
-        <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#64748b', fontWeight: '700', padding: '0 0.5rem 0.5rem', letterSpacing: '0.05em' }}>
-          Modules
+        <div style={{
+          fontSize: '0.7rem',
+          textTransform: 'uppercase',
+          color: isSuperAdmin ? '#475569' : '#64748b',
+          fontWeight: '700',
+          padding: '0 0.5rem 0.5rem',
+          letterSpacing: '0.05em',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <span>Modules</span>
+          {isSuperAdmin && (
+            <span style={{ fontSize: '0.625rem', color: '#f87171', textTransform: 'none', fontWeight: '600' }}>
+              Locked
+            </span>
+          )}
         </div>
-        {moduleNavItems.map(renderNavItem)}
+        {moduleNavItems.map(item => renderNavItem(item, true))}
 
-        {/* Separate Super Admin Section */}
+        {/* Separate Super Admin Section (Only allowed for SuperAdmin) */}
         {isSuperAdmin && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.85rem' }}>
             <div style={{
               fontSize: '0.7rem',
               textTransform: 'uppercase',
-              color: '#64748b',
+              color: '#38bdf8',
               fontWeight: '700',
               padding: '1rem 0.5rem 0.5rem',
               letterSpacing: '0.05em',
-              borderTop: '1px solid #1e293b'
+              borderTop: '1px solid #1e293b',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
             }}>
-              Super Admin
+              <span>Super Admin</span>
+              <span style={{ fontSize: '0.625rem', color: '#34d399', textTransform: 'none', fontWeight: '600' }}>
+                Active
+              </span>
             </div>
-            {superAdminNavItems.map(renderNavItem)}
+            {superAdminNavItems.map(item => renderNavItem(item, false))}
           </div>
         )}
       </nav>
