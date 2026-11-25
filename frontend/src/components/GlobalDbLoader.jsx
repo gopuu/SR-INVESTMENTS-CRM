@@ -1,9 +1,80 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Cloud, RefreshCw, Check, AlertCircle } from 'lucide-react';
+import { 
+  CloudDownload, 
+  CloudUpload, 
+  Trash2, 
+  RotateCcw, 
+  RefreshCw, 
+  Check, 
+  AlertCircle 
+} from 'lucide-react';
 import { subscribeDbCalls } from '../services/api';
+
+/**
+ * Returns dynamic contextual titles, subtitles, icons, and theme colors
+ * based on the database action being executed (Load vs Save vs Delete vs Restore).
+ */
+function getActionConfig(actionName) {
+  const act = String(actionName || '').toLowerCase().trim();
+
+  // 1. Delete / Remove / Archive Actions
+  if (act.startsWith('delete') || act.startsWith('remove') || act.startsWith('archive') || act.startsWith('purge')) {
+    return {
+      category: 'delete',
+      loadingTitle: 'Deleting Record...',
+      loadingSubtitle: 'Removing record from cloud database, please hold on...',
+      successTitle: 'Record Deleted',
+      successSubtitle: (s) => `Record removed in ${s}s`,
+      accentColor: '#ef4444',
+      badgeBg: '#dc2626',
+      icon: Trash2
+    };
+  }
+
+  // 2. Save / Create / Update Actions
+  if (act.startsWith('save') || act.startsWith('create') || act.startsWith('update') || act.startsWith('add') || act.startsWith('setup') || act.startsWith('post')) {
+    return {
+      category: 'save',
+      loadingTitle: 'Saving to Cloud...',
+      loadingSubtitle: 'Securely saving your records, please hold on...',
+      successTitle: 'Saved Successfully',
+      successSubtitle: (s) => `Saved securely in ${s}s`,
+      accentColor: '#3b82f6',
+      badgeBg: '#2563eb',
+      icon: CloudUpload
+    };
+  }
+
+  // 3. Restore / Recover Actions
+  if (act.startsWith('restore') || act.startsWith('recover') || act.startsWith('unarchive')) {
+    return {
+      category: 'restore',
+      loadingTitle: 'Restoring Record...',
+      loadingSubtitle: 'Restoring record from archive, please hold on...',
+      successTitle: 'Record Restored',
+      successSubtitle: (s) => `Restored in ${s}s`,
+      accentColor: '#10b981',
+      badgeBg: '#059669',
+      icon: RotateCcw
+    };
+  }
+
+  // 4. Default: Load / Fetch / Query Actions (get*, fetch*, load*, list*, search*, etc.)
+  return {
+    category: 'load',
+    loadingTitle: 'Loading Data...',
+    loadingSubtitle: 'Fetching latest records from cloud, please hold on...',
+    successTitle: 'Data Loaded',
+    successSubtitle: (s) => `Records retrieved in ${s}s`,
+    accentColor: '#0284c7',
+    badgeBg: '#0284c7',
+    icon: CloudDownload
+  };
+}
 
 export default function GlobalDbLoader() {
   const [active, setActive] = useState(false);
+  const [currentAction, setCurrentAction] = useState('load');
   const [seconds, setSeconds] = useState(1);
   const [statusState, setStatusState] = useState(null); // 'success' | 'error' | null
   const timerRef = useRef(null);
@@ -16,10 +87,16 @@ export default function GlobalDbLoader() {
           clearTimeout(completeTimerRef.current);
           completeTimerRef.current = null;
         }
+        if (action) {
+          setCurrentAction(action);
+        }
         setStatusState(null);
         setActive(true);
       } else {
         setActive(false);
+        if (action) {
+          setCurrentAction(action);
+        }
         if (success !== false && !error) {
           setStatusState('success');
           completeTimerRef.current = setTimeout(() => {
@@ -71,6 +148,39 @@ export default function GlobalDbLoader() {
 
   const isSuccess = statusState === 'success';
   const isError = statusState === 'error';
+  const config = getActionConfig(currentAction);
+  const IconComponent = config.icon;
+
+  const currentTitle = isSuccess 
+    ? config.successTitle 
+    : isError 
+    ? 'Sync Interrupted' 
+    : config.loadingTitle;
+
+  const currentSubtitle = isSuccess 
+    ? config.successSubtitle(seconds)
+    : isError 
+    ? `Operation notice in ${seconds}s` 
+    : (
+      <>
+        {config.loadingSubtitle}{' '}
+        <strong style={{ color: config.accentColor, fontFamily: 'monospace', fontSize: '0.85rem' }}>
+          {seconds}s
+        </strong>
+      </>
+    );
+
+  const containerBorder = isSuccess 
+    ? '1px solid rgba(16, 185, 129, 0.7)' 
+    : isError
+    ? '1px solid rgba(239, 68, 68, 0.7)'
+    : `1px solid ${config.accentColor}66`;
+
+  const badgeBackground = isSuccess 
+    ? '#10b981' 
+    : isError
+    ? '#ef4444'
+    : config.badgeBg;
 
   return (
     <div
@@ -83,43 +193,31 @@ export default function GlobalDbLoader() {
         color: '#ffffff',
         padding: '12px 18px',
         borderRadius: '14px',
-        boxShadow: '0 12px 32px -4px rgba(0, 0, 0, 0.45), 0 4px 16px rgba(37, 99, 235, 0.25)',
-        border: isSuccess 
-          ? '1px solid rgba(16, 185, 129, 0.7)' 
-          : isError
-          ? '1px solid rgba(239, 68, 68, 0.7)'
-          : '1px solid rgba(59, 130, 246, 0.45)',
+        boxShadow: '0 12px 32px -4px rgba(0, 0, 0, 0.45), 0 4px 16px rgba(0, 0, 0, 0.25)',
+        border: containerBorder,
         display: 'flex',
         alignItems: 'center',
         gap: '12px',
         fontFamily: 'inherit',
         animation: 'slideUpExcelLoader 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
-        maxWidth: '410px',
+        maxWidth: '420px',
         pointerEvents: 'none',
         userSelect: 'none'
       }}
     >
-      {/* Cloud Icon Badge with Status Indicator */}
+      {/* Dynamic Action Icon Badge with Status Indicator */}
       <div
         style={{
           position: 'relative',
           width: '38px',
           height: '38px',
           borderRadius: '10px',
-          backgroundColor: isSuccess 
-            ? '#10b981' 
-            : isError
-            ? '#ef4444'
-            : '#2563eb', // Royal Blue Cloud Sync
+          backgroundColor: badgeBackground,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-          boxShadow: isSuccess 
-            ? '0 2px 8px rgba(16, 185, 129, 0.4)' 
-            : isError
-            ? '0 2px 8px rgba(239, 68, 68, 0.4)'
-            : '0 2px 8px rgba(37, 99, 235, 0.4)',
+          boxShadow: `0 2px 8px ${badgeBackground}66`,
           transition: 'background-color 0.2s ease'
         }}
       >
@@ -128,10 +226,10 @@ export default function GlobalDbLoader() {
         ) : isError ? (
           <AlertCircle size={20} color="#ffffff" strokeWidth={2.5} />
         ) : (
-          <Cloud size={20} color="#ffffff" />
+          <IconComponent size={20} color="#ffffff" />
         )}
 
-        {/* Live Pulse Dot */}
+        {/* Live Pulse Dot while Active */}
         {active && (
           <span
             style={{
@@ -152,34 +250,19 @@ export default function GlobalDbLoader() {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {active ? (
-            <RefreshCw size={12} className="spin-animation" style={{ color: '#38bdf8' }} />
+            <RefreshCw size={12} className="spin-animation" style={{ color: config.accentColor }} />
           ) : isSuccess ? (
             <Check size={12} style={{ color: '#34d399' }} strokeWidth={3} />
           ) : (
             <AlertCircle size={12} style={{ color: '#f87171' }} strokeWidth={2.5} />
           )}
           <span style={{ fontSize: '0.825rem', fontWeight: '700', color: '#f8fafc', letterSpacing: '-0.01em' }}>
-            {isSuccess 
-              ? 'Cloud Synced' 
-              : isError 
-              ? 'Sync Interrupted' 
-              : 'Syncing with Cloud...'}
+            {currentTitle}
           </span>
         </div>
 
         <p style={{ margin: '3px 0 0', fontSize: '0.75rem', color: '#94a3b8', lineHeight: '1.35' }}>
-          {isSuccess ? (
-            <span style={{ color: '#6ee7b7', fontWeight: '500' }}>Saved securely in {seconds}s</span>
-          ) : isError ? (
-            <span style={{ color: '#fca5a5', fontWeight: '500' }}>Connection notice in {seconds}s</span>
-          ) : (
-            <>
-              Securely saving your records, please hold on...{' '}
-              <strong style={{ color: '#38bdf8', fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                {seconds}s
-              </strong>
-            </>
-          )}
+          {currentSubtitle}
         </p>
       </div>
 
@@ -189,9 +272,9 @@ export default function GlobalDbLoader() {
           style={{
             padding: '4px 10px',
             borderRadius: '999px',
-            backgroundColor: 'rgba(56, 189, 248, 0.12)',
-            border: '1px solid rgba(56, 189, 248, 0.3)',
-            color: '#38bdf8',
+            backgroundColor: `${config.accentColor}22`,
+            border: `1px solid ${config.accentColor}55`,
+            color: config.accentColor,
             fontSize: '0.8rem',
             fontWeight: '800',
             fontFamily: 'monospace',
