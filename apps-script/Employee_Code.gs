@@ -141,13 +141,15 @@ function saveEmployee_(data) {
 
   // If a new photo file was uploaded
   if (data.photoBase64 && data.photoFileName) {
+    const employeeId = cleanStr_(id || data.EmployeeId || code);
     const uploadRes = uploadDriveFile_(
       CRM_CONFIG.SUBFOLDERS.EMPLOYEES,
-      code + "_" + data.photoFileName,
+      (code || employeeId) + "_" + data.photoFileName,
       data.photoMimeType || "image/jpeg",
       data.photoBase64,
       existingRecord ? existingRecord.DriveFileId : null, // Automatically trashes previous photo
-      tenantId
+      tenantId,
+      employeeId
     );
     photoUrl = uploadRes.viewUrl;
     driveFileId = uploadRes.fileId;

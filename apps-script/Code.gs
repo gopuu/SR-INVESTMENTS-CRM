@@ -431,15 +431,19 @@ function executeAction_(action, payload) {
     case "getDailyDispatchStats":
       return getDailyDispatchStats_();
 
-    // Drive File Operations
+    // Drive File Operations (Strictly scoped to tenant; blocked in SuperAdmin/root)
     case "uploadFile":
+      if (!payload.tenantId || Boolean(payload.isSuperAdmin)) {
+        throw new Error("File upload is not allowed in SuperAdmin / root scope. Documents must belong to a specific tenant organization.");
+      }
       return uploadDriveFile_(
         payload.folder || CRM_CONFIG.SUBFOLDERS.CUSTOMERS,
         payload.fileName,
         payload.mimeType,
         payload.base64,
         payload.oldFileId,
-        payload.tenantId
+        payload.tenantId,
+        payload.entityId || payload.userId || payload.customerId || payload.employeeId
       );
 
     default:

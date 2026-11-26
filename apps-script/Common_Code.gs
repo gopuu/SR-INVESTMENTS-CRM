@@ -286,21 +286,73 @@ function getTenantSpreadsheet_(tenantId) {
 }
 
 /**
- * Dynamically resolves and opens a Tenant's dedicated Drive Folder
+ * Dynamically resolves and opens a Tenant's dedicated Drive Folder (org/<tenantId>/).
+ * If EmployeeFiles or CustomerFiles do not exist in the tenant folder, creates them automatically.
+ * Never creates tenant folders in root.
  */
 function getTenantDriveRootFolder_(tenantId) {
-  if (!tenantId) return getDriveRootFolder_();
+  if (!tenantId) return null;
+  const cleanTenant = String(tenantId).trim().toUpperCase();
   try {
     const centralSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
     const tenants = getSheetRowsAsObjects_(centralSheet, CRM_SCHEMAS.TENANT_MASTER);
-    const t = tenants.find(x => String(x.TenantId).trim().toUpperCase() === String(tenantId).trim().toUpperCase() && !x.IsDeleted);
+    const t = tenants.find(x => String(x.TenantId).trim().toUpperCase() === cleanTenant && !x.IsDeleted);
+
+    let tenantFolder = null;
     if (t && t.DriveRootFolderId && String(t.DriveRootFolderId).trim() !== "") {
-      return DriveApp.getFolderById(String(t.DriveRootFolderId).trim());
+      try {
+        tenantFolder = DriveApp.getFolderById(String(t.DriveRootFolderId).trim());
+      } catch (fErr) {
+        Logger.log("Stored DriveRootFolderId invalid for " + cleanTenant + ", re-resolving...");
+      }
     }
+
+    if (!tenantFolder) {
+      // Resolve inside root > org > <cleanTenant>
+      const rootFolder = getDriveRootFolder_();
+      let orgFolder;
+      const orgFolders = rootFolder.getFoldersByName("org");
+      if (orgFolders.hasNext()) {
+        orgFolder = orgFolders.next();
+      } else {
+        orgFolder = rootFolder.createFolder("org");
+      }
+
+      const tFolders = orgFolder.getFoldersByName(cleanTenant);
+      if (tFolders.hasNext()) {
+        tenantFolder = tFolders.next();
+      } else {
+        tenantFolder = orgFolder.createFolder(cleanTenant);
+      }
+
+      // Cache resolved folder ID in Tenant_Master if possible
+      if (t && tenantFolder) {
+        const rowIdx = tenants.findIndex(x => String(x.TenantId).trim().toUpperCase() === cleanTenant && !x.IsDeleted);
+        if (rowIdx >= 0) {
+          const colIdx = getHeaderColIndex_(centralSheet, "DriveRootFolderId");
+          if (colIdx > 0) {
+            centralSheet.getRange(rowIdx + 2, colIdx).setValue(tenantFolder.getId());
+          }
+        }
+      }
+    }
+
+    // Ensure EmployeeFiles and CustomerFiles exist in the TENANT folder
+    if (tenantFolder) {
+      [CRM_CONFIG.SUBFOLDERS.CUSTOMERS, CRM_CONFIG.SUBFOLDERS.EMPLOYEES].forEach(subName => {
+        const subFolders = tenantFolder.getFoldersByName(subName);
+        if (!subFolders.hasNext()) {
+          tenantFolder.createFolder(subName);
+          Logger.log("[TENANT_INIT] Created " + subName + " in tenant " + cleanTenant);
+        }
+      });
+    }
+
+    return tenantFolder;
   } catch (err) {
     Logger.log("getTenantDriveRootFolder_ error for " + tenantId + ": " + err.message);
+    return null;
   }
-  return getDriveRootFolder_();
 }
 
 /**
@@ -668,26 +720,82 @@ function getDriveRootFolder_() {
 }
 
 /**
- * Get or create subfolder inside Drive root or tenant-specific drive folder
+ * Safely removes legacy EmployeeFiles and CustomerFiles mistakenly created directly inside root folder.
+ * Root folder should only contain Central DBs, templates, and the org/ folder.
  */
-function getDriveSubfolder_(folderName, tenantId) {
-  const root = tenantId ? getTenantDriveRootFolder_(tenantId) : getDriveRootFolder_();
-  const folders = root.getFoldersByName(folderName);
-  if (folders.hasNext()) return folders.next();
-  return root.createFolder(folderName);
+function cleanupRootFolders_() {
+  try {
+    const root = getDriveRootFolder_();
+    if (!root) return;
+    [CRM_CONFIG.SUBFOLDERS.CUSTOMERS, CRM_CONFIG.SUBFOLDERS.EMPLOYEES].forEach(folderName => {
+      const folders = root.getFoldersByName(folderName);
+      while (folders.hasNext()) {
+        const f = folders.next();
+        const parents = f.getParents();
+        if (parents.hasNext() && parents.next().getId() === root.getId()) {
+          f.setTrashed(true);
+          Logger.log("[ROOT_CLEANUP] Trashed obsolete root folder: " + folderName + " (" + f.getId() + ")");
+        }
+      }
+    });
+  } catch (err) {
+    Logger.log("cleanupRootFolders_ error: " + err.message);
+  }
 }
 
 /**
- * Upload file to Drive and delete old file if updating (supports tenant routing)
+ * Get or create subfolder inside tenant-specific drive folder.
+ * If entityId (Employee ID or Customer ID) is provided, creates and returns the entity's subfolder:
+ * eg: EmployeeFiles/<Employee ID>/ or CustomerFiles/<Customer ID>/
+ * Explicitly blocks creating folders in root directory.
  */
-function uploadDriveFile_(folderName, fileName, mimeType, base64Data, oldFileId, tenantId) {
+function getDriveSubfolder_(folderName, tenantId, entityId) {
+  if (!tenantId) {
+    throw new Error("Folder creation in root directory is disabled. Folders must belong to a specific tenant organization.");
+  }
+  const root = getTenantDriveRootFolder_(tenantId);
+  if (!root) {
+    throw new Error("Tenant Drive folder could not be resolved for " + tenantId);
+  }
+
+  // 1. Ensure category folder (EmployeeFiles or CustomerFiles) exists in TENANT
+  let categoryFolder;
+  const folders = root.getFoldersByName(folderName);
+  if (folders.hasNext()) {
+    categoryFolder = folders.next();
+  } else {
+    categoryFolder = root.createFolder(folderName);
+  }
+
+  // 2. If entityId is provided (e.g. Employee ID or Customer ID), ensure subfolder exists inside categoryFolder
+  const cleanEntityId = entityId ? String(entityId).trim() : "";
+  if (cleanEntityId) {
+    const entFolders = categoryFolder.getFoldersByName(cleanEntityId);
+    if (entFolders.hasNext()) {
+      return entFolders.next();
+    } else {
+      return categoryFolder.createFolder(cleanEntityId);
+    }
+  }
+
+  return categoryFolder;
+}
+
+/**
+ * Upload file to Drive and delete old file if updating (supports tenant & entityId subfolders)
+ * Never allows uploads in SuperAdmin / root scope.
+ */
+function uploadDriveFile_(folderName, fileName, mimeType, base64Data, oldFileId, tenantId, entityId) {
   if (!base64Data) throw new Error("Base64 file data required.");
+  if (!tenantId) {
+    throw new Error("File upload is not allowed in SuperAdmin / root scope. Documents must belong to a specific tenant organization.");
+  }
 
   if (oldFileId) {
     deleteDriveFileSafely_(oldFileId);
   }
 
-  const subfolder = getDriveSubfolder_(folderName, tenantId);
+  const subfolder = getDriveSubfolder_(folderName, tenantId, entityId);
   const cleanBase64 = base64Data.includes(",") ? base64Data.split(",")[1] : base64Data;
   const decodedBytes = Utilities.base64Decode(cleanBase64);
   const blob = Utilities.newBlob(decodedBytes, mimeType || "application/octet-stream", fileName || "file");
@@ -1338,9 +1446,8 @@ function setupTenantTemplateDatabase(spreadsheetId) {
 
   seedTenantDatabaseDefaults_(ss);
 
-  // Ensure Drive subfolders exist
-  getDriveSubfolder_(CRM_CONFIG.SUBFOLDERS.CUSTOMERS);
-  getDriveSubfolder_(CRM_CONFIG.SUBFOLDERS.EMPLOYEES);
+  // Clean up any legacy EmployeeFiles or CustomerFiles mistakenly created in root Drive folder
+  cleanupRootFolders_();
 
   Logger.log("[TEMPLATE_DB] Template database verified: " + ss.getName() + " (" + ss.getId() + ")");
   return {
@@ -1494,7 +1601,8 @@ function setupCRM() {
   try {
     cleanCentralDatabase();
     setupCentralDatabase();
-    steps.push("Central DB setup & cleanup: OK");
+    cleanupRootFolders_();
+    steps.push("Central DB setup & root folder cleanup: OK");
   } catch (e) {
     steps.push("Central DB setup: " + e.message + " stack: " + (e.stack || ""));
   }
@@ -3756,14 +3864,17 @@ function uploadEmployeeDocument_(payload) {
   if (!fileData || !fileData.base64) throw new Error("Document file content is required.");
 
   const tenantId = (payload.tenantId || payload.TenantId || payload.activeTenantId || "").trim();
+  if (!tenantId) {
+    throw new Error("File upload is not allowed in SuperAdmin / root scope. Documents must belong to a specific tenant organization.");
+  }
   const employeeId = (payload.employeeId || payload.EmployeeId || payload.userId || payload.UserId || "").trim();
   const docName = cleanStr_(payload.docName || fileData.name || "Employee_Document");
   const docType = cleanStr_(payload.docType || "General Document");
   const userEmail = payload.userEmail || "admin@srinvestments.com";
   const now = new Date().toISOString();
 
-  // Upload to tenant employee drive subfolder
-  const folder = getDriveSubfolder_(CRM_CONFIG.SUBFOLDERS.EMPLOYEES, tenantId);
+  // Upload to tenant employee drive subfolder inside the employee's ID folder
+  const folder = getDriveSubfolder_(CRM_CONFIG.SUBFOLDERS.EMPLOYEES, tenantId, employeeId);
   const blob = Utilities.newBlob(Utilities.base64Decode(fileData.base64.split(",")[1] || fileData.base64), fileData.mimeType || "application/pdf", docName);
   const file = folder.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);

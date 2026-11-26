@@ -240,17 +240,19 @@ function saveCustomer_(data) {
     { key: "SignDoc", urlKey: "SignDocUrl", defaultPrefix: "SIGN_" }
   ];
 
+  const customerId = cleanStr_(id || data.CustomerId || code);
   docFields.forEach(df => {
     let rawFile = data[df.key];
     if (rawFile && typeof rawFile === "object" && rawFile.base64) {
       try {
         const uploaded = uploadDriveFile_(
           CRM_CONFIG.SUBFOLDERS.CUSTOMERS,
-          rawFile.name || (df.defaultPrefix + code + ".jpg"),
+          rawFile.name || (df.defaultPrefix + (code || customerId) + ".jpg"),
           rawFile.mimeType || "image/jpeg",
           rawFile.base64,
           null,
-          tenantId
+          tenantId,
+          customerId
         );
         data[df.urlKey] = uploaded.viewUrl;
       } catch (err) {
@@ -260,11 +262,12 @@ function saveCustomer_(data) {
       try {
         const uploaded = uploadDriveFile_(
           CRM_CONFIG.SUBFOLDERS.CUSTOMERS,
-          df.defaultPrefix + code + ".jpg",
+          df.defaultPrefix + (code || customerId) + ".jpg",
           "image/jpeg",
           rawFile,
           null,
-          tenantId
+          tenantId,
+          customerId
         );
         data[df.urlKey] = uploaded.viewUrl;
       } catch (err) {

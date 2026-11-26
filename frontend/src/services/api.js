@@ -1569,6 +1569,11 @@ export const crmApi = {
       isSuperAdmin: payload.isSuperAdmin !== undefined ? payload.isSuperAdmin : currentUserIsSuperAdmin
     };
 
+    // Guard: Prevent file uploads in SuperAdmin / root scope
+    if ((action === 'uploadFile' || action === 'uploadUserDocument') && (enrichedPayload.isSuperAdmin && !payload.tenantId)) {
+      throw new Error('File upload is not allowed in SuperAdmin / root scope. Documents must belong to a specific tenant organization.');
+    }
+
     if (this.isDemoMode()) {
       return this.handleDemoAction(action, enrichedPayload);
     }
