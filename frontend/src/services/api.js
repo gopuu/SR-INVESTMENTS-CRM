@@ -2002,30 +2002,27 @@ export const crmApi = {
           };
         }
 
-        const defaultTenant = tenants.find(t => !t.IsDeleted);
-        const primaryTenant = userWorkspaces[0] || {
-          tenantId: defaultTenant?.TenantId || 'TEN001',
-          companyName: defaultTenant?.CompanyName || 'SR GROWW',
-          CompanyName: defaultTenant?.CompanyName || 'SR GROWW',
-          tagLine: defaultTenant?.TagLine || 'Mutual Fund CRM',
-          TagLine: defaultTenant?.TagLine || 'Mutual Fund CRM',
-          role: isSuperAdmin ? 'Admin' : 'Staff'
-        };
+        const primaryTenant = (userWorkspaces && userWorkspaces.length > 0) ? userWorkspaces[0] : null;
+        if (!primaryTenant && !isSuperAdmin) {
+          throw new Error('Access Denied: Google account (' + cleanEmail + ') is not assigned to any organization workspace. Please contact your administrator.');
+        }
 
-        const licChk = checkDemoTenantLicenseActive(primaryTenant.tenantId, isSuperAdmin);
-        if (!licChk.valid) throw new Error(licChk.error);
+        if (primaryTenant) {
+          const licChk = checkDemoTenantLicenseActive(primaryTenant.tenantId, isSuperAdmin);
+          if (!licChk.valid) throw new Error(licChk.error);
+        }
 
         const sessionUser = {
           userId,
-          employeeCode: 'GOOGLE_' + primaryTenant.tenantId,
+          employeeCode: primaryTenant ? ('GOOGLE_' + primaryTenant.tenantId) : userId,
           name: userName,
           email: cleanEmail,
-          role: primaryTenant.role || (isSuperAdmin ? 'Admin' : 'Staff'),
+          role: isSuperAdmin ? 'SuperAdmin' : (primaryTenant ? (primaryTenant.role || 'Staff') : 'Staff'),
           isSuperAdmin,
           status: 'Active',
-          activeTenantId: primaryTenant.tenantId,
-          companyName: primaryTenant.companyName,
-          workspaces: userWorkspaces.length ? userWorkspaces : [primaryTenant],
+          activeTenantId: primaryTenant ? primaryTenant.tenantId : null,
+          companyName: primaryTenant ? primaryTenant.companyName : 'SR TECHNO',
+          workspaces: userWorkspaces || [],
           lastLogin: new Date().toISOString()
         };
 
@@ -2249,7 +2246,7 @@ export const crmApi = {
           return {
             success: true,
             isSuperAdmin: true,
-            tenantId: 'CENTRAL',
+            tenantId: null,
             companyName: cName,
             CompanyName: cName,
             tagLine: tLine,

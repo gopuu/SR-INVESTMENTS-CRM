@@ -525,16 +525,16 @@ export default function Header({ title, subtitle, onRefresh, refreshing, onOpenB
                     gap: '0.25rem',
                     padding: '0.15rem 0.5rem',
                     borderRadius: '9999px',
-                    backgroundColor: '#eff6ff',
-                    color: '#1d4ed8',
-                    border: '1px solid #bfdbfe',
+                    backgroundColor: isSuperAdmin ? '#fef3c7' : '#eff6ff',
+                    color: isSuperAdmin ? '#b45309' : '#1d4ed8',
+                    border: isSuperAdmin ? '1px solid #fde68a' : '1px solid #bfdbfe',
                     fontSize: '0.675rem',
                     fontWeight: '700'
                   }}>
-                    <Shield size={10} color="#2563eb" />
-                    {user?.role || 'Admin'}
+                    <Shield size={10} color={isSuperAdmin ? '#d97706' : '#2563eb'} />
+                    {isSuperAdmin ? 'SuperAdmin' : (user?.role || 'Staff')}
                   </span>
-                  {user?.employeeCode && (
+                  {(user?.employeeCode || user?.userId) && (
                     <span style={{
                       fontSize: '0.675rem',
                       color: '#475569',
@@ -544,11 +544,17 @@ export default function Header({ title, subtitle, onRefresh, refreshing, onOpenB
                       border: '1px solid #cbd5e1',
                       fontWeight: '600'
                     }}>
-                      {user.employeeCode}
+                      {isSuperAdmin && (!tenant || !tenant.tenantId || tenant.tenantId === 'CENTRAL')
+                        ? (user.userId || 'USER1')
+                        : (user.employeeCode || user.userId)}
                     </span>
                   )}
                 </div>
-                {tenant && (
+
+                {/* Organization Display:
+                    - If mapped to a Tenant: show CompanyName (TenantId)
+                    - If SuperAdmin with NO tenant assigned: show Default-Config CompanyName with NO TenantId! */}
+                {tenant && tenant.tenantId && tenant.tenantId !== 'CENTRAL' ? (
                   <div style={{ 
                     marginTop: '0.5rem', 
                     paddingTop: '0.45rem',
@@ -565,7 +571,24 @@ export default function Header({ title, subtitle, onRefresh, refreshing, onOpenB
                     </span>
                     <span style={{ fontSize: '0.65rem', color: '#64748b' }}>({tenant.tenantId})</span>
                   </div>
-                )}
+                ) : isSuperAdmin ? (
+                  <div style={{ 
+                    marginTop: '0.5rem', 
+                    paddingTop: '0.45rem',
+                    borderTop: '1px dashed #cbd5e1',
+                    fontSize: '0.725rem', 
+                    color: '#0f172a', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '0.35rem' 
+                  }}>
+                    <Building2 size={12} color="#d97706" />
+                    <span style={{ fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {user?.companyName || 'SR TECHNO'}
+                    </span>
+                    <span style={{ fontSize: '0.65rem', color: '#b45309', fontWeight: '600' }}>(Default-Config)</span>
+                  </div>
+                ) : null}
                 {workspaces && workspaces.length > 1 && (
                   <div style={{ marginTop: '0.5rem', paddingTop: '0.45rem', borderTop: '1px solid #e2e8f0' }}>
                     <div style={{ fontSize: '0.675rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.35rem' }}>

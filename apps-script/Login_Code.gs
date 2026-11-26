@@ -149,7 +149,7 @@ function getTenantBranding_(payload) {
     return {
       success: true,
       isSuperAdmin: true,
-      tenantId: "CENTRAL",
+      tenantId: null,
       companyName: companyName,
       CompanyName: companyName,
       tagLine: tagLine,
@@ -323,30 +323,24 @@ function loginUser_(username, password) {
     }
 
     // Single tenant or SuperAdmin direct access
-    let primaryTenant = workspaces[0];
+    let primaryTenant = (workspaces && workspaces.length > 0) ? workspaces[0] : null;
     if (!primaryTenant) {
-      const tenantSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
-      const tenants = getSheetRowsAsObjects_(tenantSheet, CRM_SCHEMAS.TENANT_MASTER);
-      const firstTenant = tenants.find(t => !t.IsDeleted && String(t.IsDeleted).toLowerCase() !== "true");
-      const defaultName = (firstTenant && String(firstTenant.CompanyName || "").trim()) || "SR Investments";
-      const defaultTagLine = (firstTenant && String(firstTenant.TagLine || "").trim()) || "Mutual Fund CRM";
-      const defaultId = (firstTenant && String(firstTenant.TenantId || "").trim()) || "TEN001";
-      primaryTenant = {
-        tenantId: defaultId,
-        companyName: defaultName,
-        CompanyName: defaultName,
-        tagLine: defaultTagLine,
-        TagLine: defaultTagLine,
-        role: isSuperAdmin ? "Admin" : "Staff"
-      };
+      if (!isSuperAdmin) {
+        throw new Error("No active organization workspace assigned to your account. Please contact your SuperAdmin.");
+      }
+      // SuperAdmin with NO tenant assigned in Tenant_User_Mapping:
+      // Operates purely at Central SaaS level using Default-Config without any TenantId!
+      primaryTenant = null;
     }
 
-    const licCheck = checkTenantLicenseActive_(primaryTenant.tenantId, isSuperAdmin);
-    if (!licCheck.valid) {
-      throw new Error(licCheck.error);
+    if (primaryTenant) {
+      const licCheck = checkTenantLicenseActive_(primaryTenant.tenantId, isSuperAdmin);
+      if (!licCheck.valid) {
+        throw new Error(licCheck.error);
+      }
     }
 
-    const activeRole = primaryTenant.role || (isSuperAdmin ? "Admin" : "Staff");
+    const activeRole = isSuperAdmin ? "SuperAdmin" : (primaryTenant ? (primaryTenant.role || "Staff") : "Staff");
 
     let resolvedCompName = "";
     let resolvedTagLine = "";
@@ -364,27 +358,27 @@ function loginUser_(username, password) {
     return {
       user: {
         userId: userMasterMatched.UserId,
-        employeeCode: "EMP_" + primaryTenant.tenantId,
+        employeeCode: primaryTenant ? ("EMP_" + primaryTenant.tenantId) : userMasterMatched.UserId,
         name: userMasterMatched.FullName || "User",
         email: userMasterMatched.Email,
         role: activeRole,
         isSuperAdmin: isSuperAdmin,
-        activeTenantId: primaryTenant.tenantId,
+        activeTenantId: primaryTenant ? primaryTenant.tenantId : null,
         companyName: resolvedCompName,
         CompanyName: resolvedCompName,
         tagLine: resolvedTagLine,
         TagLine: resolvedTagLine,
         status: userMasterMatched.Status,
-        workspaces: workspaces,
+        workspaces: workspaces || [],
         lastLogin: new Date().toISOString()
       },
-      tenant: {
+      tenant: primaryTenant ? {
         ...primaryTenant,
         companyName: resolvedCompName,
         CompanyName: resolvedCompName,
         tagLine: resolvedTagLine,
         TagLine: resolvedTagLine
-      },
+      } : null,
       rights: getRolePermissions_(activeRole),
       token: "SR_" + Utilities.getUuid()
     };
@@ -549,30 +543,24 @@ function googleLogin_(googleEmail, googleName) {
     };
   }
 
-  let primaryTenant = workspaces[0];
+  let primaryTenant = (workspaces && workspaces.length > 0) ? workspaces[0] : null;
   if (!primaryTenant) {
-    const tenantSheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.TENANT_MASTER, CRM_SCHEMAS.TENANT_MASTER);
-    const tenants = getSheetRowsAsObjects_(tenantSheet, CRM_SCHEMAS.TENANT_MASTER);
-    const firstTenant = tenants.find(t => !t.IsDeleted && String(t.IsDeleted).toLowerCase() !== "true");
-    const defaultName = (firstTenant && String(firstTenant.CompanyName || "").trim()) || getTenantCompanyName_("TEN001", "SR GROWW");
-    const defaultTagLine = (firstTenant && String(firstTenant.TagLine || "").trim()) || getTenantTagLine_("TEN001", "Mutual Fund CRM");
-    const defaultId = (firstTenant && String(firstTenant.TenantId || "").trim()) || "TEN001";
-    primaryTenant = {
-      tenantId: defaultId,
-      companyName: defaultName,
-      CompanyName: defaultName,
-      tagLine: defaultTagLine,
-      TagLine: defaultTagLine,
-      role: isSuperAdmin ? "Admin" : (userRole || "Staff")
-    };
+    if (!isSuperAdmin) {
+      throw new Error("Access Denied: Google account (" + cleanEmail + ") is not assigned to any organization workspace. Please contact your administrator.");
+    }
+    // SuperAdmin with NO tenant assigned in Tenant_User_Mapping:
+    // Operates purely at Central SaaS level using Default-Config without any TenantId!
+    primaryTenant = null;
   }
 
-  const licCheck = checkTenantLicenseActive_(primaryTenant.tenantId, isSuperAdmin);
-  if (!licCheck.valid) {
-    throw new Error(licCheck.error);
+  if (primaryTenant) {
+    const licCheck = checkTenantLicenseActive_(primaryTenant.tenantId, isSuperAdmin);
+    if (!licCheck.valid) {
+      throw new Error(licCheck.error);
+    }
   }
 
-  const activeGoogleRole = primaryTenant.role || (isSuperAdmin ? "Admin" : (userRole || "Staff"));
+  const activeGoogleRole = isSuperAdmin ? "SuperAdmin" : (primaryTenant ? (primaryTenant.role || userRole || "Staff") : "Staff");
 
   let resolvedCompName = "";
   let resolvedTagLine = "";
@@ -592,27 +580,27 @@ function googleLogin_(googleEmail, googleName) {
   return {
     user: {
       userId: userId,
-      employeeCode: "GOOGLE_" + primaryTenant.tenantId,
+      employeeCode: primaryTenant ? ("GOOGLE_" + primaryTenant.tenantId) : userId,
       name: userName,
       email: cleanEmail,
       role: activeGoogleRole,
       isSuperAdmin: isSuperAdmin,
-      activeTenantId: primaryTenant.tenantId,
+      activeTenantId: primaryTenant ? primaryTenant.tenantId : null,
       companyName: resolvedCompName,
       CompanyName: resolvedCompName,
       tagLine: resolvedTagLine,
       TagLine: resolvedTagLine,
       status: "Active",
-      workspaces: workspaces.length ? workspaces : [primaryTenant],
+      workspaces: workspaces || [],
       lastLogin: new Date().toISOString()
     },
-    tenant: {
+    tenant: primaryTenant ? {
       ...primaryTenant,
       companyName: resolvedCompName,
       CompanyName: resolvedCompName,
       tagLine: resolvedTagLine,
       TagLine: resolvedTagLine
-    },
+    } : null,
     rights: getRolePermissions_(activeGoogleRole),
     token: "GOOGLE_" + Utilities.getUuid()
   };

@@ -56,12 +56,16 @@ export function AuthProvider({ children }) {
   const applyAuthSession = (res) => {
     setUser(res.user);
     setRights(res.rights || []);
-    if (res.tenant) {
+    if (res.tenant && res.tenant.tenantId) {
       setTenant(res.tenant);
       crmApi.setActiveTenant(res.tenant);
       localStorage.setItem('sr_crm_auth_tenant', JSON.stringify(res.tenant));
+    } else {
+      setTenant(null);
+      crmApi.setActiveTenant(null);
+      localStorage.removeItem('sr_crm_auth_tenant');
     }
-    const ws = res.user?.workspaces || (res.tenant ? [res.tenant] : []);
+    const ws = res.user?.workspaces || (res.tenant?.tenantId ? [res.tenant] : []);
     setWorkspaces(ws);
     localStorage.setItem('sr_crm_auth_workspaces', JSON.stringify(ws));
     localStorage.setItem('sr_crm_auth_user', JSON.stringify(res.user));
@@ -195,25 +199,41 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Automatically ensure SuperAdmin session role consistency on login & workspace switch:
-  // - If SuperAdmin NOT in tenant -> role is 'Admin', full module access!
-  // - If SuperAdmin IS in tenant as 'Admin' -> role is 'Admin', full module access!
-  // - Only if SuperAdmin is explicitly assigned as non-Admin in tenant -> role reflects that assigned role!
+  // SuperAdmin role & workspace sanitization:
+  // - If user is SuperAdmin and NOT mapped to any tenant -> role is 'SuperAdmin', activeTenantId is null, tenant is null!
+  // - If SuperAdmin IS mapped to a tenant workspace -> reflects that active workspace!
   useEffect(() => {
     if (user && isSuperAdmin) {
       const activeTenantId = tenant?.TenantId || user.activeTenantId;
-      const activeWs = Array.isArray(workspaces)
+      const activeWs = Array.isArray(workspaces) && workspaces.length > 0
         ? workspaces.find(w => String(w.tenantId || w.TenantId || '').toUpperCase() === String(activeTenantId || '').toUpperCase())
         : null;
 
-      if (!activeWs || String(activeWs.role || '').toLowerCase() === 'admin') {
-        if (String(user.role || '').toLowerCase() !== 'admin') {
-          const updated = { ...user, role: 'Admin', Role: 'Admin' };
-          setUser(updated);
-          localStorage.setItem('sr_crm_auth_user', JSON.stringify(updated));
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('CRM_NAVBAR_REFRESH', { detail: { role: 'Admin', tenantId: activeTenantId } }));
-          }
+      if (!activeWs) {
+        // SuperAdmin has NO tenant mapping: clean up any legacy/fake tenant data
+        let changed = false;
+        let updatedUser = { ...user };
+        if (updatedUser.role !== 'SuperAdmin') {
+          updatedUser.role = 'SuperAdmin';
+          updatedUser.Role = 'SuperAdmin';
+          changed = true;
+        }
+        if (updatedUser.activeTenantId) {
+          updatedUser.activeTenantId = null;
+          changed = true;
+        }
+        if (String(updatedUser.employeeCode || '').startsWith('GOOGLE_TEN') || String(updatedUser.employeeCode || '').startsWith('EMP_TEN')) {
+          updatedUser.employeeCode = updatedUser.userId || '';
+          changed = true;
+        }
+        if (changed) {
+          setUser(updatedUser);
+          localStorage.setItem('sr_crm_auth_user', JSON.stringify(updatedUser));
+        }
+        if (tenant) {
+          setTenant(null);
+          crmApi.setActiveTenant(null);
+          localStorage.removeItem('sr_crm_auth_tenant');
         }
       }
     }
@@ -225,7 +245,7 @@ export function AuthProvider({ children }) {
   //    then using TenantId, fetch CompanyName & Tagline from CENTRAL DB (Tenant_Master tab)
   useEffect(() => {
     if (!user) return;
-    const activeTenantId = tenant?.TenantId || tenant?.tenantId || user?.activeTenantId || 'TEN001';
+    const activeTenantId = tenant?.TenantId || tenant?.tenantId || user?.activeTenantId || null;
     crmApi.call('getTenantBranding', { 
       tenantId: activeTenantId,
       userId: user?.userId,
@@ -236,22 +256,34 @@ export function AuthProvider({ children }) {
           const newCompName = res.companyName;
           const newTagLine = res.tagLine || (isSuperAdmin ? 'SuperAdmin App' : 'Mutual Fund CRM');
 
-          setTenant(prev => {
-            if (prev?.CompanyName === newCompName && prev?.TagLine === newTagLine) return prev;
-            const updated = {
-              ...(prev || {}),
+          if (!isSuperAdmin || activeTenantId) {
+            setTenant(prev => {
+              if (!prev && !activeTenantId) return null;
+              if (prev?.CompanyName === newCompName && prev?.TagLine === newTagLine) return prev;
+              const updated = {
+                ...(prev || {}),
+                TenantId: res.tenantId || activeTenantId,
+                tenantId: res.tenantId || activeTenantId,
+                CompanyName: newCompName,
+                companyName: newCompName,
+                TagLine: newTagLine,
+                tagLine: newTagLine,
+                arnNumber: res.arnNumber || prev?.arnNumber || '',
+                ArnNumber: res.arnNumber || prev?.ArnNumber || ''
+              };
+              localStorage.setItem('sr_crm_auth_tenant', JSON.stringify(updated));
+              return updated;
+            });
+
+            crmApi.setActiveTenant({
               TenantId: res.tenantId || activeTenantId,
               tenantId: res.tenantId || activeTenantId,
               CompanyName: newCompName,
               companyName: newCompName,
               TagLine: newTagLine,
-              tagLine: newTagLine,
-              arnNumber: res.arnNumber || prev?.arnNumber || '',
-              ArnNumber: res.arnNumber || prev?.ArnNumber || ''
-            };
-            localStorage.setItem('sr_crm_auth_tenant', JSON.stringify(updated));
-            return updated;
-          });
+              tagLine: newTagLine
+            });
+          }
 
           setUser(prev => {
             if (!prev) return prev;
@@ -265,15 +297,6 @@ export function AuthProvider({ children }) {
             };
             localStorage.setItem('sr_crm_auth_user', JSON.stringify(updated));
             return updated;
-          });
-
-          crmApi.setActiveTenant({
-            TenantId: res.tenantId || activeTenantId,
-            tenantId: res.tenantId || activeTenantId,
-            CompanyName: newCompName,
-            companyName: newCompName,
-            TagLine: newTagLine,
-            tagLine: newTagLine
           });
 
           if (typeof window !== 'undefined') {

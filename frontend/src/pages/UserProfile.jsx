@@ -126,7 +126,7 @@ export default function UserProfile({ onOpenBackup }) {
                   {user?.name || 'Administrator'}
                 </h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.25rem' }}>
-                  <span className="badge badge-primary">{user?.role || 'Admin'}</span>
+                  <span className="badge badge-primary">{user?.role || (isSuperAdmin ? 'SuperAdmin' : 'Staff')}</span>
                   <span className="badge badge-neutral">{user?.status || 'Active'}</span>
                 </div>
               </div>
@@ -174,7 +174,7 @@ export default function UserProfile({ onOpenBackup }) {
                   type="text"
                   className="form-input"
                   style={{ backgroundColor: '#f8fafc', color: '#64748b' }}
-                  value={user?.role || (isSuperAdmin ? 'Admin' : 'Staff')}
+                  value={user?.role || (isSuperAdmin ? 'SuperAdmin' : 'Staff')}
                   disabled
                 />
               </div>
@@ -276,7 +276,7 @@ export default function UserProfile({ onOpenBackup }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
             <ShieldCheck size={20} color="#2563eb" />
             <h4 style={{ fontSize: '1rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
-              Your Active Permissions ({user?.role || (isSuperAdmin ? 'Admin' : 'Staff')})
+              Your Active Permissions ({user?.role || (isSuperAdmin ? 'SuperAdmin' : 'Staff')})
             </h4>
           </div>
 
