@@ -657,9 +657,16 @@ export default function Settings({ onOpenBackup }) {
                 </button>
               </div>
 
-              <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.5, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.5, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <div>
-                  Get this from <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" style={{ color: '#2563eb' }}>Google Cloud Console &gt; Credentials</a> (Type: Web application, Authorized JavaScript origin: <code>{typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173'}</code>).
+                  Configure in <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontWeight: '600' }}>Google Cloud Console &gt; Credentials</a> (Type: Web application).
+                </div>
+                <div style={{ backgroundColor: '#f8fafc', padding: '0.65rem 0.85rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                  <strong style={{ color: '#0f172a' }}>Authorized JavaScript origins (Add BOTH to avoid Error 400: origin_mismatch):</strong>
+                  <ul style={{ margin: '0.25rem 0 0 1.25rem', padding: 0 }}>
+                    <li><code>http://localhost:3000</code> <span style={{ color: '#64748b' }}>(for local dev)</span></li>
+                    <li><code>https://gopuu.github.io</code> <span style={{ color: '#64748b' }}>(for live GitHub Pages — no trailing slash!)</span></li>
+                  </ul>
                 </div>
                 <div style={{ color: '#059669', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <ShieldCheck size={14} />

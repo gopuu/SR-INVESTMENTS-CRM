@@ -815,9 +815,15 @@ export default function Login() {
                 </div>
                 <ol style={{ margin: 0, paddingLeft: '1.25rem' }}>
                   <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontWeight: '600' }}>Google Cloud Console Credentials <ExternalLink size={11} style={{ display: 'inline' }} /></a>.</li>
-                  <li>Click <strong>Create Credentials &gt; OAuth client ID</strong>.</li>
+                  <li>Click <strong>Create Credentials &gt; OAuth client ID</strong> (or click your existing Web Client ID).</li>
                   <li>Select <strong>Web application</strong>.</li>
-                  <li>In <em>Authorized JavaScript origins</em>, add your URL: <code>{typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173'}</code>.</li>
+                  <li>
+                    In <em>Authorized JavaScript origins</em>, add <strong>BOTH</strong> URLs:
+                    <ul style={{ margin: '0.25rem 0 0.25rem 1rem', padding: 0 }}>
+                      <li><code>http://localhost:3000</code></li>
+                      <li><code>https://gopuu.github.io</code> <em style={{ color: '#dc2626' }}>(Required to fix Error 400: origin_mismatch on live site)</em></li>
+                    </ul>
+                  </li>
                   <li>Copy the generated <strong>Client ID</strong> and paste below:</li>
                 </ol>
               </div>
