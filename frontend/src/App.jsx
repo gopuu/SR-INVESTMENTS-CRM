@@ -62,7 +62,8 @@ export default function App() {
       currentPage === 'superadmin' || 
       currentPage === 'user-master' || 
       currentPage === 'subscription-plans' || 
-      currentPage === 'tenant-user-mapping'
+      currentPage === 'tenant-user-mapping' ||
+      (isSuperAdmin && currentPage === 'settings')
     );
 
     if (isSuperAdmin) {
@@ -80,11 +81,12 @@ export default function App() {
 
   // Guard Module Permissions for non-Admins
   useEffect(() => {
+    if (isSuperAdmin) return;
     const requiredModule = PAGE_MODULE_MAP[currentPage];
     if (requiredModule && !hasPermission(requiredModule, 'CanView')) {
       setCurrentPage('home');
     }
-  }, [currentPage, hasPermission]);
+  }, [currentPage, isSuperAdmin, hasPermission]);
 
   if (!user) {
     return (

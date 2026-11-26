@@ -17,7 +17,7 @@ import RolesRights from './RolesRights';
 import { showSuccess, showError, showWarning } from '../utils/swal';
 
 export default function Settings({ onOpenBackup }) {
-  const { user, hasPermission } = useAuth();
+  const { user, isSuperAdmin, hasPermission } = useAuth();
   const [activeTab, setActiveTab] = useState('company');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -60,6 +60,13 @@ export default function Settings({ onOpenBackup }) {
       if (typeof unsub === 'function') unsub();
     };
   }, []);
+
+  // Ensure non-SuperAdmin cannot stay on backend configuration tab
+  useEffect(() => {
+    if (!isSuperAdmin && activeTab === 'backend') {
+      setActiveTab('company');
+    }
+  }, [isSuperAdmin, activeTab]);
 
   const loadSettings = async () => {
     setLoading(true);
@@ -294,24 +301,26 @@ export default function Settings({ onOpenBackup }) {
             <ShieldCheck size={16} /> User Rights & Permissions
           </button>
 
-          <button
-            onClick={() => setActiveTab('backend')}
-            style={{
-              padding: '0.75rem 1.25rem',
-              border: 'none',
-              background: 'transparent',
-              fontSize: '0.875rem',
-              fontWeight: '600',
-              color: activeTab === 'backend' ? '#2563eb' : '#64748b',
-              borderBottom: activeTab === 'backend' ? '2px solid #2563eb' : '2px solid transparent',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}
-          >
-            <Database size={16} /> Google Apps Script / Drive Sync
-          </button>
+          {isSuperAdmin && (
+            <button
+              onClick={() => setActiveTab('backend')}
+              style={{
+                padding: '0.75rem 1.25rem',
+                border: 'none',
+                background: 'transparent',
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                color: activeTab === 'backend' ? '#2563eb' : '#64748b',
+                borderBottom: activeTab === 'backend' ? '2px solid #2563eb' : '2px solid transparent',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+            >
+              <Database size={16} /> Google Apps Script / Drive Sync
+            </button>
+          )}
         </div>
 
         {/* Message Banner */}
@@ -451,6 +460,37 @@ export default function Settings({ onOpenBackup }) {
                 </button>
               </div>
             </form>
+
+            {/* Show Deleted Data Globally Setting (For Tenant Admins) */}
+            {!isSuperAdmin && (user?.role === 'Admin' || user?.isSuperUser || user?.IsSuperUser || user?.email?.includes('admin')) && (
+              <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', backgroundColor: '#f8fafc', padding: '1.25rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                      <ShieldCheck size={18} color="#2563eb" />
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
+                        Show Deleted Data Globally (Admin Only)
+                      </h4>
+                    </div>
+                    <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0, maxWidth: '650px' }}>
+                      When checked, archived / deleted records are displayed across Customers, Staff, and Master HUB tables.
+                    </p>
+                  </div>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer', backgroundColor: '#eff6ff', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                    <input
+                      type="checkbox"
+                      checked={showDeletedGlobally}
+                      onChange={(e) => handleToggleShowDeleted(e.target.checked)}
+                      style={{ width: '18px', height: '18px', accentColor: '#2563eb', cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: '0.85rem', fontWeight: '700', color: showDeletedGlobally ? '#1d4ed8' : '#475569' }}>
+                      {showDeletedGlobally ? 'Showing Deleted Data' : 'Active Data Only'}
+                    </span>
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -459,8 +499,8 @@ export default function Settings({ onOpenBackup }) {
           <RolesRights inline={true} />
         )}
 
-        {/* TAB 4: BACKEND CONNECTION */}
-        {activeTab === 'backend' && (
+        {/* TAB 4: BACKEND CONNECTION (SUPER ADMIN ONLY) */}
+        {activeTab === 'backend' && isSuperAdmin && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             {/* Show Deleted Data Globally Setting (Admin Only) */}
             {(user?.role === 'Admin' || user?.isSuperUser || user?.IsSuperUser || user?.email?.includes('admin')) && (

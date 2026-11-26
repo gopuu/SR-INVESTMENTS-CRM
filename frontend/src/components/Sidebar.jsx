@@ -69,7 +69,8 @@ export default function Sidebar({ currentPage, onNavigate }) {
     { id: 'superadmin', label: 'Tenant Master', icon: Building2, module: null },
     { id: 'user-master', label: 'User Master', icon: Users, module: null },
     { id: 'tenant-user-mapping', label: 'Tenant-User Mapping', icon: UserCheck, module: null },
-    { id: 'subscription-plans', label: 'Subscription Plans', icon: CreditCard, module: null }
+    { id: 'subscription-plans', label: 'Subscription Plans', icon: CreditCard, module: null },
+    { id: 'settings', label: 'Settings', icon: Settings, module: null }
   ];
 
   const renderNavItem = (item, isModuleSection = false) => {
@@ -85,7 +86,7 @@ export default function Sidebar({ currentPage, onNavigate }) {
       if (isSuperAdmin && isModuleSection) {
         showError(
           'SuperAdmin Restricted',
-          'SuperAdmin accounts are restricted to the Super Admin navbar (Tenant Master, User Master, Tenant-User Mapping, Subscription Plans).'
+          'SuperAdmin accounts are restricted to the Super Admin navbar (Tenant Master, User Master, Tenant-User Mapping, Subscription Plans, Settings).'
         );
         return;
       }
