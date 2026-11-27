@@ -299,24 +299,24 @@ const SEED_DATA = {
     }
   ],
   rights: [
-    { Role: 'Admin', Module: 'Dashboard', CanView: true, CanCreate: true, CanEdit: true, CanDelete: true },
-    { Role: 'Admin', Module: 'Customers', CanView: true, CanCreate: true, CanEdit: true, CanDelete: true },
-    { Role: 'Admin', Module: 'Staff', CanView: true, CanCreate: true, CanEdit: true, CanDelete: true },
-    { Role: 'Admin', Module: 'MasterHub', CanView: true, CanCreate: true, CanEdit: true, CanDelete: true },
-    { Role: 'Admin', Module: 'Settings', CanView: true, CanCreate: true, CanEdit: true, CanDelete: true },
-    { Role: 'Admin', Module: 'DriveBackup', CanView: true, CanCreate: true, CanEdit: true, CanDelete: true },
-    { Role: 'Relationship Manager', Module: 'Dashboard', CanView: true, CanCreate: false, CanEdit: false, CanDelete: false },
-    { Role: 'Relationship Manager', Module: 'Customers', CanView: true, CanCreate: true, CanEdit: true, CanDelete: false },
-    { Role: 'Relationship Manager', Module: 'Staff', CanView: true, CanCreate: false, CanEdit: false, CanDelete: false },
-    { Role: 'Relationship Manager', Module: 'MasterHub', CanView: true, CanCreate: false, CanEdit: false, CanDelete: false },
-    { Role: 'Relationship Manager', Module: 'Settings', CanView: false, CanCreate: false, CanEdit: false, CanDelete: false },
-    { Role: 'Relationship Manager', Module: 'DriveBackup', CanView: false, CanCreate: false, CanEdit: false, CanDelete: false },
-    { Role: 'Backoffice Staff', Module: 'Dashboard', CanView: true, CanCreate: false, CanEdit: false, CanDelete: false },
-    { Role: 'Backoffice Staff', Module: 'Customers', CanView: true, CanCreate: true, CanEdit: true, CanDelete: false },
-    { Role: 'Backoffice Staff', Module: 'Staff', CanView: false, CanCreate: false, CanEdit: false, CanDelete: false },
-    { Role: 'Backoffice Staff', Module: 'MasterHub', CanView: true, CanCreate: false, CanEdit: false, CanDelete: false },
-    { Role: 'Backoffice Staff', Module: 'Settings', CanView: false, CanCreate: false, CanEdit: false, CanDelete: false },
-    { Role: 'Backoffice Staff', Module: 'DriveBackup', CanView: false, CanCreate: false, CanEdit: false, CanDelete: false }
+    { Role: 'Admin', UserId: '', Module: 'Dashboard', CanView: true, CanCreate: true, CanEdit: true, CanDelete: true },
+    { Role: 'Admin', UserId: '', Module: 'Customers', CanView: true, CanCreate: true, CanEdit: true, CanDelete: true },
+    { Role: 'Admin', UserId: '', Module: 'Staff', CanView: true, CanCreate: true, CanEdit: true, CanDelete: true },
+    { Role: 'Admin', UserId: '', Module: 'MasterHub', CanView: true, CanCreate: true, CanEdit: true, CanDelete: true },
+    { Role: 'Admin', UserId: '', Module: 'Settings', CanView: true, CanCreate: true, CanEdit: true, CanDelete: true },
+    { Role: 'Admin', UserId: '', Module: 'DriveBackup', CanView: true, CanCreate: true, CanEdit: true, CanDelete: true },
+    { Role: 'Relationship Manager', UserId: '', Module: 'Dashboard', CanView: true, CanCreate: false, CanEdit: false, CanDelete: false },
+    { Role: 'Relationship Manager', UserId: '', Module: 'Customers', CanView: true, CanCreate: true, CanEdit: true, CanDelete: false },
+    { Role: 'Relationship Manager', UserId: '', Module: 'Staff', CanView: true, CanCreate: false, CanEdit: false, CanDelete: false },
+    { Role: 'Relationship Manager', UserId: '', Module: 'MasterHub', CanView: true, CanCreate: false, CanEdit: false, CanDelete: false },
+    { Role: 'Relationship Manager', UserId: '', Module: 'Settings', CanView: false, CanCreate: false, CanEdit: false, CanDelete: false },
+    { Role: 'Relationship Manager', UserId: '', Module: 'DriveBackup', CanView: false, CanCreate: false, CanEdit: false, CanDelete: false },
+    { Role: 'Backoffice Staff', UserId: '', Module: 'Dashboard', CanView: true, CanCreate: false, CanEdit: false, CanDelete: false },
+    { Role: 'Backoffice Staff', UserId: '', Module: 'Customers', CanView: true, CanCreate: true, CanEdit: true, CanDelete: false },
+    { Role: 'Backoffice Staff', UserId: '', Module: 'Staff', CanView: false, CanCreate: false, CanEdit: false, CanDelete: false },
+    { Role: 'Backoffice Staff', UserId: '', Module: 'MasterHub', CanView: true, CanCreate: false, CanEdit: false, CanDelete: false },
+    { Role: 'Backoffice Staff', UserId: '', Module: 'Settings', CanView: false, CanCreate: false, CanEdit: false, CanDelete: false },
+    { Role: 'Backoffice Staff', UserId: '', Module: 'DriveBackup', CanView: false, CanCreate: false, CanEdit: false, CanDelete: false }
   ],
   departments: [
     { DepartmentId: 'DEP_01', DepartmentCode: 'WM', DepartmentName: 'Wealth Management', Description: 'Client advisory & wealth portfolios', Status: 'Active', IsDeleted: false },
@@ -4006,12 +4006,50 @@ export const crmApi = {
       }
 
       case 'getRolesRights': {
-        return JSON.parse(localStorage.getItem(STORAGE_KEYS.RIGHTS) || JSON.stringify(SEED_DATA.rights));
+        const stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.RIGHTS) || JSON.stringify(SEED_DATA.rights));
+        return (Array.isArray(stored) ? stored : []).map(r => ({
+          ...r,
+          UserId: r.UserId || ''
+        }));
       }
 
       case 'saveRolesRights': {
-        localStorage.setItem(STORAGE_KEYS.RIGHTS, JSON.stringify(payload));
-        return { success: true, message: 'Role permissions saved.' };
+        const existing = JSON.parse(localStorage.getItem(STORAGE_KEYS.RIGHTS) || JSON.stringify(SEED_DATA.rights));
+        let updated = [];
+
+        if (payload && payload.targetType === 'RESET_USER' && (payload.targetUserId || payload.userId)) {
+          const uid = String(payload.targetUserId || payload.userId).toLowerCase();
+          updated = existing.filter(r => String(r.UserId || '').toLowerCase() !== uid);
+        } else if (payload && payload.targetType === 'USER' && (payload.targetUserId || payload.userId)) {
+          const uid = String(payload.targetUserId || payload.userId).toLowerCase();
+          const other = existing.filter(r => String(r.UserId || '').toLowerCase() !== uid);
+          const newRows = (payload.rights || []).map(r => ({
+            ...r,
+            UserId: payload.targetUserId || payload.userId
+          }));
+          updated = other.concat(newRows);
+        } else if (payload && payload.targetType === 'ROLE' && payload.targetRole && payload.targetRole !== 'ALL') {
+          const role = String(payload.targetRole).toLowerCase();
+          const other = existing.filter(r => !(String(r.Role || '').toLowerCase() === role && (!r.UserId || r.UserId === '')));
+          const newRows = (payload.rights || []).map(r => ({
+            ...r,
+            Role: payload.targetRole,
+            UserId: ''
+          }));
+          updated = other.concat(newRows);
+        } else if (Array.isArray(payload)) {
+          updated = payload;
+        } else if (Array.isArray(payload.rights)) {
+          const userCustoms = existing.filter(r => r.UserId && r.UserId !== '');
+          const inputUserIds = new Set(payload.rights.filter(r => r.UserId).map(r => String(r.UserId).toLowerCase()));
+          const preserved = userCustoms.filter(r => !inputUserIds.has(String(r.UserId).toLowerCase()));
+          updated = payload.rights.concat(preserved);
+        } else {
+          updated = existing;
+        }
+
+        localStorage.setItem(STORAGE_KEYS.RIGHTS, JSON.stringify(updated));
+        return { success: true, message: 'Permissions saved successfully.' };
       }
 
       case 'getApprovalSettings': {

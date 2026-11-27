@@ -379,7 +379,7 @@ function loginUser_(username, password) {
         tagLine: resolvedTagLine,
         TagLine: resolvedTagLine
       } : null,
-      rights: getRolePermissions_(activeRole),
+      rights: getRolePermissions_(activeRole, primaryTenant ? primaryTenant.tenantId : null, userMasterMatched.UserId),
       token: "SR_" + Utilities.getUuid()
     };
   }
@@ -454,7 +454,7 @@ function loginUser_(username, password) {
       lastLogin: new Date().toISOString()
     },
     tenant: primaryTenant,
-    rights: getRolePermissions_(staff.Role || "Staff"),
+    rights: getRolePermissions_(staff.Role || "Staff", "TEN001", staff.EmployeeCode || staff.EmployeeId),
     token: "SR_" + Utilities.getUuid()
   };
 }
@@ -601,7 +601,7 @@ function googleLogin_(googleEmail, googleName) {
       tagLine: resolvedTagLine,
       TagLine: resolvedTagLine
     } : null,
-    rights: getRolePermissions_(activeGoogleRole),
+    rights: getRolePermissions_(activeGoogleRole, primaryTenant ? primaryTenant.tenantId : null, userId),
     token: "GOOGLE_" + Utilities.getUuid()
   };
 }
@@ -690,7 +690,7 @@ function selectTenant_(payload) {
       role: role,
       status: tenant ? tenant.Status : "Active"
     },
-    rights: getRolePermissions_(role, tenantId),
+    rights: getRolePermissions_(role, tenantId, userId),
     token: "SR_TEN_" + Utilities.getUuid()
   };
 }
@@ -986,29 +986,139 @@ function getRolesRights_(payload) {
   payload = payload || {};
   const tenantId = payload.tenantId || payload.activeTenantId || null;
   const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.RIGHTS, CRM_SCHEMAS.RIGHTS, tenantId);
-  return getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.RIGHTS);
+  const rows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.RIGHTS);
+  return rows.map(r => ({
+    ...r,
+    Role: cleanStr_(r.Role),
+    UserId: cleanStr_(r.UserId || ""),
+    Module: cleanStr_(r.Module),
+    CanView: Boolean(r.CanView === true || r.CanView === "true" || r.CanView === 1),
+    CanCreate: Boolean(r.CanCreate === true || r.CanCreate === "true" || r.CanCreate === 1),
+    CanEdit: Boolean(r.CanEdit === true || r.CanEdit === "true" || r.CanEdit === 1),
+    CanDelete: Boolean(r.CanDelete === true || r.CanDelete === "true" || r.CanDelete === 1)
+  }));
 }
 
+/**
+ * Saves roles and rights.
+ * Supports:
+ * - Scoped user custom permissions (targetType: "USER", targetUserId)
+ * - User custom permission reset (targetType: "RESET_USER", targetUserId)
+ * - Role baseline permissions (targetType: "ROLE", targetRole)
+ * - Full matrix array sync (backward compatible)
+ */
 function saveRolesRights_(payload) {
   payload = payload || {};
   const tenantId = payload.tenantId || payload.activeTenantId || null;
-  const rightsArray = Array.isArray(payload) ? payload : (payload.rights || payload.data || []);
-  if (!Array.isArray(rightsArray)) throw new Error("Invalid rights format.");
+  const userEmail = payload.userEmail || "admin@srinvestments.com";
+  const now = new Date().toISOString();
+
   const sheet = getOrCreateSheet_(CRM_CONFIG.SHEETS.RIGHTS, CRM_SCHEMAS.RIGHTS, tenantId);
+  const existingRows = getSheetRowsAsObjects_(sheet, CRM_SCHEMAS.RIGHTS);
+
+  const targetType = cleanStr_(payload.targetType || "").toUpperCase();
+  const targetUserId = cleanStr_(payload.targetUserId || payload.userId || "");
+  const targetRole = cleanStr_(payload.targetRole || payload.role || "");
+  const inputRights = Array.isArray(payload) ? payload : (payload.rights || payload.data || []);
+
+  let finalRows = [];
+
+  if (targetType === "RESET_USER" && targetUserId) {
+    // Revert user to role defaults by removing their custom override rows
+    finalRows = existingRows.filter(r => 
+      cleanStr_(r.UserId).toLowerCase() !== targetUserId.toLowerCase()
+    );
+    logAudit_(userEmail, "RESET_USER_RIGHTS", "RolesRights", "Custom permissions reset to role defaults for user: " + targetUserId);
+
+  } else if (targetType === "USER" && targetUserId) {
+    // Preserve all existing rows except those for this specific user
+    const otherRows = existingRows.filter(r => 
+      cleanStr_(r.UserId).toLowerCase() !== targetUserId.toLowerCase()
+    );
+    const newRows = inputRights.map(r => ({
+      Role: cleanStr_(r.Role || targetRole),
+      UserId: targetUserId,
+      Module: cleanStr_(r.Module),
+      CanView: Boolean(r.CanView === true || r.CanView === "true" || r.CanView === 1),
+      CanCreate: Boolean(r.CanCreate === true || r.CanCreate === "true" || r.CanCreate === 1),
+      CanEdit: Boolean(r.CanEdit === true || r.CanEdit === "true" || r.CanEdit === 1),
+      CanDelete: Boolean(r.CanDelete === true || r.CanDelete === "true" || r.CanDelete === 1),
+      IsDeleted: false,
+      Created_By: r.Created_By || userEmail,
+      Created_At: r.Created_At || now,
+      Updated_By: userEmail,
+      Updated_At: now,
+      Deleted_By: "",
+      Deleted_At: ""
+    }));
+    finalRows = otherRows.concat(newRows);
+    logAudit_(userEmail, "UPDATE_USER_RIGHTS", "RolesRights", "Custom permissions saved for user: " + targetUserId);
+
+  } else if (targetType === "ROLE" && targetRole && targetRole !== "ALL") {
+    // Update baseline for a single role, keep all user overrides and other roles intact
+    const otherRows = existingRows.filter(r => 
+      !(cleanStr_(r.Role).toLowerCase() === targetRole.toLowerCase() && (!r.UserId || cleanStr_(r.UserId) === ""))
+    );
+    const newRows = inputRights.map(r => ({
+      Role: targetRole,
+      UserId: "",
+      Module: cleanStr_(r.Module),
+      CanView: Boolean(r.CanView === true || r.CanView === "true" || r.CanView === 1),
+      CanCreate: Boolean(r.CanCreate === true || r.CanCreate === "true" || r.CanCreate === 1),
+      CanEdit: Boolean(r.CanEdit === true || r.CanEdit === "true" || r.CanEdit === 1),
+      CanDelete: Boolean(r.CanDelete === true || r.CanDelete === "true" || r.CanDelete === 1),
+      IsDeleted: false,
+      Created_By: r.Created_By || userEmail,
+      Created_At: r.Created_At || now,
+      Updated_By: userEmail,
+      Updated_At: now,
+      Deleted_By: "",
+      Deleted_At: ""
+    }));
+    finalRows = otherRows.concat(newRows);
+    logAudit_(userEmail, "UPDATE_ROLE_RIGHTS", "RolesRights", "Baseline permissions updated for role: " + targetRole);
+
+  } else {
+    // Full sync / ALL Roles:
+    // If inputRights has entries, we preserve existing user custom rows unless explicitly overwritten in inputRights
+    const userCustomRows = existingRows.filter(r => cleanStr_(r.UserId) !== "");
+    const inputUserIds = new Set(inputRights.filter(r => cleanStr_(r.UserId) !== "").map(r => cleanStr_(r.UserId).toLowerCase()));
+    const preservedUserCustom = userCustomRows.filter(r => !inputUserIds.has(cleanStr_(r.UserId).toLowerCase()));
+
+    const formattedInput = inputRights.map(r => ({
+      Role: cleanStr_(r.Role),
+      UserId: cleanStr_(r.UserId || ""),
+      Module: cleanStr_(r.Module),
+      CanView: Boolean(r.CanView === true || r.CanView === "true" || r.CanView === 1),
+      CanCreate: Boolean(r.CanCreate === true || r.CanCreate === "true" || r.CanCreate === 1),
+      CanEdit: Boolean(r.CanEdit === true || r.CanEdit === "true" || r.CanEdit === 1),
+      CanDelete: Boolean(r.CanDelete === true || r.CanDelete === "true" || r.CanDelete === 1),
+      IsDeleted: false,
+      Created_By: r.Created_By || userEmail,
+      Created_At: r.Created_At || now,
+      Updated_By: userEmail,
+      Updated_At: now,
+      Deleted_By: "",
+      Deleted_At: ""
+    }));
+
+    finalRows = formattedInput.concat(preservedUserCustom);
+    logAudit_(userEmail, "UPDATE_RIGHTS", "RolesRights", "Permissions matrix updated");
+  }
+
+  // Rewrite sheet cleanly
   sheet.clearContents();
   sheet.getRange(1, 1, 1, CRM_SCHEMAS.RIGHTS.length).setValues([CRM_SCHEMAS.RIGHTS]);
 
-  const now = new Date().toISOString();
-  const userEmail = payload.userEmail || "admin@srinvestments.com";
-
-  const rows = rightsArray.map(r => [
+  const outputRows = finalRows.map(r => [
     cleanStr_(r.Role),
+    cleanStr_(r.UserId || ""),
     cleanStr_(r.Module),
     Boolean(r.CanView === true || r.CanView === "true" || r.CanView === 1),
     Boolean(r.CanCreate === true || r.CanCreate === "true" || r.CanCreate === 1),
     Boolean(r.CanEdit === true || r.CanEdit === "true" || r.CanEdit === 1),
     Boolean(r.CanDelete === true || r.CanDelete === "true" || r.CanDelete === 1),
-    false,
+    Boolean(r.IsDeleted === true || r.IsDeleted === "true"),
     r.Created_By || userEmail,
     r.Created_At || now,
     userEmail,
@@ -1017,19 +1127,92 @@ function saveRolesRights_(payload) {
     ""
   ]);
 
-  if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, CRM_SCHEMAS.RIGHTS.length).setValues(rows);
+  if (outputRows.length > 0) {
+    sheet.getRange(2, 1, outputRows.length, CRM_SCHEMAS.RIGHTS.length).setValues(outputRows);
   }
 
-  logAudit_(userEmail, "UPDATE_RIGHTS", "RolesRights", "Role permissions updated");
   return { success: true, message: "Permissions updated successfully." };
 }
 
-function getRolePermissions_(role, tenantId) {
+/**
+ * Resolves effective permissions for a user within a tenant.
+ * Hierarchy:
+ * 1. If user is Admin -> All permissions granted.
+ * 2. If user has custom override permissions (UserId === userId) for a module -> Custom permissions apply.
+ * 3. Fallback to Role baseline permissions (UserId is empty).
+ */
+function getRolePermissions_(role, tenantId, userId) {
   try {
+    const cleanRole = String(role || "Staff").trim();
+    const isAdmin = cleanRole.toLowerCase() === "admin";
+    const cleanUid = cleanStr_(userId);
+
     const rights = getRolesRights_({ tenantId: tenantId });
-    return rights.filter(r => String(r.Role).toLowerCase() === String(role).toLowerCase());
+    const standardModules = [
+      "Dashboard", "Customers", "Staff", "MasterDepartments",
+      "MasterDesignations", "MasterRoles", "RolesRights", "MasterHub",
+      "Settings", "DriveBackup"
+    ];
+
+    // Find custom user rights if userId is specified
+    const userCustomRights = cleanUid 
+      ? rights.filter(r => !r.IsDeleted && cleanStr_(r.UserId).toLowerCase() === cleanUid.toLowerCase())
+      : [];
+
+    // Find baseline role rights
+    const roleBaselineRights = rights.filter(r => 
+      !r.IsDeleted && 
+      (!r.UserId || cleanStr_(r.UserId) === "") &&
+      String(r.Role).toLowerCase() === cleanRole.toLowerCase()
+    );
+
+    const effectiveRights = standardModules.map(modKey => {
+      // 1. Check user custom override first
+      const customMod = userCustomRights.find(r => cleanStr_(r.Module).toLowerCase() === modKey.toLowerCase());
+      if (customMod) {
+        return {
+          Role: cleanRole,
+          UserId: cleanUid,
+          Module: modKey,
+          CanView: Boolean(customMod.CanView),
+          CanCreate: Boolean(customMod.CanCreate),
+          CanEdit: Boolean(customMod.CanEdit),
+          CanDelete: Boolean(customMod.CanDelete),
+          IsCustom: true
+        };
+      }
+
+      // 2. Check role baseline
+      const roleMod = roleBaselineRights.find(r => cleanStr_(r.Module).toLowerCase() === modKey.toLowerCase());
+      if (roleMod) {
+        return {
+          Role: cleanRole,
+          UserId: "",
+          Module: modKey,
+          CanView: Boolean(roleMod.CanView),
+          CanCreate: Boolean(roleMod.CanCreate),
+          CanEdit: Boolean(roleMod.CanEdit),
+          CanDelete: Boolean(roleMod.CanDelete),
+          IsCustom: false
+        };
+      }
+
+      // 3. Admin fallback
+      return {
+        Role: cleanRole,
+        UserId: "",
+        Module: modKey,
+        CanView: isAdmin,
+        CanCreate: isAdmin,
+        CanEdit: isAdmin,
+        CanDelete: isAdmin,
+        IsCustom: false
+      };
+    });
+
+    return effectiveRights;
   } catch (e) {
+    Logger.log("getRolePermissions_ error: " + e.message);
     return [];
   }
 }

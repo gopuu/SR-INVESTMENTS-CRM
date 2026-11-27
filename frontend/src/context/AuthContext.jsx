@@ -343,8 +343,31 @@ export function AuthProvider({ children }) {
     }
 
     // 3. If non-Admin (or SuperAdmin explicitly mapped as non-Admin),
-    // rights must be assigned from the active tenant's RolesRights matrix
+    // rights are evaluated hierarchically: User-level custom override -> Role baseline -> General matrix
     if (!moduleName) return true;
+
+    const curUserId = String(user.userId || user.UserId || user.employeeCode || user.email || '').trim().toLowerCase();
+
+    // 3a. Check User-specific custom permission override
+    const userCustom = rights.find(
+      r => r.UserId && String(r.UserId).trim().toLowerCase() === curUserId &&
+           r.Module && r.Module.toLowerCase() === moduleName.toLowerCase()
+    );
+    if (userCustom) {
+      return Boolean(userCustom[action]);
+    }
+
+    // 3b. Check Role-level baseline permission (where UserId is empty)
+    const rolePermission = rights.find(
+      r => (!r.UserId || String(r.UserId).trim() === '') &&
+           r.Role && r.Role.toLowerCase() === currentRole.toLowerCase() &&
+           r.Module && r.Module.toLowerCase() === moduleName.toLowerCase()
+    );
+    if (rolePermission) {
+      return Boolean(rolePermission[action]);
+    }
+
+    // 3c. Fallback for pre-resolved effective permissions (e.g. from login session)
     const permission = rights.find(
       r => r.Module && r.Module.toLowerCase() === moduleName.toLowerCase()
     );
