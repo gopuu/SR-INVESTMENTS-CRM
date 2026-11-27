@@ -4277,6 +4277,13 @@ function deduplicateDefaultConfig_(sheet) {
     const valColIdx = headers.indexOf("Value");
     if (keyColIdx === -1) return;
 
+    // Keys that must NEVER exist in Default-Config sheet (belong exclusively in User_Master, etc.)
+    const INVALID_CONFIG_KEYS = [
+      "userid", "issuperadmin", "tenantid", "activetenantid",
+      "useremail", "username", "role", "workspaces", "password",
+      "status", "rights", "action", "_silent"
+    ];
+
     const seenKeys = {}; // keyLower -> { rowNum, hasValue }
     const rowsToDelete = [];
 
@@ -4286,6 +4293,12 @@ function deduplicateDefaultConfig_(sheet) {
       if (!rawKey) continue;
       const keyLower = rawKey.toLowerCase();
       const rawVal = valColIdx !== -1 ? String(data[i][valColIdx] || "").trim() : "";
+
+      // 1. Purge user/session keys that do not belong in global Default-Config
+      if (INVALID_CONFIG_KEYS.indexOf(keyLower) !== -1) {
+        rowsToDelete.push(rowNum);
+        continue;
+      }
 
       if (seenKeys[keyLower]) {
         // Duplicate key encountered!
@@ -4306,11 +4319,13 @@ function deduplicateDefaultConfig_(sheet) {
     }
 
     if (rowsToDelete.length > 0) {
-      Logger.log("[DEDUPLICATE_CONFIG] Found " + rowsToDelete.length + " duplicate rows in Default-Config. Deleting...");
-      for (let j = rowsToDelete.length - 1; j >= 0; j--) {
+      Logger.log("[DEDUPLICATE_CONFIG] Found " + rowsToDelete.length + " duplicate or invalid rows in Default-Config. Deleting...");
+      // Sort descending so deleting rows from bottom-up does not shift indices
+      rowsToDelete.sort(function(a, b) { return b - a; });
+      for (let j = 0; j < rowsToDelete.length; j++) {
         sheet.deleteRow(rowsToDelete[j]);
       }
-      Logger.log("[DEDUPLICATE_CONFIG] Successfully purged duplicate rows from Default-Config.");
+      Logger.log("[DEDUPLICATE_CONFIG] Successfully purged duplicate & invalid user rows from Default-Config.");
     }
   } catch (err) {
     Logger.log("[DEDUPLICATE_CONFIG_ERROR] " + err.message);
@@ -4330,11 +4345,17 @@ function saveDefaultConfig_(payload) {
   const upByCol = getHeaderColIndex_(sheet, "Updated_By");
   const upAtCol = getHeaderColIndex_(sheet, "Updated_At");
 
+  const BLOCKED_CONFIG_KEYS = [
+    "userid", "issuperadmin", "tenantid", "activetenantid",
+    "useremail", "username", "role", "workspaces", "password",
+    "status", "rights", "action", "_silent"
+  ];
+
   Object.keys(configs).forEach(key => {
-    if (key === "userEmail" || key === "userName" || key === "tenantId" || key === "activeTenantId") return;
-    const val = String(configs[key] ?? "").trim();
     const cleanKey = String(key).trim();
     if (!cleanKey) return;
+    if (BLOCKED_CONFIG_KEYS.indexOf(cleanKey.toLowerCase()) !== -1) return;
+    const val = String(configs[key] ?? "").trim();
     const idx = rows.findIndex(r => String(r.Key || "").trim().toLowerCase() === cleanKey.toLowerCase());
 
     if (idx >= 0) {

@@ -1300,13 +1300,22 @@ export const crmApi = {
 
   /**
    * Saves updated configuration to Central_SaaS_Master_DB tab 'Default-Config'
+   * Strictly filters out user session metadata (userId, isSuperAdmin) which belong in User_Master
    */
   async saveDefaultConfig(configs = {}) {
+    const BLOCKED_KEYS = ['userid', 'issuperadmin', 'tenantid', 'activetenantid', 'useremail', 'username', 'role', 'workspaces', 'password', 'status', 'rights', 'action', '_silent'];
+    const cleanConfigs = {};
+    Object.keys(configs || {}).forEach(k => {
+      if (!BLOCKED_KEYS.includes(k.toLowerCase())) {
+        cleanConfigs[k] = configs[k];
+      }
+    });
+
     if (this.isDemoMode()) {
-      if (configs.GoogleClientId) this.setGoogleClientId(configs.GoogleClientId);
+      if (cleanConfigs.GoogleClientId) this.setGoogleClientId(cleanConfigs.GoogleClientId);
       return { success: true, message: 'Saved to demo storage' };
     }
-    const res = await this.call('saveDefaultConfig', configs);
+    const res = await this.call('saveDefaultConfig', { configs: cleanConfigs });
     if (res && (res.data || res.success)) {
       await this.fetchDefaultConfig(true);
     }
